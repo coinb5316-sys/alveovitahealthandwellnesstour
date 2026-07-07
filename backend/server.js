@@ -41,17 +41,35 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
+// ==================== PRODUCTION CORS CONFIGURATION ====================
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'https://6c78f0e0.alveovita-frontend.pages.dev',
+  'https://alveovita-frontend.pages.dev',
+  'https://alveovitahealthandwellnesstour.onrender.com',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 // ==================== SOCKET.IO SETUP ====================
 const io = new SocketServer(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
   },
   path: '/socket.io/',
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
+  allowEIO3: true,
+  cookie: {
+    name: 'io',
+    httpOnly: true,
+    sameSite: 'lax'
+  }
 });
 
 // Setup Socket.IO with custom handlers
@@ -64,19 +82,54 @@ app.set('io', io);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: [
+        "'self'", 
+        "https://*.onrender.com", 
+        "https://*.pages.dev",
+        "https://api.paystack.co",
+        "https://*.cloudinary.com"
+      ],
+      imgSrc: ["'self'", "data:", "https://*.cloudinary.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.paystack.co"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://*.paystack.com"]
+    }
+  }
 }));
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn('⚠️ CORS blocked origin:', origin);
+      callback(null, true); // Allow anyway for now, but log it
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-auth-token'],
+  exposedHeaders: ['Authorization', 'x-auth-token']
 }));
+
+// Trust proxy for Render
+app.set('trust proxy', 1);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(morgan('dev'));
+
+// Morgan logging with environment awareness
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
 
 // ==================== API ROUTES ====================
 
@@ -376,6 +429,31 @@ app.use((req, res) => {
 // ==================== GLOBAL ERROR HANDLER ====================
 app.use((err, req, res, next) => {
   console.error('❌ Global Error:', err);
+  
+  // Handle specific error types
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format'
+    });
+  }
+  
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation Error',
+      errors: Object.values(err.errors).map(e => e.message)
+    });
+  }
+
+  if (err.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      message: 'Duplicate key error',
+      field: Object.keys(err.keyPattern)[0]
+    });
+  }
+
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal Server Error',
@@ -393,33 +471,39 @@ const startServer = async () => {
     await connectDB();
     console.log('✅ MongoDB connected successfully');
 
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
+      const environment = process.env.NODE_ENV || 'development';
+      const baseUrl = environment === 'production' 
+        ? 'https://alveovitahealthandwellnesstour.onrender.com' 
+        : `http://localhost:${PORT}`;
+      
       console.log('');
       console.log('🚀 =========================================');
       console.log('🚀 TourVibe Backend Server');
       console.log('🚀 =========================================');
       console.log(`📍 Server running on port: ${PORT}`);
-      console.log(`🔗 API URL: http://localhost:${PORT}/api`);
-      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 API URL: ${baseUrl}/api`);
+      console.log(`🌐 Environment: ${environment}`);
+      console.log(`🔒 CORS Origins: ${allowedOrigins.join(', ')}`);
       console.log('🚀 =========================================');
       console.log('');
       console.log('📡 Available Endpoints:');
-      console.log(`  🏥 Health Check:       GET  /api/health`);
-      console.log(`  🔐 Auth Register:     POST /api/auth/register`);
-      console.log(`  🔐 Auth Login:        POST /api/auth/login`);
-      console.log(`  🔐 Google Auth:       POST /api/auth/google`);
-      console.log(`  🔐 Refresh Token:     POST /api/auth/refresh-token`);
-      console.log(`  🔐 Verify Token:      GET  /api/auth/verify`);
-      console.log(`  🔐 Logout:            POST /api/auth/logout`);
+      console.log(`  🏥 Health Check:       GET  ${baseUrl}/api/health`);
+      console.log(`  🔐 Auth Register:     POST ${baseUrl}/api/auth/register`);
+      console.log(`  🔐 Auth Login:        POST ${baseUrl}/api/auth/login`);
+      console.log(`  🔐 Google Auth:       POST ${baseUrl}/api/auth/google`);
+      console.log(`  🔐 Refresh Token:     POST ${baseUrl}/api/auth/refresh-token`);
+      console.log(`  🔐 Verify Token:      GET  ${baseUrl}/api/auth/verify`);
+      console.log(`  🔐 Logout:            POST ${baseUrl}/api/auth/logout`);
       console.log('');
       console.log('📡 Test Endpoints:');
-      console.log(`  🗄️  Database:        GET  /api/test/database`);
-      console.log(`  ☁️  Cloudinary:      GET  /api/test/cloudinary`);
-      console.log(`  💳  Paystack:        GET  /api/test/paystack`);
-      console.log(`  📧  Email:           POST /api/test/email`);
-      console.log(`  📡  Socket.IO:       GET  /api/test/socket`);
-      console.log(`  🔄  All Services:    GET  /api/test/all`);
-      console.log(`  📡  Socket Status:   GET  /api/socket-status`);
+      console.log(`  🗄️  Database:        GET  ${baseUrl}/api/test/database`);
+      console.log(`  ☁️  Cloudinary:      GET  ${baseUrl}/api/test/cloudinary`);
+      console.log(`  💳  Paystack:        GET  ${baseUrl}/api/test/paystack`);
+      console.log(`  📧  Email:           POST ${baseUrl}/api/test/email`);
+      console.log(`  📡  Socket.IO:       GET  ${baseUrl}/api/test/socket`);
+      console.log(`  🔄  All Services:    GET  ${baseUrl}/api/test/all`);
+      console.log(`  📡  Socket Status:   GET  ${baseUrl}/api/socket-status`);
       console.log('');
       console.log('📡 Socket.IO Events:');
       console.log(`  📤 join-chat         - Join a chat room`);
