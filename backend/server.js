@@ -1,0 +1,480 @@
+// server.js
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import { createServer } from 'http';
+import { Server as SocketServer } from 'socket.io';
+
+// Import configurations
+import connectDB from './config/database.js';
+import cloudinary from './config/cloudinary.js';
+import paystack from './config/paystack.js';
+import { sendEmail } from './config/email.js';
+
+// ==================== IMPORT ROUTES ====================
+import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import adminProfileRoutes from './routes/adminProfileRoutes.js';
+import tourRoutes from './routes/tourRoutes.js';
+import hotelRoutes from './routes/hotelRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import destinationRoutes from './routes/destinationRoutes.js';
+import revenueRoutes from './routes/revenueRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
+import experienceRoutes from './routes/experienceRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
+import autoReplyRoutes from './routes/autoReplyRoutes.js';
+import chatSessionRoutes from './routes/chatSessionRoutes.js';
+
+// ==================== SOCKET.IO IMPORTS ====================
+import { setupSocketIO } from './routes/socketRoutes.js';
+
+// Load environment variables
+dotenv.config();
+
+// Initialize express app
+const app = express();
+const server = createServer(app);
+
+// ==================== SOCKET.IO SETUP ====================
+const io = new SocketServer(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true
+  },
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
+
+// Setup Socket.IO with custom handlers
+setupSocketIO(io);
+
+// Make io accessible to routes
+app.set('io', io);
+
+// ==================== MIDDLEWARE ====================
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+}));
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Authorization']
+}));
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(morgan('dev'));
+
+// ==================== API ROUTES ====================
+
+// Auth routes - Register, Login, Google Auth, Refresh Token
+app.use('/api/auth', authRoutes);
+
+// User routes - Profile, Settings, etc.
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminProfileRoutes);
+
+// Admin routes - Admin only
+app.use('/api/admin', adminRoutes);
+
+// Tour routes
+app.use('/api/tours', tourRoutes);
+
+// Hotel routes
+app.use('/api/hotels', hotelRoutes);
+
+// Booking routes
+app.use('/api/bookings', bookingRoutes);
+
+// Payment routes
+app.use('/api/payments', paymentRoutes);
+
+// Destination routes
+app.use('/api/destinations', destinationRoutes);
+
+app.use('/api/analytics', revenueRoutes);
+
+app.use('/api', reviewRoutes);
+
+app.use('/api/experiences', experienceRoutes);
+
+// Contact routes
+app.use('/api/contact', contactRoutes);
+
+app.use('/api/auto-reply', autoReplyRoutes);
+
+app.use('/api/chat-sessions', chatSessionRoutes);
+
+// ==================== TEST ROUTES ====================
+
+// Health check - Tests if server is running
+app.get('/api/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const dbStatusText = {
+    0: 'Disconnected',
+    1: 'Connected',
+    2: 'Connecting',
+    3: 'Disconnecting'
+  };
+
+  res.json({
+    success: true,
+    status: 'OK',
+    message: 'TourVibe API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    services: {
+      server: '✅ Running',
+      database: dbStatus === 1 ? '✅ Connected' : `⏳ ${dbStatusText[dbStatus] || 'Unknown'}`,
+      cloudinary: '⏳ Pending',
+      paystack: '⏳ Pending',
+      email: '⏳ Pending',
+      socket: '✅ Ready'
+    }
+  });
+});
+
+// Test MongoDB Connection
+app.get('/api/test/database', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      return res.json({
+        success: true,
+        message: '✅ MongoDB Already Connected',
+        host: mongoose.connection.host,
+        database: mongoose.connection.name,
+        connectionState: mongoose.connection.readyState
+      });
+    }
+
+    const conn = await connectDB();
+    res.json({
+      success: true,
+      message: '✅ MongoDB Connected Successfully',
+      host: conn.connection.host,
+      database: conn.connection.name,
+      connectionState: conn.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '❌ MongoDB Connection Failed',
+      error: error.message
+    });
+  }
+});
+
+// Test Cloudinary Connection
+app.get('/api/test/cloudinary', async (req, res) => {
+  try {
+    const result = await cloudinary.api.ping();
+    res.json({
+      success: true,
+      message: '✅ Cloudinary Connected Successfully',
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      status: result.status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '❌ Cloudinary Connection Failed',
+      error: error.message,
+      hint: 'Check your CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env'
+    });
+  }
+});
+
+// Test Paystack Connection
+app.get('/api/test/paystack', async (req, res) => {
+  try {
+    const banks = await paystack.bank.list();
+    res.json({
+      success: true,
+      message: '✅ Paystack Connected Successfully',
+      banksCount: banks.data?.length || 0,
+      status: 'API Key is valid'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '❌ Paystack Connection Failed',
+      error: error.message,
+      hint: 'Check your PAYSTACK_SECRET_KEY in .env'
+    });
+  }
+});
+
+// Test Email Connection
+app.post('/api/test/email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide an email address'
+      });
+    }
+
+    const result = await sendEmail({
+      to: email,
+      subject: 'TourVibe Test Email 📧',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; padding: 20px 0;">
+            <h1 style="color: #f59e0b;">✅ Test Email Successful!</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <p>Your TourVibe email configuration is working perfectly.</p>
+            <p style="color: #6b7280; font-size: 14px;">
+              Sent at: ${new Date().toLocaleString()}
+            </p>
+            <hr style="border: 1px solid #f3f4f6; margin: 20px 0;">
+            <p style="color: #9ca3af; font-size: 12px;">
+              TourVibe Backend Test
+            </p>
+          </div>
+        </div>
+      `
+    });
+
+    res.json({
+      success: true,
+      message: '✅ Test Email Sent Successfully',
+      to: email,
+      messageId: result.messageId
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '❌ Email Sending Failed',
+      error: error.message,
+      hint: 'Check your EMAIL_USER and EMAIL_PASS in .env'
+    });
+  }
+});
+
+// Test Socket.IO
+app.get('/api/test/socket', (req, res) => {
+  res.json({
+    success: true,
+    message: '✅ Socket.IO Server Ready',
+    socketPath: '/socket.io/',
+    transports: ['websocket', 'polling'],
+    activeConnections: io.sockets.sockets.size
+  });
+});
+
+// ==================== TEST ALL SERVICES ====================
+app.get('/api/test/all', async (req, res) => {
+  const results = {
+    server: { status: '✅ Running', timestamp: new Date().toISOString() },
+    database: { status: '⏳ Testing...' },
+    cloudinary: { status: '⏳ Testing...' },
+    paystack: { status: '⏳ Testing...' },
+    email: { status: '⏳ Testing...' },
+    socket: { status: '✅ Ready', connections: io.sockets.sockets.size }
+  };
+
+  // Test Database
+  try {
+    if (mongoose.connection.readyState === 1) {
+      results.database = {
+        status: '✅ Already Connected',
+        host: mongoose.connection.host,
+        database: mongoose.connection.name
+      };
+    } else {
+      const conn = await connectDB();
+      results.database = {
+        status: '✅ Connected',
+        host: conn.connection.host,
+        database: conn.connection.name
+      };
+    }
+  } catch (error) {
+    results.database = {
+      status: '❌ Failed',
+      error: error.message
+    };
+  }
+
+  // Test Cloudinary
+  try {
+    await cloudinary.api.ping();
+    results.cloudinary = {
+      status: '✅ Connected',
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME
+    };
+  } catch (error) {
+    results.cloudinary = {
+      status: '❌ Failed',
+      error: error.message
+    };
+  }
+
+  // Test Paystack
+  try {
+    const paystackResult = await paystack.bank.list();
+    results.paystack = {
+      status: '✅ Connected',
+      banksCount: paystackResult.data?.length || 0
+    };
+  } catch (error) {
+    results.paystack = {
+      status: '❌ Failed',
+      error: error.message
+    };
+  }
+
+  // Email
+  results.email = {
+    status: '✅ Configured',
+    host: process.env.EMAIL_HOST,
+    from: process.env.EMAIL_FROM
+  };
+
+  res.json({
+    success: true,
+    message: 'Service Test Results',
+    services: results
+  });
+});
+
+// ==================== SOCKET.IO STATUS ENDPOINT ====================
+app.get('/api/socket-status', (req, res) => {
+  res.json({
+    success: true,
+    status: 'Socket.IO Server Running',
+    connections: io.sockets.sockets.size,
+    rooms: Array.from(io.sockets.adapter.rooms.keys()).length,
+    uptime: process.uptime()
+  });
+});
+
+// ==================== 404 HANDLER ====================
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`
+  });
+});
+
+// ==================== GLOBAL ERROR HANDLER ====================
+app.use((err, req, res, next) => {
+  console.error('❌ Global Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// ==================== START SERVER ====================
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  try {
+    console.log('');
+    console.log('🔄 Connecting to MongoDB...');
+    await connectDB();
+    console.log('✅ MongoDB connected successfully');
+
+    server.listen(PORT, () => {
+      console.log('');
+      console.log('🚀 =========================================');
+      console.log('🚀 TourVibe Backend Server');
+      console.log('🚀 =========================================');
+      console.log(`📍 Server running on port: ${PORT}`);
+      console.log(`🔗 API URL: http://localhost:${PORT}/api`);
+      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('🚀 =========================================');
+      console.log('');
+      console.log('📡 Available Endpoints:');
+      console.log(`  🏥 Health Check:       GET  /api/health`);
+      console.log(`  🔐 Auth Register:     POST /api/auth/register`);
+      console.log(`  🔐 Auth Login:        POST /api/auth/login`);
+      console.log(`  🔐 Google Auth:       POST /api/auth/google`);
+      console.log(`  🔐 Refresh Token:     POST /api/auth/refresh-token`);
+      console.log(`  🔐 Verify Token:      GET  /api/auth/verify`);
+      console.log(`  🔐 Logout:            POST /api/auth/logout`);
+      console.log('');
+      console.log('📡 Test Endpoints:');
+      console.log(`  🗄️  Database:        GET  /api/test/database`);
+      console.log(`  ☁️  Cloudinary:      GET  /api/test/cloudinary`);
+      console.log(`  💳  Paystack:        GET  /api/test/paystack`);
+      console.log(`  📧  Email:           POST /api/test/email`);
+      console.log(`  📡  Socket.IO:       GET  /api/test/socket`);
+      console.log(`  🔄  All Services:    GET  /api/test/all`);
+      console.log(`  📡  Socket Status:   GET  /api/socket-status`);
+      console.log('');
+      console.log('📡 Socket.IO Events:');
+      console.log(`  📤 join-chat         - Join a chat room`);
+      console.log(`  📤 send-message      - Send a message`);
+      console.log(`  📤 admin-message     - Send admin message`);
+      console.log(`  📤 typing            - Typing indicator`);
+      console.log(`  📤 resolve-session   - Resolve chat session`);
+      console.log(`  📥 new-message       - Receive new message`);
+      console.log(`  📥 user-typing       - Receive typing indicator`);
+      console.log(`  📥 chat-joined       - Chat joined confirmation`);
+      console.log(`  📥 session-resolved  - Session resolved`);
+      console.log(`  📥 admin-notification- Admin notification`);
+      console.log(`  📥 chat-error        - Error message`);
+      console.log('');
+      console.log('🚀 =========================================');
+      console.log('✅ Server ready! Waiting for requests...');
+      console.log('🚀 =========================================');
+      console.log('');
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    console.error('Please check your .env file and database credentials');
+    process.exit(1);
+  }
+};
+
+// Start the server
+startServer();
+
+// Graceful shutdown
+const shutdown = () => {
+  console.log('');
+  console.log('🛑 Shutting down gracefully...');
+  
+  // Close socket connections
+  io.close(() => {
+    console.log('✅ Socket.IO closed');
+  });
+  
+  server.close(() => {
+    console.log('✅ Server closed');
+    mongoose.connection.close(() => {
+      console.log('✅ MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('⚠️ Force closing...');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+export default app;
