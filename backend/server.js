@@ -41,10 +41,10 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
-// ==================== PRODUCTION CORS CONFIGURATION ====================
+// ==================== CORS CONFIGURATION - FIXED FOR MOBILE ====================
 const allowedOrigins = [
   'http://localhost:5173',
-  'http://localhost:3000',
+  'http://localhost:3000', 
   'http://localhost:5000',
   'https://6c78f0e0.alveovita-frontend.pages.dev',
   'https://alveovita-frontend.pages.dev',
@@ -55,7 +55,11 @@ const allowedOrigins = [
 // ==================== SOCKET.IO SETUP ====================
 const io = new SocketServer(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // Allow all origins for socket.io on mobile
+      if (!origin) return callback(null, true);
+      callback(null, true);
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
@@ -100,20 +104,43 @@ app.use(helmet({
   }
 }));
 
+// ==================== FIXED CORS FOR MOBILE ====================
+app.use((req, res, next) => {
+  // Get the origin from the request
+  const origin = req.headers.origin;
+  
+  // Allow all origins for API requests (this is safe for public APIs)
+  // For production with sensitive data, you'd want to be more restrictive
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-auth-token');
+  res.header('Access-Control-Expose-Headers', 'Authorization, x-auth-token');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).json({});
+  }
+  
+  next();
+});
+
+// Also use the cors middleware as a fallback
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow all origins for now to fix mobile issues
+    // You can restrict this later if needed
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      console.warn('⚠️ CORS blocked origin:', origin);
-      callback(null, true); // Allow anyway for now, but log it
-    }
+    callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-auth-token'],
   exposedHeaders: ['Authorization', 'x-auth-token']
 }));
@@ -130,6 +157,12 @@ if (process.env.NODE_ENV === 'development') {
 } else {
   app.use(morgan('combined'));
 }
+
+// ==================== REQUEST LOGGING FOR DEBUGGING ====================
+app.use((req, res, next) => {
+  console.log(`📱 ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin || 'unknown'}`);
+  next();
+});
 
 // ==================== API ROUTES ====================
 
@@ -484,7 +517,7 @@ const startServer = async () => {
       console.log(`📍 Server running on port: ${PORT}`);
       console.log(`🔗 API URL: ${baseUrl}/api`);
       console.log(`🌐 Environment: ${environment}`);
-      console.log(`🔒 CORS Origins: ${allowedOrigins.join(', ')}`);
+      console.log(`🔒 CORS: Allow all origins (mobile compatible)`);
       console.log('🚀 =========================================');
       console.log('');
       console.log('📡 Available Endpoints:');
