@@ -18,34 +18,39 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [connectionError, setConnectionError] = useState(null);
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Get the API URL from environment or use default
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    // Get socket URL from environment or use production default
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'https://alveovitahealthandwellnesstour.onrender.com';
     
-    console.log('🔌 Connecting to Socket.IO server at:', socketUrl);
-    console.log('🔌 User authenticated:', !!user);
+    console.log('🔌 [Socket] Connecting to server at:', socketUrl);
+    console.log('🔌 [Socket] User authenticated:', !!user);
+    console.log('📱 [Socket] Environment:', import.meta.env.MODE || 'development');
     
-    // Create socket connection - REMOVE the namespace
-    // The server uses the root namespace by default
+    // Socket.IO configuration optimized for mobile
     const newSocket = io(socketUrl, {
-      // Remove the path if it's causing issues, or keep it to match server
       path: '/socket.io/',
-      transports: ['websocket', 'polling'],
+      transports: ['websocket', 'polling'], // polling works better on mobile
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10, // More attempts for mobile
       reconnectionDelay: 1000,
-      // Add auth data if needed
+      reconnectionDelayMax: 5000,
+      timeout: 20000, // Longer timeout for mobile
+      upgrade: true,
+      forceNew: true,
+      // Auth data
       auth: {
         token: user?.token || null,
         userId: user?.id || null
       },
-      // Add query parameters if needed
+      // Query parameters
       query: {
         userId: user?.id || '',
-        userType: user?.role || 'guest'
+        userType: user?.role || 'guest',
+        platform: 'mobile'
       }
     });
 
@@ -54,12 +59,13 @@ export const SocketProvider = ({ children }) => {
 
     // Connection event handlers
     newSocket.on('connect', () => {
-      console.log('🟢 Socket connected successfully! ID:', newSocket.id);
+      console.log('🟢 [Socket] Connected successfully! ID:', newSocket.id);
       setIsConnected(true);
+      setConnectionError(null);
       
       // If user is authenticated, join a room
       if (user?.id) {
-        console.log('🔐 Authenticating user:', user.id);
+        console.log('🔐 [Socket] Authenticating user:', user.id);
         newSocket.emit('authenticate', { 
           userId: user.id,
           userRole: user.role,
@@ -69,54 +75,83 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('🔴 Socket disconnected. Reason:', reason);
+      console.log('🔴 [Socket] Disconnected. Reason:', reason);
       setIsConnected(false);
+      
+      // Handle specific disconnect reasons
+      if (reason === 'io server disconnect') {
+        // Server initiated disconnect, try to reconnect
+        console.log('🔄 [Socket] Server disconnected, attempting reconnect...');
+        newSocket.connect();
+      }
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error.message);
-      console.error('Error details:', error);
+      console.error('❌ [Socket] Connection error:', error.message);
+      console.error('❌ [Socket] Error details:', error);
+      setConnectionError(error.message);
       
       // Check for specific error types
       if (error.message === 'Invalid namespace') {
-        console.error('💡 The namespace you are trying to connect to does not exist on the server.');
-        console.error('💡 Try connecting without a namespace or check server configuration.');
+        console.error('💡 [Socket] The namespace does not exist on the server.');
+        console.error('💡 [Socket] Try connecting without a namespace or check server configuration.');
       }
       
       if (error.message.includes('404')) {
-        console.error('💡 The server endpoint might be wrong. Check your VITE_API_URL.');
+        console.error('💡 [Socket] The server endpoint might be wrong. Check your VITE_SOCKET_URL.');
+        console.error('💡 [Socket] Current URL:', socketUrl);
+      }
+      
+      if (error.message.includes('ECONNREFUSED')) {
+        console.error('💡 [Socket] Connection refused. Make sure the server is running.');
       }
     });
 
     // Handle reconnection attempts
     newSocket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`🔄 Reconnection attempt ${attemptNumber}`);
+      console.log(`🔄 [Socket] Reconnection attempt ${attemptNumber}`);
     });
 
     newSocket.on('reconnect', (attemptNumber) => {
-      console.log(`✅ Reconnected after ${attemptNumber} attempts`);
+      console.log(`✅ [Socket] Reconnected after ${attemptNumber} attempts`);
     });
 
     newSocket.on('reconnect_failed', () => {
-      console.error('❌ Failed to reconnect to socket server');
+      console.error('❌ [Socket] Failed to reconnect to socket server');
+      setConnectionError('Failed to reconnect after multiple attempts');
     });
 
     // Handle authentication response
     newSocket.on('authenticated', (data) => {
-      console.log('✅ User authenticated on socket server:', data);
+      console.log('✅ [Socket] User authenticated:', data);
       if (data.sessionId) {
         setSessionId(data.sessionId);
       }
     });
 
     newSocket.on('auth_error', (error) => {
-      console.error('❌ Authentication error:', error);
+      console.error('❌ [Socket] Authentication error:', error);
+      setConnectionError(error.message);
+    });
+
+    // Handle chat events
+    newSocket.on('chat-joined', (data) => {
+      console.log('📥 [Socket] Chat joined:', data);
+    });
+
+    newSocket.on('new-message', (data) => {
+      console.log('📥 [Socket] New message received:', data);
+    });
+
+    newSocket.on('chat-error', (error) => {
+      console.error('❌ [Socket] Chat error:', error);
     });
 
     return () => {
-      console.log('🧹 Cleaning up socket connection');
+      console.log('🧹 [Socket] Cleaning up connection');
       if (newSocket) {
         newSocket.disconnect();
+        newSocket.close();
       }
     };
   }, [user]); // Reconnect when user changes
@@ -124,30 +159,31 @@ export const SocketProvider = ({ children }) => {
   // Join a chat room
   const joinChat = (data) => {
     if (socket && isConnected) {
-      console.log('📤 Joining chat:', data);
+      console.log('📤 [Socket] Joining chat:', data);
       socket.emit('join-chat', data);
     } else {
-      console.warn('⚠️ Cannot join chat - socket not connected');
+      console.warn('⚠️ [Socket] Cannot join chat - socket not connected');
+      console.warn('⚠️ [Socket] Connection status:', { socket: !!socket, isConnected });
     }
   };
 
   // Send a message
   const sendMessage = (data) => {
     if (socket && isConnected) {
-      console.log('📤 Sending message:', data);
+      console.log('📤 [Socket] Sending message:', data);
       socket.emit('send-message', data);
     } else {
-      console.warn('⚠️ Cannot send message - socket not connected');
+      console.warn('⚠️ [Socket] Cannot send message - socket not connected');
     }
   };
 
   // Send admin message
   const sendAdminMessage = (data) => {
     if (socket && isConnected) {
-      console.log('📤 Sending admin message:', data);
+      console.log('📤 [Socket] Sending admin message:', data);
       socket.emit('admin-message', data);
     } else {
-      console.warn('⚠️ Cannot send admin message - socket not connected');
+      console.warn('⚠️ [Socket] Cannot send admin message - socket not connected');
     }
   };
 
@@ -161,10 +197,10 @@ export const SocketProvider = ({ children }) => {
   // Resolve a session
   const resolveSession = (sessionId) => {
     if (socket && isConnected) {
-      console.log('📤 Resolving session:', sessionId);
+      console.log('📤 [Socket] Resolving session:', sessionId);
       socket.emit('resolve-session', { sessionId });
     } else {
-      console.warn('⚠️ Cannot resolve session - socket not connected');
+      console.warn('⚠️ [Socket] Cannot resolve session - socket not connected');
     }
   };
 
@@ -172,12 +208,21 @@ export const SocketProvider = ({ children }) => {
     socket,
     isConnected,
     sessionId,
+    connectionError,
     setSessionId,
     joinChat,
     sendMessage,
     sendAdminMessage,
     sendTyping,
     resolveSession,
+    // Helper to manually reconnect
+    reconnect: () => {
+      if (socket) {
+        console.log('🔄 [Socket] Manual reconnect requested');
+        socket.disconnect();
+        socket.connect();
+      }
+    }
   };
 
   return (
