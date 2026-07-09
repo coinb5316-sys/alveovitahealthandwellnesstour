@@ -6,16 +6,50 @@ import AutoReply from '../models/AutoReply.js';
 // @route   POST /api/chat-sessions
 export const createChatSession = async (req, res) => {
   try {
-    const { name, email, phone, initialMessage } = req.body;
+    console.log('📝 [ChatSession] Creating session with data:', req.body);
     
+    const { name, email, phone, initialMessage, userName, userEmail, userPhone } = req.body;
+    
+    // Handle both field name formats
+    const finalName = name || userName || 'Guest';
+    const finalEmail = email || userEmail || 'guest@example.com';
+    const finalPhone = phone || userPhone || '';
+    const finalMessage = initialMessage || 'Chat started';
+
+    // Check if there's an existing active session for this email
+    const existingSession = await ChatSession.findOne({
+      userEmail: finalEmail,
+      status: 'active'
+    });
+
+    if (existingSession) {
+      console.log('🔄 [ChatSession] Found existing active session:', existingSession._id);
+      
+      // Add a new message to existing session
+      existingSession.messages.push({
+        sender: 'user',
+        text: finalMessage,
+        timestamp: new Date()
+      });
+      existingSession.lastMessageAt = new Date();
+      await existingSession.save();
+
+      return res.status(200).json({
+        success: true,
+        session: existingSession,
+        existing: true
+      });
+    }
+
+    // Create new session
     const session = await ChatSession.create({
       user: req.user?.id || null,
-      userName: name,
-      userEmail: email,
-      userPhone: phone || '',
+      userName: finalName,
+      userEmail: finalEmail,
+      userPhone: finalPhone,
       messages: [{
         sender: 'user',
-        text: initialMessage || 'Chat started',
+        text: finalMessage,
         timestamp: new Date()
       }],
       status: 'active',
@@ -23,15 +57,39 @@ export const createChatSession = async (req, res) => {
       lastMessageAt: new Date()
     });
 
+    console.log('✅ [ChatSession] Created new session:', session._id);
+
+    // Send welcome auto-reply
+    const welcomeMessage = {
+      sender: 'bot',
+      text: '👋 Thank you for reaching out! Our team will be with you shortly. How can we help you today?',
+      timestamp: new Date(),
+      isAutoReply: true
+    };
+
+    session.messages.push(welcomeMessage);
+    await session.save();
+
+    // Emit socket event if available
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new-chat-session', {
+        sessionId: session._id,
+        user: finalName,
+        email: finalEmail,
+        timestamp: new Date()
+      });
+    }
+
     res.status(201).json({
       success: true,
       session
     });
   } catch (error) {
-    console.error('Create chat session error:', error);
+    console.error('❌ [ChatSession] Create error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Failed to create chat session'
     });
   }
 };

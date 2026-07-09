@@ -44,8 +44,31 @@ const Tours = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(9)
   const [favorites, setFavorites] = useState([])
+  const [favoriteIds, setFavoriteIds] = useState(new Set())
   const [priceRange, setPriceRange] = useState({ min: 0, max: 5000 })
   const [notification, setNotification] = useState(null)
+  const [favoriteLoading, setFavoriteLoading] = useState({})
+
+  // Fetch favorites from backend
+  const fetchFavorites = async () => {
+    if (!user) {
+      setFavorites([])
+      setFavoriteIds(new Set())
+      return
+    }
+
+    try {
+      const response = await axios.get('/favorites?type=tour')
+      if (response.data.success) {
+        const tourFavorites = response.data.favorites.filter(f => f.itemType === 'tour')
+        setFavorites(tourFavorites)
+        const ids = new Set(tourFavorites.map(f => f.itemId))
+        setFavoriteIds(ids)
+      }
+    } catch (error) {
+      console.error('Error fetching favorites:', error)
+    }
+  }
 
   // Socket.IO event listeners
   useEffect(() => {
@@ -85,16 +108,46 @@ const Tours = () => {
       showToast(`🗑️ ${data.title} was removed`, 'warning');
     };
 
+    // Socket event for favorite changes
+    const handleFavoriteAdded = (data) => {
+      if (data.itemType === 'tour') {
+        setFavoriteIds(prev => new Set(prev).add(data.itemId))
+        setFavorites(prev => [...prev, {
+          _id: data.favoriteId,
+          itemType: 'tour',
+          itemId: data.itemId,
+          user: data.userId,
+          addedAt: data.timestamp,
+          item: tours.find(t => t.id === data.itemId)
+        }])
+      }
+    }
+
+    const handleFavoriteRemoved = (data) => {
+      if (data.itemType === 'tour') {
+        setFavoriteIds(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(data.itemId)
+          return newSet
+        })
+        setFavorites(prev => prev.filter(f => f.itemId !== data.itemId))
+      }
+    }
+
     socket.on('tour-created', handleTourCreated);
     socket.on('tour-updated', handleTourUpdated);
     socket.on('tour-deleted', handleTourDeleted);
+    socket.on('favorite-added', handleFavoriteAdded);
+    socket.on('favorite-removed', handleFavoriteRemoved);
 
     return () => {
       socket.off('tour-created', handleTourCreated);
       socket.off('tour-updated', handleTourUpdated);
       socket.off('tour-deleted', handleTourDeleted);
+      socket.off('favorite-added', handleFavoriteAdded);
+      socket.off('favorite-removed', handleFavoriteRemoved);
     };
-  }, [socket, showToast, currentPage]);
+  }, [socket, showToast, currentPage, tours]);
 
   // Auto-hide notification after 5 seconds
   useEffect(() => {
@@ -106,18 +159,10 @@ const Tours = () => {
     }
   }, [notification]);
 
-  // Load favorites from localStorage
+  // Fetch favorites when user changes
   useEffect(() => {
-    const savedFavorites = localStorage.getItem('alveovita_favorites')
-    if (savedFavorites) {
-      try {
-        const parsed = JSON.parse(savedFavorites)
-        setFavorites(parsed.tours || [])
-      } catch (e) {
-        console.error('Error loading favorites:', e)
-      }
-    }
-  }, [])
+    fetchFavorites()
+  }, [user])
 
   // Fetch tours from backend
   useEffect(() => {
@@ -210,45 +255,73 @@ const Tours = () => {
     setCurrentPage(1)
   }, [searchTerm, selectedRegion, selectedType, selectedDifficulty, sortBy, priceRange])
 
-  const toggleFavorite = (tourId) => {
+  const toggleFavorite = async (tourId) => {
     if (!user) {
       showToast('Please login to save favorites', 'info')
       navigate('/login')
       return
     }
 
-    const isFavorite = favorites.some(t => t.id === tourId)
-    let updatedFavorites
-    
-    if (isFavorite) {
-      updatedFavorites = favorites.filter(t => t.id !== tourId)
-      showToast('Removed from favorites', 'success')
-    } else {
-      const tour = tours.find(t => t.id === tourId)
-      updatedFavorites = [...favorites, {
-        id: tour.id,
-        title: tour.title,
-        location: tour.location,
-        image: tour.image,
-        rating: tour.rating,
-        reviews: tour.reviews,
-        price: tour.price,
-        duration: tour.duration,
-        type: tour.type,
-        addedDate: new Date().toISOString()
-      }]
-      showToast('Added to favorites ❤️', 'success')
+    const isFavorited = favoriteIds.has(tourId)
+    setFavoriteLoading(prev => ({ ...prev, [tourId]: true }))
+
+    try {
+      if (isFavorited) {
+        // Find the favorite ID for this tour
+        const favorite = favorites.find(f => f.itemId === tourId)
+        if (favorite) {
+          await axios.delete(`/favorites/${favorite._id}`)
+          setFavoriteIds(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(tourId)
+            return newSet
+          })
+          setFavorites(prev => prev.filter(f => f.itemId !== tourId))
+          showToast('Removed from favorites 💔', 'success')
+        }
+      } else {
+        const response = await axios.post('/favorites', {
+          itemType: 'tour',
+          itemId: tourId
+        })
+        
+        if (response.data.success) {
+          const newFavorite = {
+            _id: response.data.favorite._id,
+            itemType: 'tour',
+            itemId: tourId,
+            user: user.id,
+            addedAt: new Date().toISOString()
+          }
+          setFavoriteIds(prev => new Set(prev).add(tourId))
+          setFavorites(prev => [...prev, newFavorite])
+          showToast('Added to favorites ❤️', 'success')
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error)
+      if (error.response?.data?.message) {
+        showToast(error.response.data.message, 'error')
+      } else {
+        showToast('Failed to update favorite', 'error')
+      }
+    } finally {
+      setFavoriteLoading(prev => ({ ...prev, [tourId]: false }))
     }
-    
-    setFavorites(updatedFavorites)
-    localStorage.setItem('alveovita_favorites', JSON.stringify({
-      hotels: JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[]}').hotels || [],
-      tours: updatedFavorites
-    }))
   }
 
   const isFavorite = (tourId) => {
-    return favorites.some(t => t.id === tourId)
+    return favoriteIds.has(tourId)
+  }
+
+  const getFavoriteCount = async (tourId) => {
+    try {
+      const response = await axios.get(`/favorites/count/tour/${tourId}`)
+      return response.data.count || 0
+    } catch (error) {
+      console.error('Error getting favorite count:', error)
+      return 0
+    }
   }
 
   const handleShare = async (tour) => {
@@ -658,11 +731,16 @@ const Tours = () => {
                             e.stopPropagation()
                             toggleFavorite(tour.id)
                           }}
+                          disabled={favoriteLoading[tour.id]}
                           className={`p-2 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:scale-110 ${
                             isFavorite(tour.id) ? 'text-amber-400' : 'text-white hover:text-amber-400'
-                          }`}
+                          } ${favoriteLoading[tour.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          <Heart className={`w-3.5 h-3.5 ${isFavorite(tour.id) ? 'fill-amber-400' : ''}`} />
+                          {favoriteLoading[tour.id] ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Heart className={`w-3.5 h-3.5 ${isFavorite(tour.id) ? 'fill-amber-400' : ''}`} />
+                          )}
                         </button>
                       </div>
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
@@ -768,11 +846,16 @@ const Tours = () => {
                             e.stopPropagation()
                             toggleFavorite(tour.id)
                           }}
+                          disabled={favoriteLoading[tour.id]}
                           className={`p-2 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:scale-110 ${
                             isFavorite(tour.id) ? 'text-amber-400' : 'text-white hover:text-amber-400'
-                          }`}
+                          } ${favoriteLoading[tour.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          <Heart className={`w-3.5 h-3.5 ${isFavorite(tour.id) ? 'fill-amber-400' : ''}`} />
+                          {favoriteLoading[tour.id] ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Heart className={`w-3.5 h-3.5 ${isFavorite(tour.id) ? 'fill-amber-400' : ''}`} />
+                          )}
                         </button>
                       </div>
                     </div>

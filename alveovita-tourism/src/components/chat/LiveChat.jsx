@@ -8,19 +8,19 @@ import { useSocket } from '../../context/SocketContext'
 import { 
   X, Send, User, Mail, Phone, MessageSquare,
   Bot, Shield, CheckCircle, AlertCircle,
-  Loader2, Clock, ArrowRight, Sparkles, Mic
+  Loader2, Clock, ArrowRight, Sparkles, Mic,
+  RefreshCw, Wifi, WifiOff
 } from 'lucide-react'
 
 const LiveChat = ({ isOpen, onClose, isDark }) => {
   const { user } = useAuth()
   const { showToast } = useToast()
-  const { socket, isConnected, joinChat, sendMessage, sendTyping, sessionId: socketSessionId, setSessionId } = useSocket()
+  const { socket, isConnected, joinChat, sendMessage, sendTyping, sessionId: socketSessionId, setSessionId, reconnect } = useSocket()
   
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState([])
-  const [isTyping, setIsTyping] = useState(false)
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -33,6 +33,8 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
   const [sessionId, setLocalSessionId] = useState(null)
   const [isWaitingForAdmin, setIsWaitingForAdmin] = useState(false)
   const [isAdminTyping, setIsAdminTyping] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [isSending, setIsSending] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const typingTimeoutRef = useRef(null)
@@ -47,7 +49,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       
       const message = {
         id: Date.now(),
-        sender: data.sender,
+        sender: data.sender === 'admin' ? 'admin' : data.sender,
         text: data.text,
         time: new Date(data.timestamp).toLocaleTimeString(),
         isAutoReply: data.isAutoReply || false
@@ -74,9 +76,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       if (data.isTyping) {
         setIsAdminTyping(true);
         setIsWaitingForAdmin(true);
-        // Show "Admin is typing..." message
         setMessages(prev => {
-          // Remove any existing admin typing message
           const filtered = prev.filter(msg => msg.id !== 'admin-typing');
           return [...filtered, {
             id: 'admin-typing',
@@ -89,13 +89,13 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       } else {
         setIsAdminTyping(false);
         setIsWaitingForAdmin(false);
-        // Remove the typing indicator
         setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'));
       }
     };
 
     const handleSessionResolved = () => {
       showToast('This chat session has been resolved', 'info');
+      setIsWaitingForAdmin(false);
     };
 
     const handleChatError = (error) => {
@@ -130,13 +130,19 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
 
     try {
-      // Create chat session via API
+      console.log('📤 [LiveChat] Creating chat session...');
+      
+      // Create chat session via API with timeout
       const response = await axios.post('/chat-sessions', {
         name: formData.name,
         email: formData.email,
         phone: formData.phone || '',
         initialMessage: formData.message || 'Chat started'
+      }, {
+        timeout: 15000
       })
+
+      console.log('📥 [LiveChat] Session response:', response.data);
 
       if (response.data.success) {
         const session = response.data.session;
@@ -144,69 +150,162 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
         setSessionId(session._id);
         
         // Join chat via socket
-        joinChat({
-          sessionId: session._id,
-          userId: user?.id || null,
-          userName: formData.name,
-          userEmail: formData.email
-        });
+        if (joinChat && isConnected) {
+          joinChat({
+            sessionId: session._id,
+            userId: user?.id || null,
+            userName: formData.name,
+            userEmail: formData.email
+          });
+        }
 
-        // Also create contact record
-        await axios.post('/contact', {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone || '',
-          subject: formData.subject || 'Live Chat Inquiry',
-          message: formData.message || 'Chat started from live chat widget'
-        })
+        // Create contact record in background
+        try {
+          await axios.post('/contact', {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || '',
+            subject: formData.subject || 'Live Chat Inquiry',
+            message: formData.message || 'Chat started from live chat widget'
+          }, {
+            timeout: 5000
+          });
+        } catch (contactError) {
+          console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
+        }
+
+        const userMessageText = formData.message || 'Hello, I need assistance with your wellness services.';
+        
+        // Get messages from server response
+        const serverMessages = session.messages || [];
+        const botMessages = serverMessages
+          .filter(m => m.sender === 'bot' || m.sender === 'admin')
+          .map((m, index) => ({
+            id: 100 + index,
+            sender: m.sender === 'admin' ? 'admin' : 'bot',
+            text: m.text,
+            time: new Date(m.timestamp || Date.now()).toLocaleTimeString(),
+            isAutoReply: m.isAutoReply || false
+          }));
 
         const userMessage = {
           id: messages.length + 1,
           sender: 'user',
-          text: formData.message || 'Hello, I need assistance with your wellness services.',
+          text: userMessageText,
           time: new Date().toLocaleTimeString()
-        }
+        };
+
+        // Default welcome messages if no server messages
+        const defaultMessages = [
+          {
+            id: 1,
+            sender: 'bot',
+            text: '👋 Hello! Welcome to Alveovita Wellness. I\'m your wellness assistant. How can I help you today?',
+            time: new Date().toLocaleTimeString()
+          },
+          {
+            id: 2,
+            sender: 'bot',
+            text: 'Feel free to ask me any questions about our services. Our team is here to help!',
+            time: new Date().toLocaleTimeString()
+          }
+        ];
         
-        setMessages(prev => [...prev, ...initialMessages, userMessage])
-        setStep(2)
-        setChatSubmitted(true)
-        showToast('Chat started successfully!', 'success')
+        // Combine messages
+        const finalMessages = botMessages.length > 0 
+          ? [...botMessages, userMessage]
+          : [...defaultMessages, userMessage];
+        
+        setMessages(finalMessages);
+        setStep(2);
+        setChatSubmitted(true);
+        showToast('Chat started successfully!', 'success');
         
         // Send initial message via socket
-        sendMessage({
-          sessionId: session._id,
-          text: userMessage.text,
-          sender: 'user'
-        });
+        if (isConnected && sendMessage) {
+          sendMessage({
+            sessionId: session._id,
+            text: userMessageText,
+            sender: 'user'
+          });
+        }
       }
     } catch (error) {
-      setFormError(error.response?.data?.message || 'Failed to start chat. Please try again.')
-      showToast('Failed to start chat', 'error')
+      console.error('❌ [LiveChat] Error:', error);
+      
+      // Handle specific error types
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        setFormError('⏰ Connection timeout. Please check your internet and try again.');
+        showToast('Connection timeout - please retry', 'error');
+      } else if (error.response?.status === 404) {
+        setFormError('🔌 Chat service unavailable. Please use the contact form.');
+        showToast('Chat service unavailable', 'error');
+      } else if (error.response?.status === 500) {
+        setFormError('⚠️ Server error. Please try again or use the contact form.');
+        showToast('Server error - please retry', 'error');
+      } else if (error.response?.data?.message) {
+        setFormError(error.response.data.message);
+        showToast(error.response.data.message, 'error');
+      } else {
+        setFormError('Failed to start chat. Please try again.');
+        showToast('Failed to start chat', 'error');
+      }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // Send message in chat
-  const sendMessageHandler = () => {
-    if (!message.trim() || !sessionId) return
+  const sendMessageHandler = async () => {
+    if (!message.trim() || !sessionId || isSending) return
 
+    setIsSending(true)
+    const messageText = message.trim()
+    
     const userMessage = {
       id: messages.length + 1,
       sender: 'user',
-      text: message.trim(),
+      text: messageText,
       time: new Date().toLocaleTimeString()
     }
     setMessages(prev => [...prev, userMessage])
-    const sentMessage = message.trim()
     setMessage('')
 
-    // Send via socket
-    sendMessage({
-      sessionId: sessionId,
-      text: sentMessage,
-      sender: 'user'
-    });
+    try {
+      // Send via socket
+      if (isConnected && sendMessage) {
+        sendMessage({
+          sessionId: sessionId,
+          text: messageText,
+          sender: 'user'
+        });
+      } else {
+        // Fallback: Send via API
+        await axios.post(`/chat-sessions/${sessionId}/messages`, {
+          text: messageText,
+          sender: 'user'
+        }, {
+          timeout: 5000
+        });
+      }
+    } catch (error) {
+      console.error('❌ [LiveChat] Send message error:', error);
+      showToast('Failed to send message. Retrying...', 'warning');
+      
+      // Retry with API fallback
+      try {
+        await axios.post(`/chat-sessions/${sessionId}/messages`, {
+          text: messageText,
+          sender: 'user'
+        }, {
+          timeout: 5000
+        });
+      } catch (retryError) {
+        showToast('Failed to send message. Please try again.', 'error');
+      }
+    } finally {
+      setIsSending(false)
+    }
   }
 
   // Handle typing indicator
@@ -222,7 +321,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
 
   // Handle enter key
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isSending) {
       e.preventDefault()
       sendMessageHandler()
     }
@@ -251,6 +350,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
         setLocalSessionId(null)
         setIsWaitingForAdmin(false)
         setIsAdminTyping(false)
+        setIsSending(false)
         setFormData({
           name: user?.name || '',
           email: user?.email || '',
@@ -258,25 +358,18 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           subject: '',
           message: ''
         })
+        setFormError(null)
       }, 300)
     }
   }, [isOpen, user])
 
-  // Initial greeting message
-  const initialMessages = [
-    {
-      id: 1,
-      sender: 'bot',
-      text: '👋 Hello! Welcome to Alveovita Wellness. I\'m your wellness assistant. How can I help you today?',
-      time: new Date().toLocaleTimeString()
-    },
-    {
-      id: 2,
-      sender: 'bot',
-      text: 'Feel free to ask me any questions about our services. If I can\'t answer, our team will be notified.',
-      time: new Date().toLocaleTimeString()
+  // Handle reconnect
+  const handleReconnect = () => {
+    if (reconnect) {
+      reconnect()
+      showToast('Reconnecting...', 'info')
     }
-  ]
+  }
 
   if (!isOpen) return null
 
@@ -302,12 +395,23 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
               <Bot className="w-7 h-7 text-white" />
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="text-white font-bold text-xl">Live Chat</h3>
-              <p className="text-white/80 text-sm flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full animate-pulse ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                {isConnected ? 'Online' : 'Connecting...'}
-              </p>
+                <p className="text-white/80 text-sm">
+                  {isConnected ? 'Online' : 'Disconnected'}
+                </p>
+                {!isConnected && (
+                  <button
+                    onClick={handleReconnect}
+                    className="ml-2 p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                    title="Reconnect"
+                  >
+                    <RefreshCw className="w-3 h-3 text-white animate-spin-slow" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -331,11 +435,38 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
               </div>
 
               {formError && (
-                <div className={`p-4 rounded-xl flex items-center gap-2 mb-4 ${
+                <div className={`p-4 rounded-xl flex items-start gap-2 mb-4 ${
                   isDark ? 'bg-red-900/30' : 'bg-red-50'
                 } border border-red-500/30`}>
-                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                  <span className={isDark ? 'text-red-400' : 'text-red-600'}>{formError}</span>
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className={isDark ? 'text-red-400' : 'text-red-600'}>{formError}</span>
+                    {formError.includes('timeout') && (
+                      <button
+                        onClick={() => {
+                          setRetryCount(prev => prev + 1)
+                          setFormError(null)
+                          handleFormSubmit(new Event('submit'))
+                        }}
+                        className="mt-2 text-sm text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Connection status warning */}
+              {!isConnected && (
+                <div className={`p-3 rounded-xl flex items-center gap-2 mb-4 ${
+                  isDark ? 'bg-yellow-900/30' : 'bg-yellow-50'
+                } border border-yellow-500/30`}>
+                  <WifiOff className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                  <span className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                    Connection lost. {!isConnected && 'Messages will be sent via email.'}
+                  </span>
                 </div>
               )}
 
@@ -424,7 +555,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
 
                 <button
                   type="submit"
-                  disabled={loading || !isConnected}
+                  disabled={loading}
                   className="w-full px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:scale-105 transition-all shadow-lg shadow-amber-500/30 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
@@ -449,9 +580,11 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           ) : (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center gap-2 text-xs text-green-400">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                  Online
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`w-2 h-2 rounded-full animate-pulse ${isConnected ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                    {isConnected ? 'Online' : 'Offline'}
+                  </span>
                 </div>
                 <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>•</span>
                 <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -459,7 +592,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 </span>
                 {sessionId && (
                   <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    • Ticket #{sessionId.slice(-6)}
+                    • #{sessionId.slice(-6)}
                   </span>
                 )}
                 {isAdminTyping && (
@@ -525,7 +658,21 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                   );
                 })}
 
-                {/* Remove the old isTyping indicator since we now use admin-typing */}
+                {/* Sending indicator */}
+                {isSending && (
+                  <div className="flex justify-end">
+                    <div className={`p-3 rounded-2xl rounded-tr-none ${
+                      isDark ? 'bg-gray-700' : 'bg-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Sending...
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div ref={messagesEndRef} />
               </div>
@@ -544,20 +691,24 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                   onKeyPress={handleKeyPress}
                   placeholder={isWaitingForAdmin ? "Waiting for admin response..." : "Type your message..."}
                   className={`flex-1 px-4 py-3 rounded-xl outline-none text-sm ${
-                    isWaitingForAdmin 
+                    isWaitingForAdmin || isSending
                       ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                       : isDark 
                         ? 'bg-gray-800 text-white placeholder-gray-400 border border-gray-700' 
                         : 'bg-gray-50 text-gray-800 placeholder-gray-500 border border-gray-200'
                   } focus:border-amber-500 transition-colors`}
-                  disabled={isWaitingForAdmin}
+                  disabled={isWaitingForAdmin || isSending}
                 />
                 <button
                   onClick={sendMessageHandler}
-                  disabled={!message.trim() || isWaitingForAdmin || !isConnected}
-                  className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!message.trim() || isWaitingForAdmin || !isConnected || isSending}
+                  className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[44px]"
                 >
-                  <Send className="w-5 h-5" />
+                  {isSending ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
                 </button>
               </div>
 
@@ -565,7 +716,13 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 <Sparkles className="w-3 h-3 inline mr-1" />
                 Powered by Alveovita Wellness AI Assistant
                 {!isConnected && (
-                  <span className="ml-2 text-amber-500">(Reconnecting...)</span>
+                  <button
+                    onClick={handleReconnect}
+                    className="ml-2 text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Reconnect
+                  </button>
                 )}
               </div>
             </div>

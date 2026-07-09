@@ -1,4 +1,4 @@
-// backend/models/ChatSession.js
+// backend/models/ChatSession.js - Add flexibility
 import mongoose from 'mongoose';
 
 const chatSessionSchema = new mongoose.Schema({
@@ -16,7 +16,8 @@ const chatSessionSchema = new mongoose.Schema({
     required: true
   },
   userPhone: {
-    type: String
+    type: String,
+    default: ''
   },
   status: {
     type: String,
@@ -65,12 +66,24 @@ const chatSessionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  // Allow flexible field names
+  strict: false 
+});
 
 // Indexes for search
 chatSessionSchema.index({ userName: 'text', userEmail: 'text' });
 chatSessionSchema.index({ status: 1 });
 chatSessionSchema.index({ lastMessageAt: -1 });
+
+// Pre-save middleware to ensure lastMessageAt is updated
+chatSessionSchema.pre('save', function(next) {
+  if (this.isModified('messages')) {
+    this.lastMessageAt = new Date();
+  }
+  next();
+});
 
 const ChatSession = mongoose.model('ChatSession', chatSessionSchema);
 export default ChatSession;
