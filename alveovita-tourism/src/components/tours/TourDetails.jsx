@@ -27,7 +27,8 @@ import {
   Loader2, Bus as BusIcon, Train as TrainIcon, Car as CarIcon, Ship, Plane as PlaneIcon, Footprints,
   Play, Pause, Maximize2, Minimize2,
   LogIn, Edit3, ThumbsUp as ThumbsUpIcon, Flag,
-  Reply, Verified, StarHalf, Star as StarIcon
+  Reply, Verified, StarHalf, Star as StarIcon,
+  Heart as HeartIcon
 } from 'lucide-react'
 
 const TOUR_BOOKING_KEY = 'alveovita_tour_booking_data'
@@ -64,6 +65,8 @@ const TourDetails = () => {
   const [bookingSuccess, setBookingSuccess] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteId, setFavoriteId] = useState(null)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [bookingReference, setBookingReference] = useState(null)
@@ -147,6 +150,85 @@ const TourDetails = () => {
     }
   }, [isAutoPlaying, tour?.images?.length])
 
+  // Check favorite status
+  const checkFavoriteStatus = async () => {
+    if (!user || !tour?.id) return
+    
+    try {
+      const response = await axios.get(`/favorites/check/tour/${tour.id}`)
+      if (response.data.success) {
+        setIsFavorite(response.data.isFavorited)
+        setFavoriteId(response.data.favoriteId || null)
+      }
+    } catch (error) {
+      console.error('Error checking favorite status:', error)
+    }
+  }
+
+  // Toggle favorite
+  const toggleFavorite = async () => {
+    if (!user) {
+      showToast('Please login to save favorites', 'info')
+      navigate('/login')
+      return
+    }
+
+    if (favoriteLoading) return
+    
+    setFavoriteLoading(true)
+    
+    try {
+      if (isFavorite && favoriteId) {
+        // Remove from favorites
+        await axios.delete(`/favorites/${favoriteId}`)
+        setIsFavorite(false)
+        setFavoriteId(null)
+        showToast(`Removed "${tour.title}" from favorites`, 'success')
+        
+        // Emit socket event for removal
+        if (socket) {
+          socket.emit('favorite-removed', {
+            favoriteId: favoriteId,
+            userId: user.id,
+            userName: user.name,
+            itemType: 'tour',
+            itemId: tour.id,
+            itemName: tour.title,
+          })
+        }
+      } else {
+        // Add to favorites
+        const response = await axios.post('/favorites', {
+          itemType: 'tour',
+          itemId: tour.id
+        })
+        
+        if (response.data.success) {
+          setIsFavorite(true)
+          setFavoriteId(response.data.favorite._id)
+          showToast(`Added "${tour.title}" to favorites ❤️`, 'success')
+          
+          // Emit socket event for addition
+          if (socket) {
+            socket.emit('favorite-added', {
+              favoriteId: response.data.favorite._id,
+              userId: user.id,
+              userName: user.name,
+              itemType: 'tour',
+              itemId: tour.id,
+              itemName: tour.title,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error)
+      showToast('Failed to update favorites', 'error')
+    } finally {
+      setFavoriteLoading(false)
+    }
+  }
+
   // Fetch tour data function
   const fetchTourData = async () => {
     try {
@@ -180,12 +262,12 @@ const TourDetails = () => {
           meals: tourData.meals || null,
           accommodation: tourData.accommodation || null,
           groupSize: tourData.groupSize || { min: 2, max: 20 },
-          languages: tourData.languages || []
+          languages: tourData.languages || [],
+          region: tourData.region || '',
+          duration: tourData.duration || '',
+          type: tourData.type || '',
         }
         setTour(formattedTour)
-        
-        const favorites = JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[]}')
-        setIsFavorite(favorites.tours.some(t => t.id === formattedTour.id))
         
         if (user) {
           setBookingData(prev => ({
@@ -196,6 +278,7 @@ const TourDetails = () => {
         }
 
         await fetchReviews()
+        await checkFavoriteStatus()
       } else {
         setError('Tour not found')
       }
@@ -312,40 +395,6 @@ const TourDetails = () => {
   const clearSavedBooking = () => {
     localStorage.removeItem(TOUR_BOOKING_KEY)
     sessionStorage.removeItem(REDIRECT_CHECK_KEY)
-  }
-
-  const toggleFavorite = () => {
-    if (!user) {
-      showToast('Please login to save favorites', 'info')
-      navigate('/login')
-      return
-    }
-
-    const favorites = JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[]}')
-    
-    if (isFavorite) {
-      favorites.tours = favorites.tours.filter(t => t.id !== tour.id)
-      showToast('Removed from favorites', 'success')
-    } else {
-      favorites.tours.push({
-        id: tour.id,
-        title: tour.title,
-        location: tour.location,
-        image: tour.images[0],
-        rating: tour.rating,
-        reviews: tour.reviews,
-        price: tour.price,
-        duration: tour.duration,
-        type: tour.type || tour.category,
-        badge: tour.badge,
-        addedDate: new Date().toISOString(),
-        region: tour.region || tour.location?.split(',')[0] || ''
-      })
-      showToast('Added to favorites ❤️', 'success')
-    }
-    
-    localStorage.setItem('alveovita_favorites', JSON.stringify(favorites))
-    setIsFavorite(!isFavorite)
   }
 
   const handleShare = async () => {
@@ -673,8 +722,25 @@ const TourDetails = () => {
         <Navbar />
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
-            <Loader2 className="w-16 h-16 text-amber-500 animate-spin mx-auto" />
-            <p className={`mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading tour details...</p>
+            <div className="relative w-24 h-24 mx-auto">
+              <motion.div
+                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                animate={{ rotate: -360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              />
+              <Loader2 className="absolute inset-0 w-16 h-16 text-amber-500 animate-spin mx-auto my-auto" />
+            </div>
+            <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading tour details...</p>
             {isConnected && (
               <span className="text-xs text-green-500 mt-2 block">🟢 Live updates connected</span>
             )}
@@ -771,13 +837,18 @@ const TourDetails = () => {
           <div className="absolute top-6 right-6 z-20 flex flex-col gap-2">
             <button
               onClick={toggleFavorite}
+              disabled={favoriteLoading}
               className={`p-3 rounded-full transition-all hover:scale-110 backdrop-blur-sm ${
                 isFavorite 
                   ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
                   : 'bg-black/50 text-white hover:bg-amber-500 hover:text-white'
-              }`}
+              } ${favoriteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <Heart className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              {favoriteLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Heart className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              )}
             </button>
             <button
               onClick={handleShare}
@@ -885,6 +956,13 @@ const TourDetails = () => {
                           <ClockIcon className="w-4 h-4" />
                           {tour.duration}
                         </span>
+                        {tour.type && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {tour.type}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">

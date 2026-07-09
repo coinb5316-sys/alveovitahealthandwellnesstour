@@ -16,7 +16,8 @@ import {
   Mountain, Waves, TreePine, Building, Sun, Crown,
   Sparkles, Award, Eye, Heart, Share2, Bookmark,
   ArrowUpDown, ChevronRight as ChevronRightIcon,
-  Globe, Flag, Calendar, TrendingUp, Loader2
+  Globe, Flag, Calendar, TrendingUp, Loader2,
+  Heart as HeartIcon
 } from 'lucide-react'
 
 const Destinations = () => {
@@ -37,6 +38,8 @@ const Destinations = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(9)
   const [favorites, setFavorites] = useState([])
+  const [favoriteIds, setFavoriteIds] = useState(new Set())
+  const [favoriteLoading, setFavoriteLoading] = useState({})
   const [totalDestinations, setTotalDestinations] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [categories, setCategories] = useState([])
@@ -80,14 +83,37 @@ const Destinations = () => {
       showToast(`🗑️ ${data.name} was removed`, 'warning');
     };
 
+    // Favorite events
+    const handleFavoriteAdded = (data) => {
+      if (data.itemType === 'destination') {
+        setFavoriteIds(prev => new Set([...prev, data.itemId]));
+        showToast(`❤️ ${data.itemName} added to favorites`, 'success');
+      }
+    };
+
+    const handleFavoriteRemoved = (data) => {
+      if (data.itemType === 'destination') {
+        setFavoriteIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(data.itemId);
+          return newSet;
+        });
+        showToast(`💔 ${data.itemName} removed from favorites`, 'info');
+      }
+    };
+
     socket.on('destination-created', handleDestinationCreated);
     socket.on('destination-updated', handleDestinationUpdated);
     socket.on('destination-deleted', handleDestinationDeleted);
+    socket.on('favorite-added', handleFavoriteAdded);
+    socket.on('favorite-removed', handleFavoriteRemoved);
 
     return () => {
       socket.off('destination-created', handleDestinationCreated);
       socket.off('destination-updated', handleDestinationUpdated);
       socket.off('destination-deleted', handleDestinationDeleted);
+      socket.off('favorite-added', handleFavoriteAdded);
+      socket.off('favorite-removed', handleFavoriteRemoved);
     };
   }, [socket, showToast, currentPage]);
 
@@ -101,23 +127,34 @@ const Destinations = () => {
     }
   }, [notification]);
 
-  // Load favorites from localStorage
-  useEffect(() => {
-    const savedFavorites = localStorage.getItem('alveovita_favorites')
-    if (savedFavorites) {
-      try {
-        const parsed = JSON.parse(savedFavorites)
-        setFavorites(parsed.destinations || [])
-      } catch (e) {
-        console.error('Error loading favorites:', e)
+  // Fetch favorites from backend
+  const fetchFavorites = async () => {
+    if (!user) return
+    
+    try {
+      const response = await axios.get('/favorites')
+      if (response.data.success) {
+        const destinationFavorites = response.data.favorites.filter(f => f.itemType === 'destination')
+        setFavorites(destinationFavorites)
+        const ids = new Set(destinationFavorites.map(f => f.itemId))
+        setFavoriteIds(ids)
       }
+    } catch (error) {
+      console.error('Error fetching favorites:', error)
     }
-  }, [])
+  }
 
   // Fetch destinations from backend
   useEffect(() => {
     fetchDestinations()
   }, [searchTerm, selectedRegion, selectedCategory, sortBy, currentPage])
+
+  // Fetch favorites when user changes
+  useEffect(() => {
+    if (user) {
+      fetchFavorites()
+    }
+  }, [user])
 
   const fetchDestinations = async () => {
     try {
@@ -185,44 +222,77 @@ const Destinations = () => {
     setCurrentPage(1)
   }, [searchTerm, selectedRegion, selectedCategory, sortBy])
 
-  const toggleFavorite = (destId) => {
+  // Toggle favorite
+  const toggleFavorite = async (destinationId, destinationName) => {
     if (!user) {
       showToast('Please login to save favorites', 'info')
       navigate('/login')
       return
     }
 
-    const isFavorite = favorites.some(d => (d.id || d._id) === destId)
-    let updatedFavorites
+    if (favoriteLoading[destinationId]) return
     
-    if (isFavorite) {
-      updatedFavorites = favorites.filter(d => (d.id || d._id) !== destId)
-      showToast('Removed from favorites', 'success')
-    } else {
-      const dest = destinations.find(d => (d._id || d.id) === destId)
-      updatedFavorites = [...favorites, {
-        id: dest._id || dest.id,
-        name: dest.name,
-        country: dest.country,
-        image: dest.image,
-        rating: dest.rating,
-        reviews: dest.reviews,
-        category: dest.category,
-        addedDate: new Date().toISOString()
-      }]
-      showToast('Added to favorites ❤️', 'success')
+    setFavoriteLoading(prev => ({ ...prev, [destinationId]: true }))
+    
+    try {
+      const isFavorited = favoriteIds.has(destinationId)
+      
+      if (isFavorited) {
+        // Find the favorite ID to delete
+        const favorite = favorites.find(f => f.itemId === destinationId)
+        if (favorite) {
+          await axios.delete(`/favorites/${favorite._id}`)
+          setFavoriteIds(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(destinationId)
+            return newSet
+          })
+          setFavorites(prev => prev.filter(f => f.itemId !== destinationId))
+          showToast(`Removed "${destinationName}" from favorites`, 'success')
+          
+          if (socket) {
+            socket.emit('favorite-removed', {
+              userId: user.id,
+              userName: user.name,
+              itemType: 'destination',
+              itemId: destinationId,
+              itemName: destinationName,
+            })
+          }
+        }
+      } else {
+        const response = await axios.post('/favorites', {
+          itemType: 'destination',
+          itemId: destinationId
+        })
+        
+        if (response.data.success) {
+          setFavoriteIds(prev => new Set([...prev, destinationId]))
+          setFavorites(prev => [...prev, response.data.favorite])
+          showToast(`Added "${destinationName}" to favorites ❤️`, 'success')
+          
+          if (socket) {
+            socket.emit('favorite-added', {
+              favoriteId: response.data.favorite._id,
+              userId: user.id,
+              userName: user.name,
+              itemType: 'destination',
+              itemId: destinationId,
+              itemName: destinationName,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error)
+      showToast('Failed to update favorites', 'error')
+    } finally {
+      setFavoriteLoading(prev => ({ ...prev, [destinationId]: false }))
     }
-    
-    setFavorites(updatedFavorites)
-    localStorage.setItem('alveovita_favorites', JSON.stringify({
-      hotels: JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[],"destinations":[]}').hotels || [],
-      tours: JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[],"destinations":[]}').tours || [],
-      destinations: updatedFavorites
-    }))
   }
 
-  const isFavorite = (destId) => {
-    return favorites.some(d => (d.id || d._id) === destId)
+  const isFavorite = (destinationId) => {
+    return favoriteIds.has(destinationId)
   }
 
   const handleShare = async (dest) => {
@@ -270,16 +340,16 @@ const Destinations = () => {
 
   const getCategoryColor = (category) => {
     const colorMap = {
-      'beach': 'bg-blue-500/20 text-blue-500',
-      'mountain': 'bg-emerald-500/20 text-emerald-500',
-      'forest': 'bg-green-500/20 text-green-500',
-      'city': 'bg-purple-500/20 text-purple-500',
-      'desert': 'bg-amber-500/20 text-amber-500',
-      'lake': 'bg-cyan-500/20 text-cyan-500',
-      'cultural': 'bg-orange-500/20 text-orange-500',
-      'historical': 'bg-red-500/20 text-red-500'
+      'beach': 'bg-blue-500/20 text-blue-500 border-blue-500/30',
+      'mountain': 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30',
+      'forest': 'bg-green-500/20 text-green-500 border-green-500/30',
+      'city': 'bg-purple-500/20 text-purple-500 border-purple-500/30',
+      'desert': 'bg-amber-500/20 text-amber-500 border-amber-500/30',
+      'lake': 'bg-cyan-500/20 text-cyan-500 border-cyan-500/30',
+      'cultural': 'bg-orange-500/20 text-orange-500 border-orange-500/30',
+      'historical': 'bg-red-500/20 text-red-500 border-red-500/30'
     }
-    return colorMap[category] || 'bg-gray-500/20 text-gray-500'
+    return colorMap[category] || 'bg-gray-500/20 text-gray-500 border-gray-500/30'
   }
 
   const getPopularityBadge = (popularity) => {
@@ -304,8 +374,25 @@ const Destinations = () => {
         <Navbar />
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
-            <Loader2 className="w-16 h-16 text-amber-500 animate-spin mx-auto" />
-            <p className={`mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading destinations...</p>
+            <div className="relative w-24 h-24 mx-auto">
+              <motion.div
+                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                animate={{ rotate: -360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              />
+              <Loader2 className="absolute inset-0 w-16 h-16 text-amber-500 animate-spin mx-auto my-auto" />
+            </div>
+            <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading destinations...</p>
             {isConnected && (
               <span className="text-xs text-green-500 mt-2 block">🟢 Live updates connected</span>
             )}
@@ -588,6 +675,9 @@ const Destinations = () => {
               {destinations.map((dest, index) => {
                 const Icon = getCategoryIcon(dest.category)
                 const destId = dest._id || dest.id
+                const isFavorited = isFavorite(destId)
+                const isLoading = favoriteLoading[destId] || false
+                
                 return (
                   <motion.div
                     key={destId}
@@ -603,9 +693,10 @@ const Destinations = () => {
                         src={dest.image || 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?w=800&q=80'} 
                         alt={dest.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                        loading="lazy"
                       />
                       <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(dest.category)}`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getCategoryColor(dest.category)}`}>
                           {dest.category}
                         </span>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPopularityBadge(dest.popularity)}`}>
@@ -627,13 +718,18 @@ const Destinations = () => {
                           onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
-                            toggleFavorite(destId)
+                            toggleFavorite(destId, dest.name)
                           }}
+                          disabled={isLoading}
                           className={`p-2 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:scale-110 ${
-                            isFavorite(destId) ? 'text-amber-400' : 'text-white hover:text-amber-400'
-                          }`}
+                            isFavorited ? 'text-amber-400' : 'text-white hover:text-amber-400'
+                          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          <Heart className={`w-3.5 h-3.5 ${isFavorite(destId) ? 'fill-amber-400' : ''}`} />
+                          {isLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Heart className={`w-3.5 h-3.5 ${isFavorited ? 'fill-amber-400' : ''}`} />
+                          )}
                         </button>
                       </div>
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
@@ -707,6 +803,9 @@ const Destinations = () => {
               {destinations.map((dest, index) => {
                 const Icon = getCategoryIcon(dest.category)
                 const destId = dest._id || dest.id
+                const isFavorited = isFavorite(destId)
+                const isLoading = favoriteLoading[destId] || false
+                
                 return (
                   <motion.div
                     key={destId}
@@ -722,9 +821,10 @@ const Destinations = () => {
                         src={dest.image || 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?w=800&q=80'} 
                         alt={dest.name}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                       <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(dest.category)}`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getCategoryColor(dest.category)}`}>
                           {dest.category}
                         </span>
                       </div>
@@ -743,13 +843,18 @@ const Destinations = () => {
                           onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
-                            toggleFavorite(destId)
+                            toggleFavorite(destId, dest.name)
                           }}
+                          disabled={isLoading}
                           className={`p-2 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:scale-110 ${
-                            isFavorite(destId) ? 'text-amber-400' : 'text-white hover:text-amber-400'
-                          }`}
+                            isFavorited ? 'text-amber-400' : 'text-white hover:text-amber-400'
+                          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          <Heart className={`w-3.5 h-3.5 ${isFavorite(destId) ? 'fill-amber-400' : ''}`} />
+                          {isLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Heart className={`w-3.5 h-3.5 ${isFavorited ? 'fill-amber-400' : ''}`} />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -876,7 +981,7 @@ const Destinations = () => {
                     : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                <ChevronRightIcon className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           )}

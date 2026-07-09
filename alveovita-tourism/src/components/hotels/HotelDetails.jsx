@@ -23,7 +23,7 @@ import {
   ExternalLink, PhoneCall, MailOpen, Map, Navigation,
   Hotel, Bed, Bath, Tv, Wifi as WifiIcon, Coffee as CoffeeIcon,
   Loader2, Play, Pause, Maximize2, Minimize2,
-  LogIn, Edit3, Verified, StarHalf
+  LogIn, Edit3, Verified, StarHalf, Heart as HeartIcon
 } from 'lucide-react'
 
 const HOTEL_BOOKING_KEY = 'alveovita_hotel_booking_data'
@@ -45,6 +45,8 @@ const HotelDetails = () => {
   const [error, setError] = useState(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteId, setFavoriteId] = useState(null)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState(null)
@@ -161,6 +163,85 @@ const HotelDetails = () => {
     }
   }
 
+  // Check favorite status
+  const checkFavoriteStatus = async () => {
+    if (!user || !hotel?.id) return
+    
+    try {
+      const response = await axios.get(`/favorites/check/hotel/${hotel.id}`)
+      if (response.data.success) {
+        setIsFavorite(response.data.isFavorited)
+        setFavoriteId(response.data.favoriteId || null)
+      }
+    } catch (error) {
+      console.error('Error checking favorite status:', error)
+    }
+  }
+
+  // Toggle favorite
+  const toggleFavorite = async () => {
+    if (!user) {
+      showToast('Please login to save favorites', 'info')
+      navigate('/login')
+      return
+    }
+
+    if (favoriteLoading) return
+    
+    setFavoriteLoading(true)
+    
+    try {
+      if (isFavorite && favoriteId) {
+        // Remove from favorites
+        await axios.delete(`/favorites/${favoriteId}`)
+        setIsFavorite(false)
+        setFavoriteId(null)
+        showToast(`Removed "${hotel.name}" from favorites`, 'success')
+        
+        // Emit socket event for removal
+        if (socket) {
+          socket.emit('favorite-removed', {
+            favoriteId: favoriteId,
+            userId: user.id,
+            userName: user.name,
+            itemType: 'hotel',
+            itemId: hotel.id,
+            itemName: hotel.name,
+          })
+        }
+      } else {
+        // Add to favorites
+        const response = await axios.post('/favorites', {
+          itemType: 'hotel',
+          itemId: hotel.id
+        })
+        
+        if (response.data.success) {
+          setIsFavorite(true)
+          setFavoriteId(response.data.favorite._id)
+          showToast(`Added "${hotel.name}" to favorites ❤️`, 'success')
+          
+          // Emit socket event for addition
+          if (socket) {
+            socket.emit('favorite-added', {
+              favoriteId: response.data.favorite._id,
+              userId: user.id,
+              userName: user.name,
+              itemType: 'hotel',
+              itemId: hotel.id,
+              itemName: hotel.name,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error)
+      showToast('Failed to update favorites', 'error')
+    } finally {
+      setFavoriteLoading(false)
+    }
+  }
+
   // Fetch hotel data function
   const fetchHotelData = async () => {
     try {
@@ -186,12 +267,10 @@ const HotelDetails = () => {
           phone: hotelData.phone || '+233 55 123 4567',
           email: hotelData.email || 'info@hotel.com',
           website: hotelData.website || 'www.hotel.com',
-          badge: hotelData.badge || ''
+          badge: hotelData.badge || '',
+          region: hotelData.region || ''
         }
         setHotel(formattedHotel)
-        
-        const favorites = JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[]}')
-        setIsFavorite(favorites.hotels.some(h => h.id === formattedHotel.id))
         
         if (user) {
           setBookingData(prev => ({
@@ -202,6 +281,7 @@ const HotelDetails = () => {
         }
 
         await fetchReviews()
+        await checkFavoriteStatus()
       } else {
         setError('Hotel not found')
       }
@@ -303,39 +383,6 @@ const HotelDetails = () => {
   const clearSavedBooking = () => {
     localStorage.removeItem(HOTEL_BOOKING_KEY)
     sessionStorage.removeItem(REDIRECT_CHECK_KEY)
-  }
-
-  const toggleFavorite = () => {
-    if (!user) {
-      showToast('Please login to save favorites', 'info')
-      navigate('/login')
-      return
-    }
-
-    const favorites = JSON.parse(localStorage.getItem('alveovita_favorites') || '{"hotels":[],"tours":[]}')
-    
-    if (isFavorite) {
-      favorites.hotels = favorites.hotels.filter(h => h.id !== hotel.id)
-      showToast('Removed from favorites', 'success')
-    } else {
-      favorites.hotels.push({
-        id: hotel.id,
-        name: hotel.name,
-        location: hotel.location,
-        image: hotel.image,
-        rating: hotel.rating,
-        reviews: hotel.reviews,
-        price: hotel.price,
-        amenities: hotel.amenities,
-        badge: hotel.badge,
-        addedDate: new Date().toISOString(),
-        region: hotel.region
-      })
-      showToast('Added to favorites ❤️', 'success')
-    }
-    
-    localStorage.setItem('alveovita_favorites', JSON.stringify(favorites))
-    setIsFavorite(!isFavorite)
   }
 
   const handleShare = async () => {
@@ -646,8 +693,25 @@ const HotelDetails = () => {
         <Navbar />
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
-            <Loader2 className="w-16 h-16 text-amber-500 animate-spin mx-auto" />
-            <p className={`mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading hotel details...</p>
+            <div className="relative w-24 h-24 mx-auto">
+              <motion.div
+                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                animate={{ rotate: -360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              />
+              <Loader2 className="absolute inset-0 w-16 h-16 text-amber-500 animate-spin mx-auto my-auto" />
+            </div>
+            <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading hotel details...</p>
             {isConnected && (
               <span className="text-xs text-green-500 mt-2 block">🟢 Live updates connected</span>
             )}
@@ -742,13 +806,18 @@ const HotelDetails = () => {
           <div className="absolute top-6 right-6 z-20 flex flex-col gap-2">
             <button
               onClick={toggleFavorite}
+              disabled={favoriteLoading}
               className={`p-3 rounded-full transition-all hover:scale-110 backdrop-blur-sm ${
                 isFavorite 
                   ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
                   : 'bg-black/50 text-white hover:bg-amber-500 hover:text-white'
-              }`}
+              } ${favoriteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <Heart className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              {favoriteLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Heart className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              )}
             </button>
             <button
               onClick={handleShare}
