@@ -30,6 +30,7 @@ import experienceRoutes from './routes/experienceRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import autoReplyRoutes from './routes/autoReplyRoutes.js';
 import chatSessionRoutes from './routes/chatSessionRoutes.js';
+import favoriteRoutes from './routes/favoriteRoutes.js';
 
 // ==================== SOCKET.IO IMPORTS ====================
 import { setupSocketIO } from './routes/socketRoutes.js';
@@ -203,6 +204,8 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/auto-reply', autoReplyRoutes);
 
 app.use('/api/chat-sessions', chatSessionRoutes);
+
+app.use('/api/favorites', favoriteRoutes);
 
 // ==================== TEST ROUTES ====================
 
