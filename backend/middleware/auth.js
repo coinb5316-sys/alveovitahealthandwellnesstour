@@ -18,8 +18,8 @@ export const protect = async (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    const user = await User.findById(decoded.id || decoded.userId).select('-password -refreshTokens');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('-password -refreshTokens');
 
     if (!user) {
       return res.status(401).json({
@@ -32,7 +32,7 @@ export const protect = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Auth error:', error.message);
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       message: 'Not authorized, invalid token'
     });
@@ -41,10 +41,11 @@ export const protect = async (req, res, next) => {
 
 export const admin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
-    return next();
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Not authorized as admin'
+    });
   }
-  return res.status(403).json({
-    success: false,
-    message: 'Not authorized as admin'
-  });
 };
