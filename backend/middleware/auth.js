@@ -32,7 +32,7 @@ export const protect = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Auth error:', error.message);
-    res.status(401).json({
+    return res.status(401).json({
       success: false,
       message: 'Not authorized, invalid token'
     });
@@ -41,9 +41,9 @@ export const protect = async (req, res, next) => {
 
 export const admin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
-    next();
+    return next();
   } else {
-    res.status(403).json({
+    return res.status(403).json({
       success: false,
       message: 'Not authorized as admin'
     });
