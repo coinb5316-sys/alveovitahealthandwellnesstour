@@ -63,7 +63,6 @@ const allowedOrigins = [
 const io = new SocketServer(server, {
   cors: {
     origin: function (origin, callback) {
-      // Allow all origins for socket.io on mobile
       if (!origin) return callback(null, true);
       callback(null, true);
     },
@@ -83,58 +82,89 @@ const io = new SocketServer(server, {
   }
 });
 
-// ==================== SOCKET.IO AUTHENTICATION MIDDLEWARE ====================
+// ==================== SOCKET.IO AUTHENTICATION MIDDLEWARE (FIXED) ====================
 io.use(async (socket, next) => {
   try {
-    // Get token from auth handshake
-    const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+    // Get token from multiple possible sources
+    let token = socket.handshake.auth?.token || 
+                socket.handshake.headers?.authorization?.split(' ')[1];
+    
+    // Also check query params for token (for mobile apps)
+    if (!token && socket.handshake.query?.token) {
+      token = socket.handshake.query.token;
+    }
     
     if (!token) {
       console.log('🔴 Socket connection rejected: No token provided');
-      return next(new Error('Authentication required'));
+      const err = new Error('Authentication required');
+      err.data = { type: 'auth_error', message: 'No token provided' };
+      return next(err);
     }
     
     // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      console.log('🔴 Socket JWT verification failed:', jwtError.message);
+      const err = new Error('Invalid token');
+      err.data = { type: 'auth_error', message: 'Invalid token' };
+      return next(err);
+    }
     
     // Get user from database
     const user = await User.findById(decoded.id).select('id name email role avatar');
     
     if (!user) {
       console.log('🔴 Socket connection rejected: User not found');
-      return next(new Error('User not found'));
+      const err = new Error('User not found');
+      err.data = { type: 'auth_error', message: 'User not found' };
+      return next(err);
     }
     
     // Attach user to socket
     socket.userId = user.id;
     socket.user = user;
+    socket.userData = user; // Keep a copy for reference
+    
     console.log(`✅ Socket authenticated: ${user.name} (${user.id}) - Role: ${user.role}`);
     
     next();
   } catch (error) {
     console.log('🔴 Socket authentication error:', error.message);
-    next(new Error('Invalid token'));
+    const err = new Error('Authentication failed');
+    err.data = { type: 'auth_error', message: error.message };
+    next(err);
   }
 });
 
-// ==================== SOCKET.IO CONNECTION HANDLER ====================
+// ==================== SOCKET.IO CONNECTION HANDLER (FIXED) ====================
 io.on('connection', (socket) => {
   console.log(`🟢 Socket connected: ${socket.id} - User: ${socket.userId}`);
+  
+  // If userId is not set but we have user data, set it
+  if (!socket.userId && socket.user) {
+    socket.userId = socket.user.id;
+  }
   
   // Join user's personal room for notifications
   if (socket.userId) {
     socket.join(`user-${socket.userId}`);
     console.log(`📌 User ${socket.userId} joined their personal room`);
     
-    // Send initial unread count
+    // Send initial unread count with better error handling
     Notification.countDocuments({
       user: socket.userId,
       read: false,
       isDeleted: false
-    }).then(count => {
+    })
+    .then(count => {
       socket.emit('unread-count', { count });
-    }).catch(err => {
-      console.error('Error getting unread count:', err);
+      console.log(`📊 Sent initial unread count: ${count} to user ${socket.userId}`);
+    })
+    .catch(err => {
+      console.error('❌ Error getting unread count:', err);
+      socket.emit('unread-count', { count: 0, error: true });
     });
   }
   
@@ -147,10 +177,13 @@ io.on('connection', (socket) => {
     Notification.countDocuments({
       read: false,
       isDeleted: false
-    }).then(count => {
+    })
+    .then(count => {
       socket.emit('admin-unread-count', { count });
-    }).catch(err => {
-      console.error('Error getting admin unread count:', err);
+      console.log(`📊 Sent admin unread count: ${count}`);
+    })
+    .catch(err => {
+      console.error('❌ Error getting admin unread count:', err);
     });
   }
   
@@ -159,10 +192,25 @@ io.on('connection', (socket) => {
     if (socket.userId === userId) {
       socket.join(`user-${userId}`);
       console.log(`📌 User ${userId} manually joined their room`);
+      
+      // Send fresh unread count
+      Notification.countDocuments({
+        user: userId,
+        read: false,
+        isDeleted: false
+      })
+      .then(count => {
+        socket.emit('unread-count', { count });
+      })
+      .catch(err => {
+        console.error('❌ Error getting unread count on join:', err);
+      });
     } else {
       console.log(`⚠️ User ${socket.userId} tried to join room for ${userId} - Access denied`);
     }
   });
+  
+  // ==================== NOTIFICATION EVENT HANDLERS (FIXED) ====================
   
   // Handle getting unread count
   socket.on('get-unread-count', async () => {
@@ -174,9 +222,14 @@ io.on('connection', (socket) => {
           isDeleted: false
         });
         socket.emit('unread-count', { count });
+        console.log(`📊 User ${socket.userId} unread count: ${count}`);
       } catch (error) {
-        console.error('Error getting unread count:', error);
+        console.error('❌ Error getting unread count:', error);
+        socket.emit('unread-count', { count: 0, error: true });
       }
+    } else {
+      console.warn('⚠️ get-unread-count called without userId');
+      socket.emit('unread-count', { count: 0, error: true });
     }
   });
   
@@ -189,11 +242,58 @@ io.on('connection', (socket) => {
           isDeleted: false
         });
         socket.emit('admin-unread-count', { count });
+        console.log(`📊 Admin unread count: ${count}`);
       } catch (error) {
-        console.error('Error getting admin unread count:', error);
+        console.error('❌ Error getting admin unread count:', error);
+        socket.emit('admin-unread-count', { count: 0, error: true });
       }
+    } else {
+      console.warn('⚠️ get-admin-unread-count called without admin role');
+      socket.emit('admin-unread-count', { count: 0, error: true });
     }
   });
+  
+  // ==================== NOTIFICATION EMIT HELPERS ====================
+  
+  // Helper function to emit a new notification to a user
+  const emitNewNotification = async (userId, notification) => {
+    try {
+      const unreadCount = await Notification.countDocuments({
+        user: userId,
+        read: false,
+        isDeleted: false
+      });
+      
+      io.to(`user-${userId}`).emit('new-notification', {
+        notification,
+        unreadCount
+      });
+      
+      console.log(`🔔 Sent new notification to user ${userId}: ${notification.title}`);
+    } catch (error) {
+      console.error('❌ Error emitting new notification:', error);
+    }
+  };
+  
+  // Helper function to update unread count for a user
+  const updateUnreadCount = async (userId) => {
+    try {
+      const count = await Notification.countDocuments({
+        user: userId,
+        read: false,
+        isDeleted: false
+      });
+      io.to(`user-${userId}`).emit('unread-count', { count });
+      return count;
+    } catch (error) {
+      console.error('❌ Error updating unread count:', error);
+      return 0;
+    }
+  };
+  
+  // Store helpers on socket for use in controllers
+  socket.emitNewNotification = emitNewNotification;
+  socket.updateUnreadCount = updateUnreadCount;
   
   // Setup chat handlers
   setupSocketIO(io, socket);
@@ -242,16 +342,12 @@ app.use(helmet({
 
 // ==================== FIXED CORS FOR MOBILE ====================
 app.use((req, res, next) => {
-  // Get the origin from the request
   const origin = req.headers.origin;
   
-  // Allow all origins for API requests (this is safe for public APIs)
-  // For production with sensitive data, you'd want to be more restrictive
   if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
   } else {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
     res.header('Access-Control-Allow-Origin', '*');
   }
   
@@ -259,7 +355,6 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-auth-token');
   res.header('Access-Control-Expose-Headers', 'Authorization, x-auth-token');
   
-  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.status(200).json({});
   }
@@ -270,8 +365,6 @@ app.use((req, res, next) => {
 // Also use the cors middleware as a fallback
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow all origins for now to fix mobile issues
-    // You can restrict this later if needed
     if (!origin) return callback(null, true);
     callback(null, true);
   },
@@ -501,8 +594,36 @@ app.get('/api/test/socket', (req, res) => {
     socketPath: '/socket.io/',
     transports: ['websocket', 'polling'],
     activeConnections: io.sockets.sockets.size,
-    authenticatedUsers: io.sockets.sockets.size // This includes all connected sockets
+    authenticatedUsers: io.sockets.sockets.size
   });
+});
+
+// ==================== TEST NOTIFICATIONS ENDPOINT (NEW) ====================
+app.get('/api/test/notifications', async (req, res) => {
+  try {
+    const total = await Notification.countDocuments({ isDeleted: false });
+    const unread = await Notification.countDocuments({ read: false, isDeleted: false });
+    const sample = await Notification.findOne({ isDeleted: false })
+      .populate('user', 'name email')
+      .lean();
+    
+    res.json({
+      success: true,
+      stats: {
+        total,
+        unread,
+        hasNotifications: total > 0
+      },
+      sample: sample || 'No notifications found',
+      modelExists: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      modelExists: false
+    });
+  }
 });
 
 // ==================== TEST ALL SERVICES ====================
@@ -513,7 +634,8 @@ app.get('/api/test/all', async (req, res) => {
     cloudinary: { status: '⏳ Testing...' },
     paystack: { status: '⏳ Testing...' },
     email: { status: '⏳ Testing...' },
-    socket: { status: '✅ Ready', connections: io.sockets.sockets.size }
+    socket: { status: '✅ Ready', connections: io.sockets.sockets.size },
+    notifications: { status: '⏳ Testing...' }
   };
 
   // Test Database
@@ -574,6 +696,22 @@ app.get('/api/test/all', async (req, res) => {
     from: process.env.EMAIL_FROM
   };
 
+  // Notifications
+  try {
+    const total = await Notification.countDocuments({ isDeleted: false });
+    results.notifications = {
+      status: '✅ Connected',
+      total: total,
+      modelExists: true
+    };
+  } catch (error) {
+    results.notifications = {
+      status: '❌ Failed',
+      error: error.message,
+      modelExists: false
+    };
+  }
+
   res.json({
     success: true,
     message: 'Service Test Results',
@@ -583,7 +721,6 @@ app.get('/api/test/all', async (req, res) => {
 
 // ==================== SOCKET.IO STATUS ENDPOINT ====================
 app.get('/api/socket-status', (req, res) => {
-  // Get count of authenticated users
   const authUsers = new Set();
   io.sockets.sockets.forEach(socket => {
     if (socket.userId) {
@@ -613,7 +750,6 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('❌ Global Error:', err);
   
-  // Handle specific error types
   if (err.name === 'CastError') {
     return res.status(400).json({
       success: false,
@@ -689,6 +825,7 @@ const startServer = async () => {
       console.log(`  💳  Paystack:        GET  ${baseUrl}/api/test/paystack`);
       console.log(`  📧  Email:           POST ${baseUrl}/api/test/email`);
       console.log(`  📡  Socket.IO:       GET  ${baseUrl}/api/test/socket`);
+      console.log(`  🔔  Notifications:   GET  ${baseUrl}/api/test/notifications`);
       console.log(`  🔄  All Services:    GET  ${baseUrl}/api/test/all`);
       console.log(`  📡  Socket Status:   GET  ${baseUrl}/api/socket-status`);
       console.log('');
@@ -734,7 +871,6 @@ const shutdown = () => {
   console.log('');
   console.log('🛑 Shutting down gracefully...');
   
-  // Close socket connections
   io.close(() => {
     console.log('✅ Socket.IO closed');
   });
@@ -747,7 +883,6 @@ const shutdown = () => {
     });
   });
 
-  // Force close after 10 seconds
   setTimeout(() => {
     console.error('⚠️ Force closing...');
     process.exit(1);
