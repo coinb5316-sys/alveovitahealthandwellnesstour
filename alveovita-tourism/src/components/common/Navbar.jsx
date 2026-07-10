@@ -17,16 +17,20 @@ import {
   UserPlus, LogIn, ShieldCheck, Fingerprint, Key,
   Lock, Unlock, Eye, EyeOff, Smartphone, Laptop,
   Headphones, Video, Mic, Image as ImageIcon,
-  Plus, Minus, Circle, AlertTriangle, Info as InfoIcon
+  Plus, Minus, Circle, AlertTriangle, Info as InfoIcon,
+  Loader2
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
+import { useSocket } from '../../context/SocketContext'
+import { useToast } from '../../hooks/useToast'
+import axios from '../../api/axios'
+import NotificationPanel from '../NotificationPanel'
 import logo from '../../assets/images/sun1.png?url'
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [notifications, setNotifications] = useState(3)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isServicesOpen, setIsServicesOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -36,8 +40,15 @@ const Navbar = () => {
   const [activeNotification, setActiveNotification] = useState(null)
   const [avatarError, setAvatarError] = useState(false)
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
+  
   const { isDark, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
+  const { socket, isConnected } = useSocket()
+  const { showToast } = useToast()
+  
   const searchRef = useRef(null)
   const dropdownRef = useRef(null)
   const notificationRef = useRef(null)
@@ -45,6 +56,85 @@ const Navbar = () => {
   const mobileMenuRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
+
+  // ============================================
+  // FETCH UNREAD COUNT
+  // ============================================
+  const fetchUnreadCount = async () => {
+    if (!user) return
+    
+    try {
+      setLoadingNotifications(true)
+      const response = await axios.get('/notifications/stats')
+      if (response.data.success) {
+        setUnreadCount(response.data.stats.unread || 0)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching unread count:', error)
+    } finally {
+      setLoadingNotifications(false)
+    }
+  }
+
+  // ============================================
+  // SOCKET EVENT LISTENERS
+  // ============================================
+  useEffect(() => {
+    if (!socket) return
+
+    const handleNewNotification = (data) => {
+      if (data.notification && !data.notification.read) {
+        setUnreadCount(prev => prev + 1)
+        showToast('🔔 ' + data.notification.title, 'info')
+      }
+    }
+
+    const handleNotificationRead = (data) => {
+      if (data.unreadCount !== undefined) {
+        setUnreadCount(data.unreadCount)
+      } else {
+        // Fallback: fetch updated count
+        fetchUnreadCount()
+      }
+    }
+
+    const handleAllNotificationsRead = (data) => {
+      setUnreadCount(0)
+    }
+
+    const handleNotificationDeleted = (data) => {
+      fetchUnreadCount()
+    }
+
+    const handleAllNotificationsDeleted = (data) => {
+      setUnreadCount(0)
+    }
+
+    socket.on('new-notification', handleNewNotification)
+    socket.on('notification-read', handleNotificationRead)
+    socket.on('all-notifications-read', handleAllNotificationsRead)
+    socket.on('notification-deleted', handleNotificationDeleted)
+    socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
+
+    return () => {
+      socket.off('new-notification', handleNewNotification)
+      socket.off('notification-read', handleNotificationRead)
+      socket.off('all-notifications-read', handleAllNotificationsRead)
+      socket.off('notification-deleted', handleNotificationDeleted)
+      socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
+    }
+  }, [socket, showToast])
+
+  // ============================================
+  // FETCH UNREAD COUNT ON USER CHANGE
+  // ============================================
+  useEffect(() => {
+    if (user) {
+      fetchUnreadCount()
+    } else {
+      setUnreadCount(0)
+    }
+  }, [user])
 
   // Reset avatar error when user changes
   useEffect(() => {
@@ -122,11 +212,6 @@ const Navbar = () => {
       setIsMobileSearchOpen(false)
       setIsOpen(false)
     }
-  }
-
-  const handleNotificationClick = (id) => {
-    setActiveNotification(id)
-    setNotifications(prev => Math.max(0, prev - 1))
   }
 
   // Get user initials for avatar fallback
@@ -226,42 +311,6 @@ const Navbar = () => {
     { name: 'Favorites', icon: Heart, href: '/favorites', color: 'text-red-400' },
     { name: 'Profile', icon: User, href: '/profile', color: 'text-amber-400' },
     { name: 'Settings', icon: Settings, href: '/settings', color: 'text-gray-400' },
-  ]
-
-  const notificationItems = [
-    {
-      id: 1,
-      type: 'booking',
-      title: 'Booking Confirmed',
-      message: 'Your wellness retreat at Kempinski Hotel has been confirmed.',
-      time: '2 minutes ago',
-      icon: Calendar,
-      color: 'text-green-400',
-      bg: 'bg-green-500/10',
-      read: false
-    },
-    {
-      id: 2,
-      type: 'promotion',
-      title: 'Special Offer',
-      message: 'Get 20% off on all medical tourism packages this month!',
-      time: '1 hour ago',
-      icon: Gift,
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10',
-      read: false
-    },
-    {
-      id: 3,
-      type: 'review',
-      title: 'New Review',
-      message: 'Sarah J. left a 5-star review for your recent tour.',
-      time: '3 hours ago',
-      icon: Star,
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-500/10',
-      read: true
-    },
   ]
 
   // Search data
@@ -513,26 +562,33 @@ const Navbar = () => {
                 </AnimatePresence>
               </div>
 
-              {/* Notifications - ONLY show when authenticated */}
+              {/* ============================================ */}
+              {/* NOTIFICATIONS - Integrated with backend */}
+              {/* ============================================ */}
               {user && (
                 <div className="relative" ref={notificationRef}>
                   <button
-                    onClick={() => setNotificationOpen(!notificationOpen)}
+                    onClick={() => setNotificationPanelOpen(true)}
                     className="relative p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
                     aria-label="Notifications"
                   >
                     <Bell className="w-5 h-5" />
-                    {notifications > 0 && (
+                    {loadingNotifications ? (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-gray-500/50 rounded-full flex items-center justify-center">
+                        <Loader2 className="w-3 h-3 text-white animate-spin" />
+                      </span>
+                    ) : unreadCount > 0 && (
                       <motion.span 
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-amber-500/30"
+                        className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-amber-500/30 px-1"
                       >
-                        {notifications}
+                        {unreadCount > 9 ? '9+' : unreadCount}
                       </motion.span>
                     )}
                   </button>
 
+                  {/* Quick notification preview on hover/click */}
                   <AnimatePresence>
                     {notificationOpen && (
                       <motion.div 
@@ -544,40 +600,39 @@ const Navbar = () => {
                         <div className="p-4 border-b border-amber-500/10">
                           <div className="flex items-center justify-between">
                             <h3 className="font-bold text-white text-sm">Notifications</h3>
-                            <button className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
-                              Mark all read
+                            <button 
+                              onClick={() => {
+                                setNotificationOpen(false)
+                                setNotificationPanelOpen(true)
+                              }}
+                              className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                            >
+                              View all
                             </button>
                           </div>
                         </div>
                         <div className="max-h-80 overflow-y-auto">
-                          {notificationItems.map((item) => (
-                            <div
-                              key={item.id}
-                              onClick={() => handleNotificationClick(item.id)}
-                              className={`flex items-start gap-3 px-4 py-3 transition-all cursor-pointer ${
-                                !item.read ? 'bg-amber-500/5 border-l-2 border-amber-400' : ''
-                              } hover:bg-amber-500/10`}
-                            >
-                              <div className={`w-10 h-10 rounded-xl ${item.bg} flex items-center justify-center flex-shrink-0`}>
-                                <item.icon className={`w-5 h-5 ${item.color}`} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-medium text-sm text-white truncate">{item.title}</span>
-                                  {!item.read && (
-                                    <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
-                                  )}
-                                </div>
-                                <p className="text-sm truncate text-gray-400">{item.message}</p>
-                                <span className="text-xs text-gray-500">{item.time}</span>
-                              </div>
+                          {unreadCount === 0 ? (
+                            <div className="p-6 text-center">
+                              <Bell className="w-10 h-10 text-gray-600 mx-auto mb-2" />
+                              <p className="text-sm text-gray-400">No new notifications</p>
                             </div>
-                          ))}
-                        </div>
-                        <div className="p-3 text-center border-t border-amber-500/10 hover:bg-amber-500/10 transition-colors">
-                          <Link to="/notifications" className="text-sm text-amber-400 hover:text-amber-300 transition-colors">
-                            View all notifications
-                          </Link>
+                          ) : (
+                            <div className="p-2">
+                              <p className="text-xs text-gray-500 text-center py-2">
+                                You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
+                              </p>
+                              <button
+                                onClick={() => {
+                                  setNotificationOpen(false)
+                                  setNotificationPanelOpen(true)
+                                }}
+                                className="w-full text-center py-3 rounded-xl text-sm font-medium transition-all text-amber-400 hover:bg-amber-500/10"
+                              >
+                                Open notifications panel →
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </motion.div>
                     )}
@@ -616,7 +671,6 @@ const Navbar = () => {
                       }`}
                       aria-label="User menu"
                     >
-                      {/* Professional User Avatar with uploaded image */}
                       <UserAvatar size="md" />
                       <span className="hidden xl:inline font-medium text-white text-sm">
                         {user.name?.split(' ')[0] || 'User'}
@@ -730,71 +784,20 @@ const Navbar = () => {
               </Link>
             )}
 
+            {/* Mobile Notifications */}
             {user && (
-              <div className="relative">
-                <button
-                  onClick={() => setNotificationOpen(!notificationOpen)}
-                  className="relative p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
-                  aria-label="Notifications"
-                >
-                  <Bell className="w-5 h-5" />
-                  {notifications > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-amber-500/30">
-                      {notifications}
-                    </span>
-                  )}
-                </button>
-
-                <AnimatePresence>
-                  {notificationOpen && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-2 w-72 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
-                    >
-                      <div className="p-3 border-b border-amber-500/10">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-bold text-white text-sm">Notifications</h3>
-                          <button className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
-                            Mark all read
-                          </button>
-                        </div>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto">
-                        {notificationItems.slice(0, 2).map((item) => (
-                          <div
-                            key={item.id}
-                            onClick={() => handleNotificationClick(item.id)}
-                            className={`flex items-start gap-3 px-3 py-2 transition-all cursor-pointer ${
-                              !item.read ? 'bg-amber-500/5 border-l-2 border-amber-400' : ''
-                            } hover:bg-amber-500/10`}
-                          >
-                            <div className={`w-8 h-8 rounded-xl ${item.bg} flex items-center justify-center flex-shrink-0`}>
-                              <item.icon className={`w-4 h-4 ${item.color}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium text-xs text-white truncate">{item.title}</span>
-                                {!item.read && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"></span>
-                                )}
-                              </div>
-                              <p className="text-xs truncate text-gray-400">{item.message}</p>
-                              <span className="text-[10px] text-gray-500">{item.time}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="p-2 text-center border-t border-amber-500/10 hover:bg-amber-500/10 transition-colors">
-                        <Link to="/notifications" className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
-                          View all notifications
-                        </Link>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <button
+                onClick={() => setNotificationPanelOpen(true)}
+                className="relative p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+                aria-label="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-amber-500/30 px-1">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
             )}
 
             <button
@@ -1007,6 +1010,14 @@ const Navbar = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* ============================================ */}
+      {/* NOTIFICATION PANEL - Full panel */}
+      {/* ============================================ */}
+      <NotificationPanel 
+        isOpen={notificationPanelOpen} 
+        onClose={() => setNotificationPanelOpen(false)} 
+      />
     </nav>
   )
 }

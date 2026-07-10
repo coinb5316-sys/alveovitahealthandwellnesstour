@@ -1,4 +1,4 @@
-// App.jsx - Fully updated with SocketProvider integration
+// App.jsx - Fully updated with SocketProvider integration and Notifications route
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ThemeProvider } from './context/ThemeContext';
@@ -69,6 +69,9 @@ import Destinations from './pages/Destinations';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
+// ✅ NOTIFICATIONS PAGE - Add this import
+import Notifications from './pages/Notifications';
+
 function App() {
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id'}>
@@ -127,6 +130,9 @@ function App() {
                     {/* Favorites - Protected */}
                     <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
                     
+                    {/* ✅ NOTIFICATIONS - Protected route */}
+                    <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                    
                     {/* ==================== USER DASHBOARD ==================== */}
                     <Route path="/dashboard" element={<ProtectedRoute><UserLayout /></ProtectedRoute>}>
                       <Route index element={<UserDashboard />} />
@@ -135,6 +141,8 @@ function App() {
                       <Route path="profile" element={<UserProfile />} />
                       <Route path="settings" element={<UserSettings />} />
                       <Route path="experiences" element={<UserDashboard />} />
+                      {/* ✅ Notifications inside user dashboard (optional) */}
+                      <Route path="notifications" element={<Notifications />} />
                     </Route>
                     
                     {/* ==================== ADMIN DASHBOARD ==================== */}
@@ -153,6 +161,8 @@ function App() {
                       <Route path="destinations" element={<AdminDestinations />} />
                       <Route path="revenue" element={<AdminRevenue />} />
                       <Route path="analytics" element={<AdminDashboard />} />
+                      {/* ✅ Admin notifications */}
+                      <Route path="notifications" element={<Notifications />} />
                     </Route>
                     
                     {/* ==================== FALLBACK ROUTE ==================== */}
