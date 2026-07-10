@@ -2,37 +2,40 @@
 import express from 'express';
 import {
   getNotifications,
-  getAdminNotifications,
   getNotificationById,
+  createNotification,
   markAsRead,
   markAllAsRead,
   deleteNotification,
   deleteAllNotifications,
   getNotificationStats,
-  getNotificationCount,
-  sendTestNotification
+  createBulkNotifications,
+  getAdminNotifications
 } from '../controllers/notificationController.js';
+// Fix: Import from auth.js (not authMiddleware.js)
 import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // ==================== NOTIFICATION ROUTES ====================
 
-// Get user notifications
+// Get user notifications (with admin support)
 // GET /api/notifications
-router.get('/', protect, getNotifications);
+router.route('/')
+  .get(protect, getNotifications)
+  .post(protect, admin, createNotification);
 
-// Get admin notifications (all users)
+// Admin routes - Get all notifications for admin
 // GET /api/notifications/admin
 router.get('/admin', protect, admin, getAdminNotifications);
 
-// Get notification stats (admin only)
+// Get notification stats
 // GET /api/notifications/stats
-router.get('/stats', protect, admin, getNotificationStats);
+router.get('/stats', protect, getNotificationStats);
 
-// Get notification count
-// GET /api/notifications/count
-router.get('/count', protect, getNotificationCount);
+// Bulk notifications (admin only)
+// POST /api/notifications/bulk
+router.post('/bulk', protect, admin, createBulkNotifications);
 
 // Mark all notifications as read
 // PUT /api/notifications/read-all
@@ -41,10 +44,6 @@ router.put('/read-all', protect, markAllAsRead);
 // Delete all notifications
 // DELETE /api/notifications/delete-all
 router.delete('/delete-all', protect, deleteAllNotifications);
-
-// Test notification endpoint
-// POST /api/notifications/test
-router.post('/test', protect, admin, sendTestNotification);
 
 // Single notification routes
 // GET /api/notifications/:id
