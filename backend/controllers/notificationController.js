@@ -1,23 +1,17 @@
+// backend/controllers/notificationController.js
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 
-// @desc    Get user notifications (with admin support)
-// @route   GET /api/notifications
+// ==================== GET USER NOTIFICATIONS ====================
 export const getNotifications = async (req, res) => {
   try {
-    const { page = 1, limit = 20, read, type, priority, admin = 'false' } = req.query;
+    const { page = 1, limit = 20, read, type, priority } = req.query;
     
-    // Build query based on user role
-    const query = { isDeleted: false };
-    
-    // If admin and admin=true, show all notifications (no user filter)
-    if (req.user.role === 'admin' && admin === 'true') {
-      // Admins can see all notifications
-      delete query.user;
-    } else {
-      // Regular users see only their own
-      query.user = req.user.id;
-    }
+    // Build query - use 'user' field (matches model)
+    const query = { 
+      user: req.user.id,
+      isDeleted: false
+    };
     
     if (read === 'true') query.read = true;
     if (read === 'false') query.read = false;
@@ -34,39 +28,20 @@ export const getNotifications = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // If admin viewing all, populate user data
-    let notifications = await Notification.find(query)
+    const notifications = await Notification.find(query)
       .sort({ priority: -1, createdAt: -1 })
       .skip(skip)
       .limit(limitNum + 1);
-
-    // Populate user data for admin view
-    if (req.user.role === 'admin' && admin === 'true') {
-      notifications = await Notification.populate(notifications, {
-        path: 'user',
-        select: 'name email avatar'
-      });
-    }
 
     const hasMore = notifications.length > limitNum;
     if (hasMore) notifications.pop();
 
     const total = await Notification.countDocuments(query);
-    
-    // Get unread count for the current user (or all unread for admin)
-    let unreadCount;
-    if (req.user.role === 'admin' && admin === 'true') {
-      unreadCount = await Notification.countDocuments({ 
-        read: false,
-        isDeleted: false
-      });
-    } else {
-      unreadCount = await Notification.countDocuments({ 
-        user: req.user.id, 
-        read: false,
-        isDeleted: false
-      });
-    }
+    const unreadCount = await Notification.countDocuments({ 
+      user: req.user.id, 
+      read: false,
+      isDeleted: false
+    });
 
     res.json({
       success: true,
@@ -90,8 +65,7 @@ export const getNotifications = async (req, res) => {
   }
 };
 
-// @desc    Get notification by ID
-// @route   GET /api/notifications/:id
+// ==================== GET NOTIFICATION BY ID ====================
 export const getNotificationById = async (req, res) => {
   try {
     const notification = await Notification.findById(req.params.id);
@@ -136,8 +110,7 @@ export const getNotificationById = async (req, res) => {
   }
 };
 
-// @desc    Create notification
-// @route   POST /api/notifications
+// ==================== CREATE NOTIFICATION ====================
 export const createNotification = async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -160,7 +133,7 @@ export const createNotification = async (req, res) => {
     }
 
     const notification = await Notification.create({
-      user: userId,
+      user: userId,  // Use 'user' field (matches model)
       type,
       title,
       message,
@@ -221,8 +194,7 @@ export const createNotification = async (req, res) => {
   }
 };
 
-// @desc    Mark notification as read
-// @route   PUT /api/notifications/:id/read
+// ==================== MARK AS READ ====================
 export const markAsRead = async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -276,14 +248,12 @@ export const markAsRead = async (req, res) => {
   }
 };
 
-// @desc    Mark all notifications as read (for user or admin)
-// @route   PUT /api/notifications/read-all
+// ==================== MARK ALL AS READ ====================
 export const markAllAsRead = async (req, res) => {
   try {
     const io = req.app.get('io');
-    const { userId } = req.query; // For admin marking specific user's notifications
+    const { userId } = req.query;
     
-    // Determine which user's notifications to mark
     let targetUserId = req.user.id;
     let isAdminAction = false;
     
@@ -294,7 +264,7 @@ export const markAllAsRead = async (req, res) => {
     
     const result = await Notification.updateMany(
       { 
-        user: targetUserId, 
+        user: targetUserId,  // Use 'user' field
         read: false,
         isDeleted: false
       },
@@ -335,8 +305,7 @@ export const markAllAsRead = async (req, res) => {
   }
 };
 
-// @desc    Delete notification
-// @route   DELETE /api/notifications/:id
+// ==================== DELETE NOTIFICATION ====================
 export const deleteNotification = async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -391,12 +360,11 @@ export const deleteNotification = async (req, res) => {
   }
 };
 
-// @desc    Delete all notifications (for user or admin)
-// @route   DELETE /api/notifications/delete-all
+// ==================== DELETE ALL NOTIFICATIONS ====================
 export const deleteAllNotifications = async (req, res) => {
   try {
     const io = req.app.get('io');
-    const { userId } = req.query; // For admin deleting specific user's notifications
+    const { userId } = req.query;
     
     let targetUserId = req.user.id;
     let isAdminAction = false;
@@ -408,7 +376,7 @@ export const deleteAllNotifications = async (req, res) => {
     
     const result = await Notification.updateMany(
       { 
-        user: targetUserId,
+        user: targetUserId,  // Use 'user' field
         isDeleted: false
       },
       { 
@@ -448,8 +416,7 @@ export const deleteAllNotifications = async (req, res) => {
   }
 };
 
-// @desc    Get notification stats (for user or admin)
-// @route   GET /api/notifications/stats
+// ==================== GET NOTIFICATION STATS ====================
 export const getNotificationStats = async (req, res) => {
   try {
     const { userId } = req.query;
@@ -460,12 +427,12 @@ export const getNotificationStats = async (req, res) => {
     }
     
     const total = await Notification.countDocuments({
-      user: targetUserId,
+      user: targetUserId,  // Use 'user' field
       isDeleted: false
     });
 
     const unread = await Notification.countDocuments({
-      user: targetUserId,
+      user: targetUserId,  // Use 'user' field
       read: false,
       isDeleted: false
     });
@@ -500,8 +467,7 @@ export const getNotificationStats = async (req, res) => {
   }
 };
 
-// @desc    Create bulk notifications
-// @route   POST /api/notifications/bulk
+// ==================== CREATE BULK NOTIFICATIONS ====================
 export const createBulkNotifications = async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -526,7 +492,7 @@ export const createBulkNotifications = async (req, res) => {
 
     for (const userId of userIds) {
       const notification = {
-        user: userId,
+        user: userId,  // Use 'user' field
         type,
         title,
         message,
@@ -549,7 +515,7 @@ export const createBulkNotifications = async (req, res) => {
     if (io) {
       for (const notification of created) {
         const unreadCount = await Notification.countDocuments({
-          user: notification.user,
+          user: notification.user,  // Use 'user' field
           read: false,
           isDeleted: false
         });
@@ -583,8 +549,7 @@ export const createBulkNotifications = async (req, res) => {
   }
 };
 
-// @desc    Get admin notifications (all users)
-// @route   GET /api/notifications/admin
+// ==================== GET ADMIN NOTIFICATIONS ====================
 export const getAdminNotifications = async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
@@ -598,7 +563,7 @@ export const getAdminNotifications = async (req, res) => {
     
     const query = { isDeleted: false };
     
-    if (userId) query.user = userId;
+    if (userId) query.user = userId;  // Use 'user' field
     if (read === 'true') query.read = true;
     if (read === 'false') query.read = false;
     if (type && type !== 'all') query.type = type;
