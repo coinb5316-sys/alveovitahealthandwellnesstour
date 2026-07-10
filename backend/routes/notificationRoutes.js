@@ -1,4 +1,3 @@
-// backend/routes/notificationRoutes.js
 import express from 'express';
 import {
   getNotifications,
@@ -9,48 +8,38 @@ import {
   deleteNotification,
   deleteAllNotifications,
   getNotificationStats,
-  createBulkNotifications
+  createBulkNotifications,
+  getAdminNotifications
 } from '../controllers/notificationController.js';
-import { protect, admin } from '../middleware/auth.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(protect);
+// Public routes (protected)
+router.route('/')
+  .get(protect, getNotifications)
+  .post(protect, admin, createNotification);
 
-// ============================================
-// USER ROUTES
-// ============================================
+// Admin routes
+router.get('/admin', protect, admin, getAdminNotifications);
 
-// Get user notifications
-router.get('/', getNotifications);
+// Stats
+router.get('/stats', protect, getNotificationStats);
 
-// Get notification stats
-router.get('/stats', getNotificationStats);
-
-// Get single notification
-router.get('/:id', getNotificationById);
-
-// Mark notification as read
-router.put('/:id/read', markAsRead);
+// Bulk
+router.post('/bulk', protect, admin, createBulkNotifications);
 
 // Mark all as read
-router.put('/read-all', markAllAsRead);
+router.put('/read-all', protect, markAllAsRead);
 
-// Delete notification
-router.delete('/:id', deleteNotification);
+// Delete all
+router.delete('/delete-all', protect, deleteAllNotifications);
 
-// Delete all notifications
-router.delete('/delete-all', deleteAllNotifications);
+// Single notification routes
+router.route('/:id')
+  .get(protect, getNotificationById)
+  .delete(protect, deleteNotification);
 
-// ============================================
-// ADMIN ROUTES
-// ============================================
-
-// Create notification (admin only)
-router.post('/', admin, createNotification);
-
-// Create bulk notifications (admin only)
-router.post('/bulk', admin, createBulkNotifications);
+router.put('/:id/read', protect, markAsRead);
 
 export default router;

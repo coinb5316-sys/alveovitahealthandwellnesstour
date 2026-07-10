@@ -7,12 +7,17 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
 
 // Import configurations
 import connectDB from './config/database.js';
 import cloudinary from './config/cloudinary.js';
 import paystack from './config/paystack.js';
 import { sendEmail } from './config/email.js';
+
+// Import models for Socket.IO
+import User from './models/User.js';
+import Notification from './models/Notification.js';
 
 // ==================== IMPORT ROUTES ====================
 import authRoutes from './routes/authRoutes.js';
@@ -54,7 +59,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
-// ==================== SOCKET.IO SETUP ====================
+// ==================== SOCKET.IO SETUP WITH AUTHENTICATION ====================
 const io = new SocketServer(server, {
   cors: {
     origin: function (origin, callback) {
@@ -78,8 +83,137 @@ const io = new SocketServer(server, {
   }
 });
 
-// Setup Socket.IO with custom handlers
-setupSocketIO(io);
+// ==================== SOCKET.IO AUTHENTICATION MIDDLEWARE ====================
+io.use(async (socket, next) => {
+  try {
+    // Get token from auth handshake
+    const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      console.log('🔴 Socket connection rejected: No token provided');
+      return next(new Error('Authentication required'));
+    }
+    
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Get user from database
+    const user = await User.findById(decoded.id).select('id name email role avatar');
+    
+    if (!user) {
+      console.log('🔴 Socket connection rejected: User not found');
+      return next(new Error('User not found'));
+    }
+    
+    // Attach user to socket
+    socket.userId = user.id;
+    socket.user = user;
+    console.log(`✅ Socket authenticated: ${user.name} (${user.id}) - Role: ${user.role}`);
+    
+    next();
+  } catch (error) {
+    console.log('🔴 Socket authentication error:', error.message);
+    next(new Error('Invalid token'));
+  }
+});
+
+// ==================== SOCKET.IO CONNECTION HANDLER ====================
+io.on('connection', (socket) => {
+  console.log(`🟢 Socket connected: ${socket.id} - User: ${socket.userId}`);
+  
+  // Join user's personal room for notifications
+  if (socket.userId) {
+    socket.join(`user-${socket.userId}`);
+    console.log(`📌 User ${socket.userId} joined their personal room`);
+    
+    // Send initial unread count
+    Notification.countDocuments({
+      user: socket.userId,
+      read: false,
+      isDeleted: false
+    }).then(count => {
+      socket.emit('unread-count', { count });
+    }).catch(err => {
+      console.error('Error getting unread count:', err);
+    });
+  }
+  
+  // Join admin room if user is admin
+  if (socket.user?.role === 'admin') {
+    socket.join('admin-room');
+    console.log(`👑 Admin ${socket.userId} joined admin room`);
+    
+    // Send admin stats
+    Notification.countDocuments({
+      read: false,
+      isDeleted: false
+    }).then(count => {
+      socket.emit('admin-unread-count', { count });
+    }).catch(err => {
+      console.error('Error getting admin unread count:', err);
+    });
+  }
+  
+  // Handle joining user room manually (for reconnection scenarios)
+  socket.on('join-user-room', (userId) => {
+    if (socket.userId === userId) {
+      socket.join(`user-${userId}`);
+      console.log(`📌 User ${userId} manually joined their room`);
+    } else {
+      console.log(`⚠️ User ${socket.userId} tried to join room for ${userId} - Access denied`);
+    }
+  });
+  
+  // Handle getting unread count
+  socket.on('get-unread-count', async () => {
+    if (socket.userId) {
+      try {
+        const count = await Notification.countDocuments({
+          user: socket.userId,
+          read: false,
+          isDeleted: false
+        });
+        socket.emit('unread-count', { count });
+      } catch (error) {
+        console.error('Error getting unread count:', error);
+      }
+    }
+  });
+  
+  // Handle getting admin unread count
+  socket.on('get-admin-unread-count', async () => {
+    if (socket.user?.role === 'admin') {
+      try {
+        const count = await Notification.countDocuments({
+          read: false,
+          isDeleted: false
+        });
+        socket.emit('admin-unread-count', { count });
+      } catch (error) {
+        console.error('Error getting admin unread count:', error);
+      }
+    }
+  });
+  
+  // Setup chat handlers
+  setupSocketIO(io, socket);
+  
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log(`🔴 Socket disconnected: ${socket.id} - User: ${socket.userId}`);
+    if (socket.sessionId) {
+      io.emit('user-disconnected', {
+        sessionId: socket.sessionId,
+        socketId: socket.id
+      });
+    }
+  });
+  
+  // Handle errors
+  socket.on('error', (error) => {
+    console.error(`❌ Socket error for ${socket.id}:`, error);
+  });
+});
 
 // Make io accessible to routes
 app.set('io', io);
@@ -366,7 +500,8 @@ app.get('/api/test/socket', (req, res) => {
     message: '✅ Socket.IO Server Ready',
     socketPath: '/socket.io/',
     transports: ['websocket', 'polling'],
-    activeConnections: io.sockets.sockets.size
+    activeConnections: io.sockets.sockets.size,
+    authenticatedUsers: io.sockets.sockets.size // This includes all connected sockets
   });
 });
 
@@ -448,10 +583,19 @@ app.get('/api/test/all', async (req, res) => {
 
 // ==================== SOCKET.IO STATUS ENDPOINT ====================
 app.get('/api/socket-status', (req, res) => {
+  // Get count of authenticated users
+  const authUsers = new Set();
+  io.sockets.sockets.forEach(socket => {
+    if (socket.userId) {
+      authUsers.add(socket.userId);
+    }
+  });
+  
   res.json({
     success: true,
     status: 'Socket.IO Server Running',
-    connections: io.sockets.sockets.size,
+    totalConnections: io.sockets.sockets.size,
+    authenticatedUsers: authUsers.size,
     rooms: Array.from(io.sockets.adapter.rooms.keys()).length,
     uptime: process.uptime()
   });
@@ -524,6 +668,7 @@ const startServer = async () => {
       console.log(`🔗 API URL: ${baseUrl}/api`);
       console.log(`🌐 Environment: ${environment}`);
       console.log(`🔒 CORS: Allow all origins (mobile compatible)`);
+      console.log(`🔐 Socket Auth: JWT token required`);
       console.log('🚀 =========================================');
       console.log('');
       console.log('📡 Available Endpoints:');
@@ -534,6 +679,9 @@ const startServer = async () => {
       console.log(`  🔐 Refresh Token:     POST ${baseUrl}/api/auth/refresh-token`);
       console.log(`  🔐 Verify Token:      GET  ${baseUrl}/api/auth/verify`);
       console.log(`  🔐 Logout:            POST ${baseUrl}/api/auth/logout`);
+      console.log(`  🔔 Notifications:     GET  ${baseUrl}/api/notifications`);
+      console.log(`  🔔 Notifications:     POST ${baseUrl}/api/notifications (admin)`);
+      console.log(`  🔔 Admin Notif:       GET  ${baseUrl}/api/notifications/admin (admin)`);
       console.log('');
       console.log('📡 Test Endpoints:');
       console.log(`  🗄️  Database:        GET  ${baseUrl}/api/test/database`);
@@ -545,16 +693,25 @@ const startServer = async () => {
       console.log(`  📡  Socket Status:   GET  ${baseUrl}/api/socket-status`);
       console.log('');
       console.log('📡 Socket.IO Events:');
+      console.log(`  📤 join-user-room    - Join user notification room`);
+      console.log(`  📤 get-unread-count  - Get unread notification count`);
+      console.log(`  📤 get-admin-unread-count - Get admin unread count`);
       console.log(`  📤 join-chat         - Join a chat room`);
       console.log(`  📤 send-message      - Send a message`);
       console.log(`  📤 admin-message     - Send admin message`);
       console.log(`  📤 typing            - Typing indicator`);
       console.log(`  📤 resolve-session   - Resolve chat session`);
+      console.log(`  📥 new-notification  - Receive new notification`);
+      console.log(`  📥 notification-read - Notification read`);
+      console.log(`  📥 all-notifications-read - All read`);
+      console.log(`  📥 notification-deleted - Notification deleted`);
+      console.log(`  📥 unread-count      - Unread count update`);
+      console.log(`  📥 admin-unread-count - Admin unread count`);
+      console.log(`  📥 admin-notification - Admin notification`);
       console.log(`  📥 new-message       - Receive new message`);
       console.log(`  📥 user-typing       - Receive typing indicator`);
       console.log(`  📥 chat-joined       - Chat joined confirmation`);
       console.log(`  📥 session-resolved  - Session resolved`);
-      console.log(`  📥 admin-notification- Admin notification`);
       console.log(`  📥 chat-error        - Error message`);
       console.log('');
       console.log('🚀 =========================================');

@@ -1,24 +1,24 @@
-// src/components/NotificationPanel.jsx - Updated with backend integration
-import { useState, useEffect, useRef } from 'react'
+// src/components/NotificationPanel.jsx
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   X, Bell, Calendar, CreditCard, Star, User, CheckCircle, 
   AlertCircle, MessageSquare, Heart, MapPin, Hotel, Plane,
   Settings, Globe, Clock, Award, Gift, TrendingUp,
   ChevronRight, Check, Trash2, Loader2, Filter,
-  ChevronDown, ChevronUp, RefreshCw
+  ChevronDown, ChevronUp, RefreshCw, Wifi, WifiOff
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { useSocket } from '../context/SocketContext'
 import { useToast } from '../hooks/useToast'
 import axios from '../api/axios'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 const NotificationPanel = ({ isOpen, onClose }) => {
   const { isDark } = useTheme()
   const { user } = useAuth()
-  const { socket, isConnected } = useSocket()
+  const { socket, isConnected, unreadCount: socketUnreadCount, getUnreadCount } = useSocket()
   const { showToast } = useToast()
   const navigate = useNavigate()
   
@@ -32,84 +32,128 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   const [showFilters, setShowFilters] = useState(false)
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   
   const notificationsEndRef = useRef(null)
   const observerRef = useRef(null)
+  const isMounted = useRef(true)
+  const initialLoadDone = useRef(false)
+
+  // Get API endpoint based on user role
+  const getApiEndpoint = useCallback(() => {
+    return user?.role === 'admin' ? '/notifications/admin' : '/notifications'
+  }, [user?.role])
 
   // Fetch notifications
-  const fetchNotifications = async (reset = true) => {
+  const fetchNotifications = useCallback(async (reset = true) => {
+    if (!user) return
+    
     try {
       setLoading(true)
       const currentPage = reset ? 1 : page
       
-      const response = await axios.get('/notifications', {
-        params: {
-          page: currentPage,
-          limit: 20,
-          read: filter === 'unread' ? 'false' : undefined,
-          type: filter !== 'all' && filter !== 'unread' ? filter : undefined
-        }
-      })
+      const endpoint = getApiEndpoint()
+      const params = {
+        page: currentPage,
+        limit: 20,
+        read: filter === 'unread' ? 'false' : undefined,
+        type: filter !== 'all' && filter !== 'unread' ? filter : undefined
+      }
+      
+      // If admin, add admin flag to get all notifications
+      if (user?.role === 'admin') {
+        params.admin = 'true'
+      }
 
-      if (response.data.success) {
+      console.log(`📡 [NotificationPanel] Fetching notifications from ${endpoint}`, params)
+      
+      const response = await axios.get(endpoint, { params })
+
+      if (response.data.success && isMounted.current) {
         const data = response.data
+        const newNotifications = data.notifications || []
+        
         if (reset) {
-          setNotifications(data.notifications)
+          setNotifications(newNotifications)
           setPage(1)
         } else {
-          setNotifications(prev => [...prev, ...data.notifications])
+          setNotifications(prev => [...prev, ...newNotifications])
         }
-        setUnreadCount(data.unreadCount || 0)
+        
+        // Update unread count from response or socket
+        const count = data.unreadCount || 0
+        setUnreadCount(count)
         setHasMore(data.pagination?.hasMore || false)
         setTotal(data.total || 0)
+        
+        console.log(`✅ [NotificationPanel] Loaded ${newNotifications.length} notifications, total: ${data.total}, unread: ${count}`)
       }
     } catch (error) {
-      console.error('❌ Fetch notifications error:', error)
-      showToast('Failed to load notifications', 'error')
+      console.error('❌ [NotificationPanel] Fetch notifications error:', error)
+      if (isMounted.current) {
+        showToast(error.response?.data?.message || 'Failed to load notifications', 'error')
+      }
     } finally {
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+      }
     }
-  }
+  }, [user, page, filter, getApiEndpoint, showToast])
 
   // Load more notifications
-  const loadMore = () => {
-    if (!loading && hasMore) {
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore && isMounted.current) {
       setPage(prev => prev + 1)
       fetchNotifications(false)
     }
-  }
+  }, [loading, hasMore, fetchNotifications])
 
   // Mark as read
-  const markAsRead = async (notificationId) => {
+  const markAsRead = useCallback(async (notificationId) => {
     try {
       await axios.put(`/notifications/${notificationId}/read`)
       
-      setNotifications(prev => prev.map(n => 
-        n._id === notificationId ? { ...n, read: true, readAt: new Date() } : n
-      ))
-      setUnreadCount(prev => Math.max(0, prev - 1))
+      if (isMounted.current) {
+        setNotifications(prev => prev.map(n => 
+          n._id === notificationId ? { ...n, read: true, readAt: new Date() } : n
+        ))
+        setUnreadCount(prev => Math.max(0, prev - 1))
+        
+        // Refresh unread count from socket
+        if (getUnreadCount) {
+          getUnreadCount()
+        }
+      }
     } catch (error) {
-      console.error('❌ Mark as read error:', error)
+      console.error('❌ [NotificationPanel] Mark as read error:', error)
     }
-  }
+  }, [getUnreadCount])
 
   // Mark all as read
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     try {
-      await axios.put('/notifications/read-all')
+      const endpoint = user?.role === 'admin' ? '/notifications/admin/read-all' : '/notifications/read-all'
+      await axios.put(endpoint)
       
-      setNotifications(prev => prev.map(n => ({ ...n, read: true, readAt: new Date() })))
-      setUnreadCount(0)
-      showToast('All notifications marked as read', 'success')
+      if (isMounted.current) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true, readAt: new Date() })))
+        setUnreadCount(0)
+        showToast('All notifications marked as read', 'success')
+        
+        // Refresh unread count from socket
+        if (getUnreadCount) {
+          getUnreadCount()
+        }
+      }
     } catch (error) {
-      console.error('❌ Mark all as read error:', error)
+      console.error('❌ [NotificationPanel] Mark all as read error:', error)
       showToast('Failed to mark all as read', 'error')
     }
-  }
+  }, [user?.role, showToast, getUnreadCount])
 
   // Delete notification
-  const deleteNotification = async (notificationId, e) => {
-    e.stopPropagation()
+  const deleteNotification = useCallback(async (notificationId, e) => {
+    e?.stopPropagation()
     
     if (!confirm('Delete this notification?')) return
     
@@ -117,45 +161,64 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       setIsDeleting(true)
       await axios.delete(`/notifications/${notificationId}`)
       
-      const deleted = notifications.find(n => n._id === notificationId)
-      setNotifications(prev => prev.filter(n => n._id !== notificationId))
-      setTotal(prev => prev - 1)
-      
-      if (!deleted?.read) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
+      if (isMounted.current) {
+        const deleted = notifications.find(n => n._id === notificationId)
+        setNotifications(prev => prev.filter(n => n._id !== notificationId))
+        setTotal(prev => prev - 1)
+        
+        if (!deleted?.read) {
+          setUnreadCount(prev => Math.max(0, prev - 1))
+        }
+        
+        showToast('Notification deleted', 'success')
+        
+        // Refresh unread count from socket
+        if (getUnreadCount) {
+          getUnreadCount()
+        }
       }
-      
-      showToast('Notification deleted', 'success')
     } catch (error) {
-      console.error('❌ Delete notification error:', error)
+      console.error('❌ [NotificationPanel] Delete notification error:', error)
       showToast('Failed to delete notification', 'error')
     } finally {
-      setIsDeleting(false)
+      if (isMounted.current) {
+        setIsDeleting(false)
+      }
     }
-  }
+  }, [notifications, showToast, getUnreadCount])
 
   // Delete all notifications
-  const deleteAllNotifications = async () => {
+  const deleteAllNotifications = useCallback(async () => {
     if (!confirm('Delete all notifications?')) return
     
     try {
       setIsDeleting(true)
-      await axios.delete('/notifications/delete-all')
+      const endpoint = user?.role === 'admin' ? '/notifications/admin/delete-all' : '/notifications/delete-all'
+      await axios.delete(endpoint)
       
-      setNotifications([])
-      setTotal(0)
-      setUnreadCount(0)
-      showToast('All notifications deleted', 'success')
+      if (isMounted.current) {
+        setNotifications([])
+        setTotal(0)
+        setUnreadCount(0)
+        showToast('All notifications deleted', 'success')
+        
+        // Refresh unread count from socket
+        if (getUnreadCount) {
+          getUnreadCount()
+        }
+      }
     } catch (error) {
-      console.error('❌ Delete all error:', error)
+      console.error('❌ [NotificationPanel] Delete all error:', error)
       showToast('Failed to delete all notifications', 'error')
     } finally {
-      setIsDeleting(false)
+      if (isMounted.current) {
+        setIsDeleting(false)
+      }
     }
-  }
+  }, [user?.role, showToast, getUnreadCount])
 
   // Handle notification click
-  const handleNotificationClick = (notification) => {
+  const handleNotificationClick = useCallback((notification) => {
     if (!notification.read) {
       markAsRead(notification._id)
     }
@@ -167,46 +230,76 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       navigate(notification.actionUrl)
       onClose()
     }
-  }
+  }, [markAsRead, navigate, onClose])
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    setPage(1)
+    await fetchNotifications(true)
+    setRefreshing(false)
+  }, [fetchNotifications, refreshing])
 
   // Socket event listeners
   useEffect(() => {
     if (!socket) return
 
     const handleNewNotification = (data) => {
-      if (data.notification) {
+      if (data.notification && isMounted.current) {
+        console.log('🔔 [NotificationPanel] New notification received:', data.notification)
         setNotifications(prev => [data.notification, ...prev])
         setTotal(prev => prev + 1)
         if (!data.notification.read) {
           setUnreadCount(prev => prev + 1)
         }
-        showToast('New notification: ' + data.notification.title, 'info')
+        showToast('🔔 ' + data.notification.title, 'info')
       }
     }
 
     const handleNotificationRead = (data) => {
-      setNotifications(prev => prev.map(n => 
-        n._id === data.notificationId ? { ...n, read: true } : n
-      ))
-      if (data.unreadCount !== undefined) {
-        setUnreadCount(data.unreadCount)
+      if (isMounted.current) {
+        setNotifications(prev => prev.map(n => 
+          n._id === data.notificationId ? { ...n, read: true } : n
+        ))
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount)
+        }
       }
     }
 
     const handleAllNotificationsRead = (data) => {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      setUnreadCount(0)
+      if (isMounted.current) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+        setUnreadCount(0)
+      }
     }
 
     const handleNotificationDeleted = (data) => {
-      setNotifications(prev => prev.filter(n => n._id !== data.notificationId))
-      setTotal(prev => prev - 1)
+      if (isMounted.current) {
+        setNotifications(prev => prev.filter(n => n._id !== data.notificationId))
+        setTotal(prev => prev - 1)
+      }
     }
 
     const handleAllNotificationsDeleted = (data) => {
-      setNotifications([])
-      setTotal(0)
-      setUnreadCount(0)
+      if (isMounted.current) {
+        setNotifications([])
+        setTotal(0)
+        setUnreadCount(0)
+      }
+    }
+
+    // Admin notifications
+    const handleAdminNotification = (data) => {
+      if (isMounted.current && user?.role === 'admin') {
+        console.log('👑 [NotificationPanel] Admin notification:', data)
+        // If it's a new notification, add it to the list
+        if (data.notification) {
+          setNotifications(prev => [data.notification, ...prev])
+          setTotal(prev => prev + 1)
+        }
+      }
     }
 
     socket.on('new-notification', handleNewNotification)
@@ -214,6 +307,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     socket.on('all-notifications-read', handleAllNotificationsRead)
     socket.on('notification-deleted', handleNotificationDeleted)
     socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
+    socket.on('admin-notification', handleAdminNotification)
 
     return () => {
       socket.off('new-notification', handleNewNotification)
@@ -221,27 +315,47 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       socket.off('all-notifications-read', handleAllNotificationsRead)
       socket.off('notification-deleted', handleNotificationDeleted)
       socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
+      socket.off('admin-notification', handleAdminNotification)
     }
-  }, [socket, showToast])
+  }, [socket, showToast, user?.role])
 
-  // Load notifications when panel opens
+  // Load notifications when panel opens or filter changes
   useEffect(() => {
+    isMounted.current = true
+    
     if (isOpen) {
-      fetchNotifications()
+      // Reset pagination when filter changes
+      if (filter !== 'all' || !initialLoadDone.current) {
+        setPage(1)
+        setNotifications([])
+        fetchNotifications(true)
+        initialLoadDone.current = true
+      }
     }
-  }, [isOpen, filter])
+    
+    return () => {
+      isMounted.current = false
+    }
+  }, [isOpen, filter, fetchNotifications])
+
+  // Sync unread count with socket
+  useEffect(() => {
+    if (socketUnreadCount !== undefined && isMounted.current) {
+      setUnreadCount(socketUnreadCount)
+    }
+  }, [socketUnreadCount])
 
   // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!notificationsEndRef.current || !hasMore) return
+    if (!notificationsEndRef.current || !hasMore || !isOpen) return
     
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !loading) {
+        if (entries[0].isIntersecting && !loading && isMounted.current) {
           loadMore()
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '100px' }
     )
     
     observerRef.current.observe(notificationsEndRef.current)
@@ -251,10 +365,10 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         observerRef.current.disconnect()
       }
     }
-  }, [hasMore, loading, notifications])
+  }, [hasMore, loading, loadMore, isOpen])
 
   // Get icon component
-  const getIcon = (notification) => {
+  const getIcon = useCallback((notification) => {
     const iconMap = {
       'Bell': Bell,
       'Calendar': Calendar,
@@ -275,12 +389,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       'Gift': Gift,
       'TrendingUp': TrendingUp
     }
-    const Icon = iconMap[notification.icon] || Bell
-    return Icon
-  }
+    return iconMap[notification?.icon] || Bell
+  }, [])
 
   // Get time ago
-  const getTimeAgo = (date) => {
+  const getTimeAgo = useCallback((date) => {
+    if (!date) return 'Just now'
     const diff = Date.now() - new Date(date).getTime()
     const minutes = Math.floor(diff / 60000)
     const hours = Math.floor(diff / 3600000)
@@ -291,22 +405,22 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     if (hours < 24) return `${hours}h ago`
     if (days < 7) return `${days}d ago`
     return new Date(date).toLocaleDateString()
-  }
+  }, [])
 
   // Priority colors
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = useCallback((priority) => {
     switch(priority) {
       case 'urgent': return 'border-red-500/30 bg-red-500/10'
       case 'high': return 'border-orange-500/30 bg-orange-500/10'
       case 'medium': return 'border-yellow-500/30 bg-yellow-500/10'
       default: return 'border-blue-500/30 bg-blue-500/10'
     }
-  }
+  }, [])
 
   if (!isOpen) return null
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isOpen && (
         <>
           {/* Backdrop */}
@@ -336,6 +450,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                 <Bell className="w-5 h-5 text-amber-500" />
                 <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                   Notifications
+                  {user?.role === 'admin' && (
+                    <span className="ml-2 text-xs font-normal text-amber-500">(Admin)</span>
+                  )}
                 </h2>
                 {unreadCount > 0 && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">
@@ -344,6 +461,26 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                 )}
               </div>
               <div className="flex items-center gap-1">
+                {/* Connection status */}
+                <div className={`mr-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {isConnected ? (
+                    <Wifi className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <WifiOff className="w-4 h-4 text-red-500 animate-pulse" />
+                  )}
+                </div>
+                
+                {/* Refresh */}
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                  } ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                </button>
+                
                 {/* Mark all read */}
                 {unreadCount > 0 && (
                   <button
@@ -355,6 +492,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                     Mark all read
                   </button>
                 )}
+                
                 {/* Filter */}
                 <button
                   onClick={() => setShowFilters(!showFilters)}
@@ -364,17 +502,20 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                 >
                   <Filter className="w-4 h-4" />
                 </button>
+                
                 {/* Delete all */}
                 {notifications.length > 0 && (
                   <button
                     onClick={deleteAllNotifications}
+                    disabled={isDeleting}
                     className={`p-2 rounded-lg transition-colors text-red-400 hover:text-red-500 ${
                       isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-                    }`}
+                    } ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
+                
                 {/* Close */}
                 <button
                   onClick={onClose}
@@ -459,6 +600,18 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                     >
                       System
                     </button>
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => setFilter('admin')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          filter === 'admin'
+                            ? 'bg-purple-500 text-white'
+                            : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                      >
+                        Admin
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -491,21 +644,21 @@ const NotificationPanel = ({ isOpen, onClose }) => {
               ) : (
                 <>
                   <div className="space-y-3">
-                    {notifications.map((notification) => {
+                    {notifications.map((notification, index) => {
                       const Icon = getIcon(notification)
                       const isUnread = !notification.read
                       
                       return (
                         <motion.div
-                          key={notification._id}
+                          key={notification._id || index}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
+                          transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
                           onClick={() => handleNotificationClick(notification)}
-                          className={`p-4 rounded-xl transition-all cursor-pointer relative ${
+                          className={`p-4 rounded-xl transition-all cursor-pointer relative group ${
                             isUnread
                               ? isDark ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'
-                              : isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                              : isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
                           } ${notification.priority ? getPriorityColor(notification.priority) : ''}`}
                         >
                           <div className="flex items-start gap-3">
@@ -527,7 +680,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} line-clamp-2`}>
                                 {notification.message}
                               </p>
-                              <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex items-center flex-wrap gap-2 mt-1.5">
                                 <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                   {getTimeAgo(notification.createdAt)}
                                 </span>
@@ -539,6 +692,13 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                                     'bg-blue-500/20 text-blue-400'
                                   }`}>
                                     {notification.priority}
+                                  </span>
+                                )}
+                                {notification.type && (
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
+                                  }`}>
+                                    {notification.type}
                                   </span>
                                 )}
                                 {notification.actionLabel && (
@@ -559,9 +719,11 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                             <button
                               onClick={(e) => deleteNotification(notification._id, e)}
                               disabled={isDeleting}
-                              className={`p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
-                                isDark ? 'hover:bg-gray-700 text-gray-500 hover:text-red-400' : 'hover:bg-gray-200 text-gray-400 hover:text-red-500'
-                              }`}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isDark 
+                                  ? 'hover:bg-gray-700 text-gray-500 hover:text-red-400' 
+                                  : 'hover:bg-gray-200 text-gray-400 hover:text-red-500'
+                              } ${isDeleting ? 'opacity-50 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100'}`}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -591,21 +753,37 @@ const NotificationPanel = ({ isOpen, onClose }) => {
             </div>
 
             {/* Footer */}
-            {notifications.length > 0 && (
-              <div className={`p-3 border-t text-center ${
-                isDark ? 'border-gray-800' : 'border-gray-200'
-              }`}>
+            <div className={`p-3 border-t ${
+              isDark ? 'border-gray-800' : 'border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
                 <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  {total} notification{total !== 1 ? 's' : ''} · {unreadCount} unread
-                  {isConnected && (
-                    <span className="ml-2 text-green-500 flex items-center inline">
-                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse mr-1 inline-block"></span>
-                      Live
-                    </span>
-                  )}
+                  {total} notification{total !== 1 ? 's' : ''}
                 </p>
+                <div className="flex items-center gap-3">
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    {unreadCount} unread
+                  </p>
+                  <div className="flex items-center gap-1">
+                    {isConnected ? (
+                      <>
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Live
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Offline
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
           </motion.div>
         </>
       )}
