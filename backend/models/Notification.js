@@ -2,21 +2,21 @@
 import mongoose from 'mongoose';
 
 const notificationSchema = new mongoose.Schema({
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true
+  },
+  userRole: {
+    type: String,
+    enum: ['student', 'admin', 'instructor'],
+    default: 'student'
   },
   type: {
     type: String,
-    enum: [
-      'booking', 'payment', 'review', 'tour', 'hotel', 
-      'destination', 'experience', 'message', 'system',
-      'favorite', 'alert', 'promotion', 'reminder',
-      'booking_confirmed', 'booking_cancelled', 'booking_completed',
-      'review_approved', 'review_rejected', 'review_reply'
-    ],
-    required: true
+    enum: ['info', 'success', 'warning', 'error', 'test'],
+    default: 'info'
   },
   title: {
     type: String,
@@ -26,30 +26,13 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  icon: {
+  link: {
     type: String,
-    default: 'Bell'
-  },
-  color: {
-    type: String,
-    default: 'text-blue-500'
-  },
-  bgColor: {
-    type: String,
-    default: 'bg-blue-500/10'
+    default: null
   },
   read: {
     type: Boolean,
     default: false
-  },
-  readAt: {
-    type: Date
-  },
-  actionUrl: {
-    type: String
-  },
-  actionLabel: {
-    type: String
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,
@@ -57,38 +40,18 @@ const notificationSchema = new mongoose.Schema({
   },
   priority: {
     type: String,
-    enum: ['low', 'medium', 'high', 'urgent'],
-    default: 'medium'
-  },
-  expiresAt: {
-    type: Date
-  },
-  isDeleted: {
-    type: Boolean,
-    default: false
-  },
-  deletedAt: {
-    type: Date
-  },
-  sentAt: {
-    type: Date,
-    default: Date.now
+    enum: ['low', 'normal', 'high', 'urgent'],
+    default: 'normal'
   }
-}, { timestamps: true });
-
-// Indexes for performance
-notificationSchema.index({ user: 1, read: 1 });
-notificationSchema.index({ user: 1, createdAt: -1 });
-notificationSchema.index({ type: 1 });
-notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-// Pre-save middleware
-notificationSchema.pre('save', function(next) {
-  if (this.isModified('read') && this.read) {
-    this.readAt = new Date();
-  }
-  next();
+}, {
+  timestamps: true
 });
 
+// Index for efficient queries
+notificationSchema.index({ userId: 1, read: 1 });
+notificationSchema.index({ userId: 1, createdAt: -1 });
+notificationSchema.index({ createdAt: -1 });
+
 const Notification = mongoose.model('Notification', notificationSchema);
+
 export default Notification;

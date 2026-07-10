@@ -1,590 +1,159 @@
-import Notification from '../models/Notification.js';
-import User from '../models/User.js';
+// backend/controllers/notificationController.js
+import Notification from "../models/Notification.js";
+import User from "../models/User.js";
+import { io, emitNotification, emitAdminNotification } from "../../server.js";
 
-// @desc    Get user notifications (with admin support)
-// @route   GET /api/notifications
-export const getNotifications = async (req, res) => {
+// ================= CREATE NOTIFICATION =================
+export const createNotification = async (userId, userRole, type, title, message, link = null, metadata = {}) => {
   try {
-    const { page = 1, limit = 20, read, type, priority, admin = 'false' } = req.query;
-    
-    // Build query based on user role
-    const query = { isDeleted: false };
-    
-    // If admin and admin=true, show all notifications (no user filter)
-    if (req.user.role === 'admin' && admin === 'true') {
-      // Admins can see all notifications
-      delete query.user;
-    } else {
-      // Regular users see only their own
-      query.user = req.user.id;
-    }
-    
-    if (read === 'true') query.read = true;
-    if (read === 'false') query.read = false;
-    if (type && type !== 'all') query.type = type;
-    if (priority && priority !== 'all') query.priority = priority;
-
-    // Don't show expired notifications
-    query.$or = [
-      { expiresAt: { $exists: false } },
-      { expiresAt: { $gt: new Date() } }
-    ];
-
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
-
-    // If admin viewing all, populate user data
-    let notifications = await Notification.find(query)
-      .sort({ priority: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum + 1);
-
-    // Populate user data for admin view
-    if (req.user.role === 'admin' && admin === 'true') {
-      notifications = await Notification.populate(notifications, {
-        path: 'user',
-        select: 'name email avatar'
-      });
-    }
-
-    const hasMore = notifications.length > limitNum;
-    if (hasMore) notifications.pop();
-
-    const total = await Notification.countDocuments(query);
-    
-    // Get unread count for the current user (or all unread for admin)
-    let unreadCount;
-    if (req.user.role === 'admin' && admin === 'true') {
-      unreadCount = await Notification.countDocuments({ 
-        read: false,
-        isDeleted: false
-      });
-    } else {
-      unreadCount = await Notification.countDocuments({ 
-        user: req.user.id, 
-        read: false,
-        isDeleted: false
-      });
-    }
-
-    res.json({
-      success: true,
-      notifications,
-      pagination: {
-        currentPage: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-        totalItems: total,
-        itemsPerPage: limitNum,
-        hasMore
-      },
-      unreadCount,
-      total
-    });
-  } catch (error) {
-    console.error('❌ Get notifications error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to fetch notifications'
-    });
-  }
-};
-
-// @desc    Get notification by ID
-// @route   GET /api/notifications/:id
-export const getNotificationById = async (req, res) => {
-  try {
-    const notification = await Notification.findById(req.params.id);
-    
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-
-    // Check if user owns this notification or is admin
-    if (notification.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this notification'
-      });
-    }
-
-    // Mark as read
-    if (!notification.read) {
-      notification.read = true;
-      notification.readAt = new Date();
-      await notification.save();
-    }
-
-    // Populate user if admin
-    if (req.user.role === 'admin') {
-      await notification.populate('user', 'name email avatar');
-    }
-
-    res.json({
-      success: true,
-      notification
-    });
-  } catch (error) {
-    console.error('❌ Get notification error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to fetch notification'
-    });
-  }
-};
-
-// @desc    Create notification
-// @route   POST /api/notifications
-export const createNotification = async (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const { userId, type, title, message, icon, color, bgColor, actionUrl, actionLabel, metadata, priority, expiresAt } = req.body;
-
-    if (!userId || !type || !title || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID, type, title and message are required'
-      });
-    }
-
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
     const notification = await Notification.create({
-      user: userId,
+      userId,
+      userRole,
       type,
       title,
       message,
-      icon: icon || 'Bell',
-      color: color || 'text-blue-500',
-      bgColor: bgColor || 'bg-blue-500/10',
-      actionUrl: actionUrl || null,
-      actionLabel: actionLabel || null,
-      metadata: metadata || {},
-      priority: priority || 'medium',
-      expiresAt: expiresAt || null,
-      sentAt: new Date()
+      link,
+      metadata
     });
-
-    // Populate user data for admin notifications
-    await notification.populate('user', 'name email avatar');
-
-    // Emit real-time notification to user
-    if (io) {
-      const unreadCount = await Notification.countDocuments({ 
-        user: userId, 
-        read: false,
-        isDeleted: false
-      });
-      
-      // Send to user's personal room
-      io.to(`user-${userId}`).emit('new-notification', {
-        notification,
-        unreadCount
-      });
-      
-      // Also emit to admin room for monitoring
-      io.to('admin-room').emit('admin-notification', {
-        type: 'new-notification',
-        notification: {
-          ...notification.toObject(),
-          userName: user.name,
-          userEmail: user.email
-        },
-        userId,
-        userName: user.name,
-        message: `📬 New ${type} notification sent to ${user.name}`,
-        timestamp: new Date()
-      });
-    }
-
-    res.status(201).json({
-      success: true,
-      notification,
-      message: 'Notification created successfully'
-    });
-  } catch (error) {
-    console.error('❌ Create notification error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to create notification'
-    });
-  }
-};
-
-// @desc    Mark notification as read
-// @route   PUT /api/notifications/:id/read
-export const markAsRead = async (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const notification = await Notification.findById(req.params.id);
     
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-
-    // Check if user owns this notification or is admin
-    if (notification.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this notification'
-      });
-    }
-
-    notification.read = true;
-    notification.readAt = new Date();
-    await notification.save();
-
-    // Get updated unread count for the user
-    const unreadCount = await Notification.countDocuments({
-      user: notification.user,
-      read: false,
-      isDeleted: false
-    });
-
-    // Emit real-time update
-    if (io) {
-      io.to(`user-${notification.user}`).emit('notification-read', {
-        notificationId: notification._id,
-        unreadCount
-      });
-    }
-
-    res.json({
-      success: true,
-      notification,
-      unreadCount
-    });
-  } catch (error) {
-    console.error('❌ Mark as read error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to mark notification as read'
-    });
-  }
-};
-
-// @desc    Mark all notifications as read (for user or admin)
-// @route   PUT /api/notifications/read-all
-export const markAllAsRead = async (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const { userId } = req.query; // For admin marking specific user's notifications
+    const notificationData = {
+      id: notification._id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      link: notification.link,
+      createdAt: notification.createdAt,
+      read: notification.read,
+      _id: notification._id
+    };
     
-    // Determine which user's notifications to mark
-    let targetUserId = req.user.id;
-    let isAdminAction = false;
-    
-    if (req.user.role === 'admin' && userId) {
-      targetUserId = userId;
-      isAdminAction = true;
+    // Emit real-time notification via Socket.IO
+    if (typeof emitNotification === 'function') {
+      emitNotification(userId, notificationData);
+    } else {
+      // Fallback to direct io emit
+      io.to(userId.toString()).emit("new_notification", notificationData);
+      io.to(`user_${userId}`).emit("new_notification", notificationData);
     }
     
-    const result = await Notification.updateMany(
-      { 
-        user: targetUserId, 
-        read: false,
-        isDeleted: false
-      },
-      { 
-        read: true, 
-        readAt: new Date() 
-      }
-    );
-
-    // Emit real-time update
-    if (io) {
-      io.to(`user-${targetUserId}`).emit('all-notifications-read', {
-        userId: targetUserId,
-        updatedCount: result.modifiedCount
-      });
-      
-      if (isAdminAction) {
-        io.to('admin-room').emit('admin-notification', {
-          type: 'all-notifications-read',
-          userId: targetUserId,
-          message: `All notifications marked as read for user by admin ${req.user.name}`,
-          timestamp: new Date()
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `Marked ${result.modifiedCount} notifications as read`,
-      modifiedCount: result.modifiedCount
-    });
-  } catch (error) {
-    console.error('❌ Mark all as read error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to mark notifications as read'
-    });
-  }
-};
-
-// @desc    Delete notification
-// @route   DELETE /api/notifications/:id
-export const deleteNotification = async (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const notification = await Notification.findById(req.params.id);
-    
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-
-    // Check if user owns this notification or is admin
-    if (notification.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this notification'
-      });
-    }
-
-    // Soft delete
-    notification.isDeleted = true;
-    notification.deletedAt = new Date();
-    await notification.save();
-
-    // Emit real-time update
-    if (io) {
-      io.to(`user-${notification.user}`).emit('notification-deleted', {
-        notificationId: notification._id
-      });
-      
-      if (req.user.role === 'admin') {
-        io.to('admin-room').emit('admin-notification', {
-          type: 'notification-deleted',
-          notificationId: notification._id,
-          message: `Notification "${notification.title}" deleted by admin ${req.user.name}`,
-          timestamp: new Date()
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      message: 'Notification deleted successfully'
-    });
-  } catch (error) {
-    console.error('❌ Delete notification error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to delete notification'
-    });
-  }
-};
-
-// @desc    Delete all notifications (for user or admin)
-// @route   DELETE /api/notifications/delete-all
-export const deleteAllNotifications = async (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const { userId } = req.query; // For admin deleting specific user's notifications
-    
-    let targetUserId = req.user.id;
-    let isAdminAction = false;
-    
-    if (req.user.role === 'admin' && userId) {
-      targetUserId = userId;
-      isAdminAction = true;
-    }
-    
-    const result = await Notification.updateMany(
-      { 
-        user: targetUserId,
-        isDeleted: false
-      },
-      { 
-        isDeleted: true, 
-        deletedAt: new Date() 
-      }
-    );
-
-    // Emit real-time update
-    if (io) {
-      io.to(`user-${targetUserId}`).emit('all-notifications-deleted', {
-        userId: targetUserId,
-        deletedCount: result.modifiedCount
-      });
-      
-      if (isAdminAction) {
-        io.to('admin-room').emit('admin-notification', {
-          type: 'all-notifications-deleted',
-          userId: targetUserId,
-          message: `All notifications deleted for user by admin ${req.user.name}`,
-          timestamp: new Date()
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `Deleted ${result.modifiedCount} notifications`,
-      deletedCount: result.modifiedCount
-    });
-  } catch (error) {
-    console.error('❌ Delete all notifications error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to delete notifications'
-    });
-  }
-};
-
-// @desc    Get notification stats (for user or admin)
-// @route   GET /api/notifications/stats
-export const getNotificationStats = async (req, res) => {
-  try {
-    const { userId } = req.query;
-    let targetUserId = req.user.id;
-    
-    if (req.user.role === 'admin' && userId) {
-      targetUserId = userId;
-    }
-    
-    const total = await Notification.countDocuments({
-      user: targetUserId,
-      isDeleted: false
-    });
-
-    const unread = await Notification.countDocuments({
-      user: targetUserId,
-      read: false,
-      isDeleted: false
-    });
-
-    const byType = await Notification.aggregate([
-      { $match: { user: targetUserId, isDeleted: false } },
-      { $group: { _id: '$type', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    const byPriority = await Notification.aggregate([
-      { $match: { user: targetUserId, isDeleted: false } },
-      { $group: { _id: '$priority', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    res.json({
-      success: true,
-      stats: {
-        total,
-        unread,
-        byType,
-        byPriority
-      }
-    });
-  } catch (error) {
-    console.error('❌ Get notification stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to get notification stats'
-    });
-  }
-};
-
-// @desc    Create bulk notifications
-// @route   POST /api/notifications/bulk
-export const createBulkNotifications = async (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const { userIds, type, title, message, icon, color, bgColor, actionUrl, actionLabel, metadata, priority, expiresAt } = req.body;
-
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'User IDs array is required'
-      });
-    }
-
-    if (!type || !title || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Type, title and message are required'
-      });
-    }
-
-    const notifications = [];
-    const now = new Date();
-
-    for (const userId of userIds) {
-      const notification = {
-        user: userId,
-        type,
-        title,
-        message,
-        icon: icon || 'Bell',
-        color: color || 'text-blue-500',
-        bgColor: bgColor || 'bg-blue-500/10',
-        actionUrl: actionUrl || null,
-        actionLabel: actionLabel || null,
-        metadata: metadata || {},
-        priority: priority || 'medium',
-        expiresAt: expiresAt || null,
-        sentAt: now
+    // Emit to admin room for admin notifications
+    if (userRole === "admin") {
+      const adminData = {
+        id: notification._id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        createdAt: notification.createdAt,
+        userId: userId
       };
-      notifications.push(notification);
-    }
-
-    const created = await Notification.insertMany(notifications);
-
-    // Emit real-time notifications
-    if (io) {
-      for (const notification of created) {
-        const unreadCount = await Notification.countDocuments({
-          user: notification.user,
-          read: false,
-          isDeleted: false
-        });
-        
-        io.to(`user-${notification.user}`).emit('new-notification', {
-          notification,
-          unreadCount
-        });
-      }
       
-      // Admin notification
-      io.to('admin-room').emit('admin-notification', {
-        type: 'bulk-notifications',
-        count: created.length,
-        message: `📨 ${created.length} bulk notifications sent by ${req.user.name}`,
-        timestamp: new Date()
-      });
+      if (typeof emitAdminNotification === 'function') {
+        emitAdminNotification(adminData);
+      } else {
+        io.to("admin").emit("new_admin_notification", adminData);
+        io.to("admin_notifications").emit("new_admin_notification", adminData);
+      }
     }
-
-    res.status(201).json({
-      success: true,
-      count: created.length,
-      message: `Created ${created.length} notifications successfully`
-    });
-  } catch (error) {
-    console.error('❌ Create bulk notifications error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to create notifications'
-    });
+    
+    console.log(`📢 Notification created for ${userRole}: ${title}`);
+    return notification;
+  } catch (err) {
+    console.error("Create notification error:", err);
+    return null;
   }
 };
 
-// @desc    Get admin notifications (all users)
-// @route   GET /api/notifications/admin
+// ================= BULK CREATE NOTIFICATIONS =================
+export const createBulkNotifications = async (users, notificationData) => {
+  try {
+    const notifications = [];
+    for (const user of users) {
+      const notification = await Notification.create({
+        userId: user._id || user,
+        userRole: user.role || "student",
+        type: notificationData.type,
+        title: notificationData.title,
+        message: notificationData.message,
+        link: notificationData.link,
+        metadata: notificationData.metadata || {}
+      });
+      
+      notifications.push(notification);
+      
+      // Emit to each user
+      const notifData = {
+        id: notification._id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        link: notification.link,
+        createdAt: notification.createdAt,
+        _id: notification._id
+      };
+      
+      io.to(user._id?.toString() || user.toString()).emit("new_notification", notifData);
+    }
+    
+    console.log(`📢 Bulk notifications sent to ${notifications.length} users`);
+    return notifications;
+  } catch (err) {
+    console.error("Bulk create notifications error:", err);
+    return [];
+  }
+};
+
+// ================= GET USER NOTIFICATIONS =================
+export const getUserNotifications = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, unreadOnly = false } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const filter = { userId: req.user._id };
+    if (unreadOnly === "true") filter.read = false;
+    
+    const [notifications, total] = await Promise.all([
+      Notification.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Notification.countDocuments(filter)
+    ]);
+    
+    const unreadCount = await Notification.countDocuments({
+      userId: req.user._id,
+      read: false
+    });
+    
+    // Format notifications for frontend
+    const formattedNotifications = notifications.map(notif => ({
+      _id: notif._id,
+      type: notif.type,
+      title: notif.title,
+      message: notif.message,
+      link: notif.link,
+      read: notif.read,
+      createdAt: notif.createdAt,
+      metadata: notif.metadata
+    }));
+    
+    res.json({
+      success: true,
+      notifications: formattedNotifications,
+      unreadCount,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit)),
+        limit: parseInt(limit)
+      }
+    });
+  } catch (err) {
+    console.error("Get notifications error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= GET ALL NOTIFICATIONS (ADMIN) =================
 export const getAdminNotifications = async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
@@ -594,59 +163,363 @@ export const getAdminNotifications = async (req, res) => {
       });
     }
 
-    const { page = 1, limit = 20, read, type, priority, userId, search } = req.query;
+    const { page = 1, limit = 20, userId, read, type } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const query = { isDeleted: false };
+    const filter = {};
+    if (userId) filter.userId = userId;
+    if (read === 'true') filter.read = true;
+    if (read === 'false') filter.read = false;
+    if (type && type !== 'all') filter.type = type;
     
-    if (userId) query.user = userId;
-    if (read === 'true') query.read = true;
-    if (read === 'false') query.read = false;
-    if (type && type !== 'all') query.type = type;
-    if (priority && priority !== 'all') query.priority = priority;
-
-    // Don't show expired notifications
-    query.$or = [
-      { expiresAt: { $exists: false } },
-      { expiresAt: { $gt: new Date() } }
-    ];
-
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
-
-    let notifications = await Notification.find(query)
-      .populate('user', 'name email avatar')
-      .sort({ priority: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum + 1);
-
-    const hasMore = notifications.length > limitNum;
-    if (hasMore) notifications.pop();
-
-    const total = await Notification.countDocuments(query);
-    const unreadCount = await Notification.countDocuments({ 
-      read: false,
-      isDeleted: false
-    });
-
+    const [notifications, total] = await Promise.all([
+      Notification.find(filter)
+        .populate('userId', 'name email avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Notification.countDocuments(filter)
+    ]);
+    
+    const unreadCount = await Notification.countDocuments({ read: false });
+    
+    const formattedNotifications = notifications.map(notif => ({
+      _id: notif._id,
+      type: notif.type,
+      title: notif.title,
+      message: notif.message,
+      link: notif.link,
+      read: notif.read,
+      createdAt: notif.createdAt,
+      metadata: notif.metadata,
+      user: notif.userId
+    }));
+    
     res.json({
       success: true,
-      notifications,
-      pagination: {
-        currentPage: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-        totalItems: total,
-        itemsPerPage: limitNum,
-        hasMore
-      },
+      notifications: formattedNotifications,
       unreadCount,
-      total
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit)),
+        limit: parseInt(limit)
+      }
     });
-  } catch (error) {
-    console.error('❌ Get admin notifications error:', error);
+  } catch (err) {
+    console.error("Get admin notifications error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= GET NOTIFICATIONS (ROUTE HANDLER) =================
+export const getNotifications = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, read, type, priority } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Build query
+    const filter = { userId: req.user._id };
+    if (read === 'true') filter.read = true;
+    if (read === 'false') filter.read = false;
+    if (type && type !== 'all') filter.type = type;
+    
+    const [notifications, total] = await Promise.all([
+      Notification.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit) + 1),
+      Notification.countDocuments(filter)
+    ]);
+    
+    const hasMore = notifications.length > parseInt(limit);
+    if (hasMore) notifications.pop();
+    
+    const unreadCount = await Notification.countDocuments({
+      userId: req.user._id,
+      read: false
+    });
+    
+    const formattedNotifications = notifications.map(notif => ({
+      _id: notif._id,
+      type: notif.type,
+      title: notif.title,
+      message: notif.message,
+      link: notif.link,
+      read: notif.read,
+      createdAt: notif.createdAt,
+      metadata: notif.metadata,
+      priority: notif.priority || 'normal'
+    }));
+    
+    res.json({
+      success: true,
+      notifications: formattedNotifications,
+      unreadCount,
+      total,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+        itemsPerPage: parseInt(limit),
+        hasMore
+      }
+    });
+  } catch (err) {
+    console.error("Get notifications error:", err);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch admin notifications'
+      message: err.message || "Failed to fetch notifications"
     });
+  }
+};
+
+// ================= GET NOTIFICATION BY ID =================
+export const getNotificationById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const notification = await Notification.findById(id);
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+    
+    // Check if user owns this notification or is admin
+    if (notification.userId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this notification'
+      });
+    }
+    
+    // Mark as read if not already
+    if (!notification.read) {
+      notification.read = true;
+      await notification.save();
+    }
+    
+    res.json({
+      success: true,
+      notification: {
+        _id: notification._id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        link: notification.link,
+        read: notification.read,
+        createdAt: notification.createdAt,
+        metadata: notification.metadata
+      }
+    });
+  } catch (err) {
+    console.error("Get notification by ID error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message || "Failed to fetch notification"
+    });
+  }
+};
+
+// ================= MARK NOTIFICATION AS READ =================
+export const markAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const notification = await Notification.findOneAndUpdate(
+      { _id: id, userId: req.user._id },
+      { read: true },
+      { new: true }
+    );
+    
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+    
+    // Get updated unread count
+    const unreadCount = await Notification.countDocuments({
+      userId: req.user._id,
+      read: false
+    });
+    
+    // Emit socket event
+    io.to(req.user._id.toString()).emit('notification-read', {
+      notificationId: notification._id,
+      unreadCount
+    });
+    
+    res.json({ 
+      success: true, 
+      notification: {
+        _id: notification._id,
+        read: notification.read
+      },
+      unreadCount
+    });
+  } catch (err) {
+    console.error("Mark as read error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= MARK ALL AS READ =================
+export const markAllAsRead = async (req, res) => {
+  try {
+    const result = await Notification.updateMany(
+      { userId: req.user._id, read: false },
+      { read: true }
+    );
+    
+    // Emit socket event
+    io.to(req.user._id.toString()).emit('all-notifications-read', {
+      userId: req.user._id,
+      updatedCount: result.modifiedCount
+    });
+    
+    res.json({ 
+      success: true, 
+      updatedCount: result.modifiedCount 
+    });
+  } catch (err) {
+    console.error("Mark all as read error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= DELETE NOTIFICATION =================
+export const deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const notification = await Notification.findOne({
+      _id: id,
+      userId: req.user._id
+    });
+    
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+    
+    await notification.deleteOne();
+    
+    // Emit socket event
+    io.to(req.user._id.toString()).emit('notification-deleted', {
+      notificationId: id
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete notification error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= DELETE ALL NOTIFICATIONS =================
+export const deleteAllNotifications = async (req, res) => {
+  try {
+    const result = await Notification.deleteMany({ userId: req.user._id });
+    
+    // Emit socket event
+    io.to(req.user._id.toString()).emit('all-notifications-deleted', {
+      userId: req.user._id,
+      deletedCount: result.deletedCount
+    });
+    
+    res.json({ 
+      success: true, 
+      deletedCount: result.deletedCount 
+    });
+  } catch (err) {
+    console.error("Delete all notifications error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= GET NOTIFICATION COUNT =================
+export const getNotificationCount = async (req, res) => {
+  try {
+    const unreadCount = await Notification.countDocuments({
+      userId: req.user._id,
+      read: false
+    });
+    
+    res.json({ unreadCount });
+  } catch (err) {
+    console.error("Get notification count error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= GET NOTIFICATION STATS (ADMIN) =================
+export const getNotificationStats = async (req, res) => {
+  try {
+    // Only admins can access this
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+    
+    const total = await Notification.countDocuments();
+    const unread = await Notification.countDocuments({ read: false });
+    const read = total - unread;
+    
+    // Get notifications by type
+    const byType = await Notification.aggregate([
+      { $group: { _id: "$type", count: { $sum: 1 } } }
+    ]);
+    
+    // Get recent activity (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentActivity = await Notification.aggregate([
+      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      { $sort: { "_id": 1 } }
+    ]);
+    
+    res.json({
+      success: true,
+      stats: {
+        total,
+        unread,
+        read,
+        byType: byType.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {}),
+        recentActivity
+      }
+    });
+  } catch (err) {
+    console.error("Get notification stats error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= SEND TEST NOTIFICATION =================
+export const sendTestNotification = async (req, res) => {
+  try {
+    const { userId, userRole, type, title, message } = req.body;
+    
+    const notification = await createNotification(
+      userId,
+      userRole,
+      type,
+      title,
+      message,
+      null,
+      { test: true }
+    );
+    
+    res.json({
+      success: true,
+      message: "Test notification sent",
+      notification
+    });
+  } catch (err) {
+    console.error("Send test notification error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
