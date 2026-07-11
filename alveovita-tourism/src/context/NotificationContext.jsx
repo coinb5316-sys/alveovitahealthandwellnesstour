@@ -4,7 +4,8 @@ import axios from '../api/axios';
 import { useAuth } from './AuthContext';
 import { useSocket } from './SocketContext';
 
-const NotificationContext = createContext();
+// Export the context directly
+export const NotificationContext = createContext();
 
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
@@ -93,7 +94,7 @@ export const NotificationProvider = ({ children }) => {
       }
     };
 
-    const handleAllRead = (data) => {
+    const handleAllRead = () => {
       setUnreadCount(0);
     };
 
