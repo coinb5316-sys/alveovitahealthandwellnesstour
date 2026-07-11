@@ -1,6 +1,123 @@
 import Tour from '../models/Tour.js';
+import Booking from '../models/Booking.js';
 import Hotel from '../models/Hotel.js';
+import User from '../models/User.js';
 import { createNotification, notifyAdmins } from '../utils/notificationHelper.js';
+
+// @desc    Get revenue analytics
+// @route   GET /api/revenue
+// @access  Private/Admin
+export const getRevenueAnalytics = async (req, res) => {
+  try {
+    // Get date range from query params (default: last 30 days)
+    const { startDate, endDate } = req.query;
+    
+    let dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter = {
+        createdAt: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        }
+      };
+    } else {
+      // Default: last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      dateFilter = {
+        createdAt: { $gte: thirtyDaysAgo }
+      };
+    }
+
+    // Get all bookings in date range
+    const bookings = await Booking.find({
+      ...dateFilter,
+      status: { $in: ['confirmed', 'completed'] }
+    }).populate('tour hotel', 'title name price');
+
+    // Calculate total revenue
+    const totalRevenue = bookings.reduce((sum, booking) => {
+      return sum + (booking.totalPrice || 0);
+    }, 0);
+
+    // Get revenue by type (tours vs hotels)
+    const tourRevenue = bookings
+      .filter(b => b.tour)
+      .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+    
+    const hotelRevenue = bookings
+      .filter(b => b.hotel)
+      .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+
+    // Get revenue by month (for chart)
+    const monthlyRevenue = {};
+    bookings.forEach(booking => {
+      const month = booking.createdAt.toISOString().slice(0, 7); // YYYY-MM
+      monthlyRevenue[month] = (monthlyRevenue[month] || 0) + (booking.totalPrice || 0);
+    });
+
+    // Format monthly data for chart
+    const monthlyData = Object.keys(monthlyRevenue)
+      .sort()
+      .map(month => ({
+        month,
+        revenue: monthlyRevenue[month]
+      }));
+
+    // Get top performing tours/hotels
+    const itemRevenue = {};
+    bookings.forEach(booking => {
+      const itemId = booking.tour?._id || booking.hotel?._id;
+      const itemName = booking.tour?.title || booking.hotel?.name || 'Unknown';
+      const type = booking.tour ? 'tour' : 'hotel';
+      
+      if (itemId) {
+        const key = `${type}-${itemId}`;
+        if (!itemRevenue[key]) {
+          itemRevenue[key] = {
+            name: itemName,
+            type,
+            revenue: 0,
+            bookings: 0
+          };
+        }
+        itemRevenue[key].revenue += booking.totalPrice || 0;
+        itemRevenue[key].bookings += 1;
+      }
+    });
+
+    const topItems = Object.values(itemRevenue)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    // Get booking stats
+    const totalBookings = bookings.length;
+    const averageOrderValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+
+    res.json({
+      success: true,
+      data: {
+        totalRevenue,
+        tourRevenue,
+        hotelRevenue,
+        totalBookings,
+        averageOrderValue,
+        monthlyData,
+        topItems,
+        period: {
+          start: startDate || thirtyDaysAgo,
+          end: endDate || new Date()
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get revenue analytics error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
 
 // @desc    Get all reviews for a tour
 // @route   GET /api/tours/:id/reviews
