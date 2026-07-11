@@ -1,4 +1,3 @@
-// src/components/NotificationPanel.jsx
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -30,46 +29,62 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   const [total, setTotal] = useState(0)
   const [filter, setFilter] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
-  const [selectedNotification, setSelectedNotification] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [apiError, setApiError] = useState(null)
   
   const notificationsEndRef = useRef(null)
   const observerRef = useRef(null)
   const isMounted = useRef(true)
   const initialLoadDone = useRef(false)
 
-  // Get API endpoint based on user role
+  // ============================================
+  // FIXED: Get API endpoint with /api prefix
+  // ============================================
   const getApiEndpoint = useCallback(() => {
-    return user?.role === 'admin' ? '/notifications/admin' : '/notifications'
+    if (user?.role === 'admin') {
+      return '/api/notifications/admin'
+    }
+    return '/api/notifications'
   }, [user?.role])
 
-  // Fetch notifications
+  // ============================================
+  // FIXED: Fetch notifications with /api prefix
+  // ============================================
   const fetchNotifications = useCallback(async (reset = true) => {
-    if (!user) return
+    if (!user) {
+      console.warn('⚠️ [NotificationPanel] No user, skipping fetch')
+      setLoading(false)
+      return
+    }
     
     try {
       setLoading(true)
-      const currentPage = reset ? 1 : page
+      setApiError(null)
       
+      const currentPage = reset ? 1 : page
       const endpoint = getApiEndpoint()
+      
       const params = {
         page: currentPage,
-        limit: 20,
-        read: filter === 'unread' ? 'false' : undefined,
-        type: filter !== 'all' && filter !== 'unread' ? filter : undefined
+        limit: 10,
       }
       
-      // If admin, add admin flag to get all notifications
+      if (filter === 'unread') {
+        params.read = 'false'
+      } else if (filter !== 'all' && filter !== 'unread') {
+        params.type = filter
+      }
+      
       if (user?.role === 'admin') {
         params.admin = 'true'
       }
 
-      console.log(`📡 [NotificationPanel] Fetching notifications from ${endpoint}`, params)
+      console.log(`📡 [NotificationPanel] Fetching from ${endpoint}`, params)
       
       const response = await axios.get(endpoint, { params })
 
-      if (response.data.success && isMounted.current) {
+      if (response.data?.success && isMounted.current) {
         const data = response.data
         const newNotifications = data.notifications || []
         
@@ -80,18 +95,32 @@ const NotificationPanel = ({ isOpen, onClose }) => {
           setNotifications(prev => [...prev, ...newNotifications])
         }
         
-        // Update unread count from response or socket
         const count = data.unreadCount || 0
         setUnreadCount(count)
         setHasMore(data.pagination?.hasMore || false)
         setTotal(data.total || 0)
         
-        console.log(`✅ [NotificationPanel] Loaded ${newNotifications.length} notifications, total: ${data.total}, unread: ${count}`)
+        console.log(`✅ [NotificationPanel] Loaded ${newNotifications.length} notifications, total: ${data.total}`)
+      } else {
+        console.warn('⚠️ [NotificationPanel] Unexpected response:', response.data)
+        if (reset) {
+          setNotifications([])
+          setTotal(0)
+          setUnreadCount(0)
+        }
       }
     } catch (error) {
-      console.error('❌ [NotificationPanel] Fetch notifications error:', error)
+      console.error('❌ [NotificationPanel] Fetch error:', error)
+      setApiError(error.response?.data?.message || 'Failed to load notifications')
+      
       if (isMounted.current) {
         showToast(error.response?.data?.message || 'Failed to load notifications', 'error')
+      }
+      
+      if (reset) {
+        setNotifications([])
+        setTotal(0)
+        setUnreadCount(0)
       }
     } finally {
       if (isMounted.current) {
@@ -100,7 +129,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [user, page, filter, getApiEndpoint, showToast])
 
+  // ============================================
   // Load more notifications
+  // ============================================
   const loadMore = useCallback(() => {
     if (!loading && hasMore && isMounted.current) {
       setPage(prev => prev + 1)
@@ -108,10 +139,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [loading, hasMore, fetchNotifications])
 
-  // Mark as read
+  // ============================================
+  // FIXED: Mark as read with /api prefix
+  // ============================================
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      await axios.put(`/notifications/${notificationId}/read`)
+      await axios.put(`/api/notifications/${notificationId}/read`)
       
       if (isMounted.current) {
         setNotifications(prev => prev.map(n => 
@@ -119,7 +152,6 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         ))
         setUnreadCount(prev => Math.max(0, prev - 1))
         
-        // Refresh unread count from socket
         if (getUnreadCount) {
           getUnreadCount()
         }
@@ -129,10 +161,15 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [getUnreadCount])
 
-  // Mark all as read
+  // ============================================
+  // FIXED: Mark all as read with /api prefix
+  // ============================================
   const markAllAsRead = useCallback(async () => {
     try {
-      const endpoint = user?.role === 'admin' ? '/notifications/admin/read-all' : '/notifications/read-all'
+      const endpoint = user?.role === 'admin' 
+        ? '/api/notifications/admin/read-all' 
+        : '/api/notifications/read-all'
+      
       await axios.put(endpoint)
       
       if (isMounted.current) {
@@ -140,7 +177,6 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         setUnreadCount(0)
         showToast('All notifications marked as read', 'success')
         
-        // Refresh unread count from socket
         if (getUnreadCount) {
           getUnreadCount()
         }
@@ -151,7 +187,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [user?.role, showToast, getUnreadCount])
 
-  // Delete notification
+  // ============================================
+  // FIXED: Delete notification with /api prefix
+  // ============================================
   const deleteNotification = useCallback(async (notificationId, e) => {
     e?.stopPropagation()
     
@@ -159,7 +197,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     
     try {
       setIsDeleting(true)
-      await axios.delete(`/notifications/${notificationId}`)
+      await axios.delete(`/api/notifications/${notificationId}`)
       
       if (isMounted.current) {
         const deleted = notifications.find(n => n._id === notificationId)
@@ -172,13 +210,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         
         showToast('Notification deleted', 'success')
         
-        // Refresh unread count from socket
         if (getUnreadCount) {
           getUnreadCount()
         }
       }
     } catch (error) {
-      console.error('❌ [NotificationPanel] Delete notification error:', error)
+      console.error('❌ [NotificationPanel] Delete error:', error)
       showToast('Failed to delete notification', 'error')
     } finally {
       if (isMounted.current) {
@@ -187,13 +224,18 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [notifications, showToast, getUnreadCount])
 
-  // Delete all notifications
+  // ============================================
+  // FIXED: Delete all with /api prefix
+  // ============================================
   const deleteAllNotifications = useCallback(async () => {
     if (!confirm('Delete all notifications?')) return
     
     try {
       setIsDeleting(true)
-      const endpoint = user?.role === 'admin' ? '/notifications/admin/delete-all' : '/notifications/delete-all'
+      const endpoint = user?.role === 'admin' 
+        ? '/api/notifications/admin/delete-all' 
+        : '/api/notifications/delete-all'
+      
       await axios.delete(endpoint)
       
       if (isMounted.current) {
@@ -202,7 +244,6 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         setUnreadCount(0)
         showToast('All notifications deleted', 'success')
         
-        // Refresh unread count from socket
         if (getUnreadCount) {
           getUnreadCount()
         }
@@ -217,22 +258,23 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [user?.role, showToast, getUnreadCount])
 
+  // ============================================
   // Handle notification click
+  // ============================================
   const handleNotificationClick = useCallback((notification) => {
     if (!notification.read) {
       markAsRead(notification._id)
     }
     
-    setSelectedNotification(notification)
-    
-    // Navigate to the action URL if provided
     if (notification.actionUrl) {
       navigate(notification.actionUrl)
       onClose()
     }
   }, [markAsRead, navigate, onClose])
 
+  // ============================================
   // Handle refresh
+  // ============================================
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
@@ -241,133 +283,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     setRefreshing(false)
   }, [fetchNotifications, refreshing])
 
-  // Socket event listeners
-  useEffect(() => {
-    if (!socket) return
-
-    const handleNewNotification = (data) => {
-      if (data.notification && isMounted.current) {
-        console.log('🔔 [NotificationPanel] New notification received:', data.notification)
-        setNotifications(prev => [data.notification, ...prev])
-        setTotal(prev => prev + 1)
-        if (!data.notification.read) {
-          setUnreadCount(prev => prev + 1)
-        }
-        showToast('🔔 ' + data.notification.title, 'info')
-      }
-    }
-
-    const handleNotificationRead = (data) => {
-      if (isMounted.current) {
-        setNotifications(prev => prev.map(n => 
-          n._id === data.notificationId ? { ...n, read: true } : n
-        ))
-        if (data.unreadCount !== undefined) {
-          setUnreadCount(data.unreadCount)
-        }
-      }
-    }
-
-    const handleAllNotificationsRead = (data) => {
-      if (isMounted.current) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-        setUnreadCount(0)
-      }
-    }
-
-    const handleNotificationDeleted = (data) => {
-      if (isMounted.current) {
-        setNotifications(prev => prev.filter(n => n._id !== data.notificationId))
-        setTotal(prev => prev - 1)
-      }
-    }
-
-    const handleAllNotificationsDeleted = (data) => {
-      if (isMounted.current) {
-        setNotifications([])
-        setTotal(0)
-        setUnreadCount(0)
-      }
-    }
-
-    // Admin notifications
-    const handleAdminNotification = (data) => {
-      if (isMounted.current && user?.role === 'admin') {
-        console.log('👑 [NotificationPanel] Admin notification:', data)
-        // If it's a new notification, add it to the list
-        if (data.notification) {
-          setNotifications(prev => [data.notification, ...prev])
-          setTotal(prev => prev + 1)
-        }
-      }
-    }
-
-    socket.on('new-notification', handleNewNotification)
-    socket.on('notification-read', handleNotificationRead)
-    socket.on('all-notifications-read', handleAllNotificationsRead)
-    socket.on('notification-deleted', handleNotificationDeleted)
-    socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
-    socket.on('admin-notification', handleAdminNotification)
-
-    return () => {
-      socket.off('new-notification', handleNewNotification)
-      socket.off('notification-read', handleNotificationRead)
-      socket.off('all-notifications-read', handleAllNotificationsRead)
-      socket.off('notification-deleted', handleNotificationDeleted)
-      socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
-      socket.off('admin-notification', handleAdminNotification)
-    }
-  }, [socket, showToast, user?.role])
-
-  // Load notifications when panel opens or filter changes
-  useEffect(() => {
-    isMounted.current = true
-    
-    if (isOpen) {
-      // Reset pagination when filter changes
-      if (filter !== 'all' || !initialLoadDone.current) {
-        setPage(1)
-        setNotifications([])
-        fetchNotifications(true)
-        initialLoadDone.current = true
-      }
-    }
-    
-    return () => {
-      isMounted.current = false
-    }
-  }, [isOpen, filter, fetchNotifications])
-
-  // Sync unread count with socket
-  useEffect(() => {
-    if (socketUnreadCount !== undefined && isMounted.current) {
-      setUnreadCount(socketUnreadCount)
-    }
-  }, [socketUnreadCount])
-
-  // Intersection observer for infinite scroll
-  useEffect(() => {
-    if (!notificationsEndRef.current || !hasMore || !isOpen) return
-    
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !loading && isMounted.current) {
-          loadMore()
-        }
-      },
-      { threshold: 0.1, rootMargin: '100px' }
-    )
-    
-    observerRef.current.observe(notificationsEndRef.current)
-    
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-    }
-  }, [hasMore, loading, loadMore, isOpen])
-
+  // ============================================
   // Get icon component
+  // ============================================
   const getIcon = useCallback((notification) => {
     const iconMap = {
       'Bell': Bell,
@@ -392,7 +310,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     return iconMap[notification?.icon] || Bell
   }, [])
 
+  // ============================================
   // Get time ago
+  // ============================================
   const getTimeAgo = useCallback((date) => {
     if (!date) return 'Just now'
     const diff = Date.now() - new Date(date).getTime()
@@ -407,7 +327,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     return new Date(date).toLocaleDateString()
   }, [])
 
+  // ============================================
   // Priority colors
+  // ============================================
   const getPriorityColor = useCallback((priority) => {
     switch(priority) {
       case 'urgent': return 'border-red-500/30 bg-red-500/10'
@@ -417,6 +339,126 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     }
   }, [])
 
+  // ============================================
+  // Socket listeners
+  // ============================================
+  useEffect(() => {
+    if (!socket) return
+
+    const handleNewNotification = (data) => {
+      if (data?.notification && isMounted.current) {
+        console.log('🔔 [NotificationPanel] New notification:', data.notification)
+        setNotifications(prev => [data.notification, ...prev])
+        setTotal(prev => prev + 1)
+        if (!data.notification.read) {
+          setUnreadCount(prev => prev + 1)
+        }
+        showToast('🔔 ' + data.notification.title, 'info')
+      }
+    }
+
+    const handleNotificationRead = (data) => {
+      if (isMounted.current) {
+        setNotifications(prev => prev.map(n => 
+          n._id === data.notificationId ? { ...n, read: true } : n
+        ))
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount)
+        }
+      }
+    }
+
+    const handleAllNotificationsRead = () => {
+      if (isMounted.current) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+        setUnreadCount(0)
+      }
+    }
+
+    const handleNotificationDeleted = (data) => {
+      if (isMounted.current) {
+        setNotifications(prev => prev.filter(n => n._id !== data.notificationId))
+        setTotal(prev => prev - 1)
+      }
+    }
+
+    const handleAllNotificationsDeleted = () => {
+      if (isMounted.current) {
+        setNotifications([])
+        setTotal(0)
+        setUnreadCount(0)
+      }
+    }
+
+    socket.on('new-notification', handleNewNotification)
+    socket.on('notification-read', handleNotificationRead)
+    socket.on('all-notifications-read', handleAllNotificationsRead)
+    socket.on('notification-deleted', handleNotificationDeleted)
+    socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
+
+    return () => {
+      socket.off('new-notification', handleNewNotification)
+      socket.off('notification-read', handleNotificationRead)
+      socket.off('all-notifications-read', handleAllNotificationsRead)
+      socket.off('notification-deleted', handleNotificationDeleted)
+      socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
+    }
+  }, [socket, showToast])
+
+  // ============================================
+  // Sync unread count with socket
+  // ============================================
+  useEffect(() => {
+    if (socketUnreadCount !== undefined && isMounted.current) {
+      setUnreadCount(socketUnreadCount)
+    }
+  }, [socketUnreadCount])
+
+  // ============================================
+  // Intersection observer for infinite scroll
+  // ============================================
+  useEffect(() => {
+    if (!notificationsEndRef.current || !hasMore || !isOpen) return
+    
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loading && isMounted.current) {
+          loadMore()
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    )
+    
+    observerRef.current.observe(notificationsEndRef.current)
+    
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [hasMore, loading, loadMore, isOpen])
+
+  // ============================================
+  // Load notifications when panel opens
+  // ============================================
+  useEffect(() => {
+    isMounted.current = true
+    
+    if (isOpen && user) {
+      setPage(1)
+      setNotifications([])
+      fetchNotifications(true)
+      initialLoadDone.current = true
+    }
+    
+    return () => {
+      isMounted.current = false
+    }
+  }, [isOpen, user]) // Removed fetchNotifications from deps
+
+  // ============================================
+  // RENDER
+  // ============================================
   if (!isOpen) return null
 
   return (
@@ -527,6 +569,16 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                 </button>
               </div>
             </div>
+
+            {/* Error Display */}
+            {apiError && (
+              <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-sm">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{apiError}</span>
+                </div>
+              </div>
+            )}
 
             {/* Filters */}
             <AnimatePresence>

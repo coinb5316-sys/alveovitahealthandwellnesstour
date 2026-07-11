@@ -1,4 +1,3 @@
-// src/pages/Notifications.jsx
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -31,33 +30,52 @@ const Notifications = () => {
   const [filter, setFilter] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
-  const [selectedNotification, setSelectedNotification] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [apiError, setApiError] = useState(null)
   
   const observerRef = useRef(null)
   const endRef = useRef(null)
   const isMounted = useRef(true)
   const initialLoadDone = useRef(false)
 
-  // Get API endpoint based on user role
+  // ============================================
+  // FIXED: Get API endpoint with /api prefix
+  // ============================================
   const getApiEndpoint = useCallback(() => {
-    return user?.role === 'admin' ? '/notifications/admin' : '/notifications'
+    // FIX: Added /api prefix
+    if (user?.role === 'admin') {
+      return '/api/notifications/admin'
+    }
+    return '/api/notifications'
   }, [user?.role])
 
-  // Fetch notifications
+  // ============================================
+  // FIXED: Fetch notifications with proper error handling
+  // ============================================
   const fetchNotifications = useCallback(async (reset = true) => {
-    if (!user) return
+    if (!user) {
+      console.warn('⚠️ [Notifications] No user, skipping fetch')
+      setLoading(false)
+      return
+    }
     
     try {
       setLoading(true)
-      const currentPage = reset ? 1 : page
+      setApiError(null)
       
+      const currentPage = reset ? 1 : page
       const endpoint = getApiEndpoint()
+      
+      // Build params
       const params = {
         page: currentPage,
         limit: 20,
-        read: filter === 'unread' ? 'false' : undefined,
-        type: filter !== 'all' && filter !== 'unread' ? filter : undefined
+      }
+      
+      if (filter === 'unread') {
+        params.read = 'false'
+      } else if (filter !== 'all' && filter !== 'unread') {
+        params.type = filter
       }
       
       // If admin, add admin flag to get all notifications
@@ -69,7 +87,14 @@ const Notifications = () => {
       
       const response = await axios.get(endpoint, { params })
 
-      if (response.data.success && isMounted.current) {
+      console.log(`📡 [Notifications] Response:`, {
+        status: response.status,
+        success: response.data?.success,
+        count: response.data?.notifications?.length || 0,
+        total: response.data?.total || 0
+      })
+
+      if (response.data?.success && isMounted.current) {
         const data = response.data
         const newNotifications = data.notifications || []
         
@@ -80,16 +105,35 @@ const Notifications = () => {
           setNotifications(prev => [...prev, ...newNotifications])
         }
         
-        setUnreadCount(data.unreadCount || 0)
+        // Update unread count
+        const count = data.unreadCount || 0
+        setUnreadCount(count)
         setHasMore(data.pagination?.hasMore || false)
         setTotal(data.total || 0)
         
-        console.log(`✅ [Notifications] Loaded ${newNotifications.length} notifications, total: ${data.total}`)
+        console.log(`✅ [Notifications] Loaded ${newNotifications.length} notifications, total: ${data.total}, unread: ${count}`)
+      } else {
+        console.warn('⚠️ [Notifications] Unexpected response:', response.data)
+        if (reset) {
+          setNotifications([])
+          setTotal(0)
+          setUnreadCount(0)
+        }
       }
     } catch (error) {
       console.error('❌ [Notifications] Fetch error:', error)
+      console.error('❌ [Notifications] Error details:', error.response?.data)
+      
+      setApiError(error.response?.data?.message || 'Failed to load notifications')
+      
       if (isMounted.current) {
         showToast(error.response?.data?.message || 'Failed to load notifications', 'error')
+      }
+      
+      if (reset) {
+        setNotifications([])
+        setTotal(0)
+        setUnreadCount(0)
       }
     } finally {
       if (isMounted.current) {
@@ -98,7 +142,9 @@ const Notifications = () => {
     }
   }, [user, page, filter, getApiEndpoint, showToast])
 
+  // ============================================
   // Load more notifications
+  // ============================================
   const loadMore = useCallback(() => {
     if (!loading && hasMore && isMounted.current) {
       setPage(prev => prev + 1)
@@ -106,10 +152,12 @@ const Notifications = () => {
     }
   }, [loading, hasMore, fetchNotifications])
 
-  // Mark as read
+  // ============================================
+  // FIXED: Mark as read with /api prefix
+  // ============================================
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      await axios.put(`/notifications/${notificationId}/read`)
+      await axios.put(`/api/notifications/${notificationId}/read`)
       
       if (isMounted.current) {
         setNotifications(prev => prev.map(n => 
@@ -128,10 +176,15 @@ const Notifications = () => {
     }
   }, [getUnreadCount, showToast])
 
-  // Mark all as read
+  // ============================================
+  // FIXED: Mark all as read with /api prefix
+  // ============================================
   const markAllAsRead = useCallback(async () => {
     try {
-      const endpoint = user?.role === 'admin' ? '/notifications/admin/read-all' : '/notifications/read-all'
+      const endpoint = user?.role === 'admin' 
+        ? '/api/notifications/admin/read-all' 
+        : '/api/notifications/read-all'
+      
       await axios.put(endpoint)
       
       if (isMounted.current) {
@@ -149,13 +202,15 @@ const Notifications = () => {
     }
   }, [user?.role, showToast, getUnreadCount])
 
-  // Delete notification
+  // ============================================
+  // FIXED: Delete notification with /api prefix
+  // ============================================
   const deleteNotification = useCallback(async (notificationId) => {
     if (!confirm('Delete this notification?')) return
     
     try {
       setIsDeleting(true)
-      await axios.delete(`/notifications/${notificationId}`)
+      await axios.delete(`/api/notifications/${notificationId}`)
       
       if (isMounted.current) {
         const deleted = notifications.find(n => n._id === notificationId)
@@ -182,13 +237,18 @@ const Notifications = () => {
     }
   }, [notifications, showToast, getUnreadCount])
 
-  // Delete all notifications
+  // ============================================
+  // FIXED: Delete all with /api prefix
+  // ============================================
   const deleteAllNotifications = useCallback(async () => {
     if (!confirm('Delete all notifications?')) return
     
     try {
       setIsDeleting(true)
-      const endpoint = user?.role === 'admin' ? '/notifications/admin/delete-all' : '/notifications/delete-all'
+      const endpoint = user?.role === 'admin' 
+        ? '/api/notifications/admin/delete-all' 
+        : '/api/notifications/delete-all'
+      
       await axios.delete(endpoint)
       
       if (isMounted.current) {
@@ -211,7 +271,9 @@ const Notifications = () => {
     }
   }, [user?.role, showToast, getUnreadCount])
 
+  // ============================================
   // Handle refresh
+  // ============================================
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
@@ -220,7 +282,9 @@ const Notifications = () => {
     setRefreshing(false)
   }, [fetchNotifications, refreshing])
 
+  // ============================================
   // Get icon component
+  // ============================================
   const getIcon = useCallback((notification) => {
     const iconMap = {
       'Bell': Bell,
@@ -245,7 +309,9 @@ const Notifications = () => {
     return iconMap[notification?.icon] || Bell
   }, [])
 
+  // ============================================
   // Get time ago
+  // ============================================
   const getTimeAgo = useCallback((date) => {
     if (!date) return 'Just now'
     const diff = Date.now() - new Date(date).getTime()
@@ -260,7 +326,9 @@ const Notifications = () => {
     return new Date(date).toLocaleDateString()
   }, [])
 
+  // ============================================
   // Priority colors
+  // ============================================
   const getPriorityColor = useCallback((priority) => {
     switch(priority) {
       case 'urgent': return 'border-red-500/30 bg-red-500/10'
@@ -270,12 +338,14 @@ const Notifications = () => {
     }
   }, [])
 
+  // ============================================
   // Socket listeners
+  // ============================================
   useEffect(() => {
     if (!socket) return
 
     const handleNewNotification = (data) => {
-      if (data.notification && isMounted.current) {
+      if (data?.notification && isMounted.current) {
         console.log('🔔 [Notifications] New notification:', data.notification)
         setNotifications(prev => [data.notification, ...prev])
         setTotal(prev => prev + 1)
@@ -297,7 +367,7 @@ const Notifications = () => {
       }
     }
 
-    const handleAllNotificationsRead = (data) => {
+    const handleAllNotificationsRead = () => {
       if (isMounted.current) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })))
         setUnreadCount(0)
@@ -311,7 +381,7 @@ const Notifications = () => {
       }
     }
 
-    const handleAllNotificationsDeleted = (data) => {
+    const handleAllNotificationsDeleted = () => {
       if (isMounted.current) {
         setNotifications([])
         setTotal(0)
@@ -334,7 +404,9 @@ const Notifications = () => {
     }
   }, [socket, showToast])
 
+  // ============================================
   // Intersection observer for infinite scroll
+  // ============================================
   useEffect(() => {
     if (!endRef.current || !hasMore || loading) return
     
@@ -356,22 +428,31 @@ const Notifications = () => {
     }
   }, [hasMore, loading, loadMore])
 
+  // ============================================
   // Initial load and filter changes
+  // ============================================
   useEffect(() => {
     isMounted.current = true
     
-    if (filter !== 'all' || !initialLoadDone.current) {
-      setPage(1)
-      setNotifications([])
-      fetchNotifications(true)
-      initialLoadDone.current = true
+    if (!user) {
+      setLoading(false)
+      return
     }
+    
+    // Reset and fetch when filter changes
+    setPage(1)
+    setNotifications([])
+    fetchNotifications(true)
+    initialLoadDone.current = true
     
     return () => {
       isMounted.current = false
     }
-  }, [filter, fetchNotifications])
+  }, [filter, user]) // Removed fetchNotifications from deps to avoid infinite loop
 
+  // ============================================
+  // RENDER
+  // ============================================
   if (!user) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
@@ -476,6 +557,16 @@ const Notifications = () => {
             )}
           </div>
         </div>
+
+        {/* Error Display */}
+        {apiError && (
+          <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{apiError}</span>
+            </div>
+          </div>
+        )}
 
         {/* Filter Bar */}
         <AnimatePresence>
