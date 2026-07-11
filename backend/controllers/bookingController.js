@@ -1,9 +1,9 @@
-// backend/controllers/bookingController.js
 import Booking from '../models/Booking.js';
 import Revenue from '../models/Revenue.js';
 import Tour from '../models/Tour.js';
 import Hotel from '../models/Hotel.js';
 import mongoose from 'mongoose';
+import { createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Get all bookings (admin)
 // @route   GET /api/bookings/admin
@@ -15,7 +15,6 @@ export const getAdminBookings = async (req, res) => {
     
     const query = {};
     
-    // Only show deleted bookings if explicitly requested
     if (showDeleted !== 'true') {
       query.isDeleted = { $ne: true };
     }
@@ -102,7 +101,6 @@ export const softDeleteBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // Check if user owns this booking
     if (booking.user.toString() !== req.user.id) {
       return res.status(403).json({ 
         success: false, 
@@ -110,7 +108,6 @@ export const softDeleteBooking = async (req, res) => {
       });
     }
 
-    // If already soft-deleted by user, restore it (toggle behavior)
     if (booking.isDeleted && booking.deletedFor === 'user') {
       booking.isDeleted = false;
       booking.deletedAt = null;
@@ -124,7 +121,6 @@ export const softDeleteBooking = async (req, res) => {
       });
     }
 
-    // Soft delete - mark as deleted for this user only
     booking.isDeleted = true;
     booking.deletedAt = new Date();
     booking.deletedBy = req.user.id;
@@ -154,7 +150,6 @@ export const adminDeleteBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // Option 1: Permanent delete (remove from database)
     if (permanent === 'true') {
       await Revenue.findOneAndDelete({ bookingId: booking._id });
       await booking.deleteOne();
@@ -167,7 +162,6 @@ export const adminDeleteBooking = async (req, res) => {
       });
     }
 
-    // Option 2: Hide from everyone (soft delete)
     if (hideFrom === 'all') {
       booking.isDeleted = true;
       booking.deletedAt = new Date();
@@ -183,9 +177,7 @@ export const adminDeleteBooking = async (req, res) => {
       });
     }
 
-    // Option 3: Hide from admin only (users can still see it)
     if (hideFrom === 'admin') {
-      // Note: isDeleted stays false so users can see it
       booking.deletedAt = new Date();
       booking.deletedBy = req.user.id;
       booking.deletedFor = 'admin';
@@ -280,7 +272,6 @@ export const deleteBooking = async (req, res) => {
       });
     }
 
-    // If user is deleting their own booking, soft delete
     if (isOwner && !isAdmin) {
       booking.isDeleted = true;
       booking.deletedAt = new Date();
@@ -294,7 +285,6 @@ export const deleteBooking = async (req, res) => {
       });
     }
 
-    // Admin deleting - hard delete by default
     await Revenue.findOneAndDelete({ bookingId: booking._id });
     await booking.deleteOne();
 
@@ -353,7 +343,6 @@ export const getBookingById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // Check if user is authorized
     if (booking.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -378,6 +367,33 @@ export const createBooking = async (req, res) => {
 
     const booking = await Booking.create(bookingData);
     await booking.populate('user', 'name email');
+
+    const io = req.app.get('io');
+
+    // ✅ Notify user about booking
+    await createNotification(io, req.user.id, {
+      type: 'booking',
+      title: '📅 Booking Confirmed!',
+      message: `Your ${booking.type} booking has been confirmed.`,
+      icon: 'Calendar',
+      color: 'text-indigo-500',
+      bgColor: 'bg-indigo-500/10',
+      actionUrl: `/bookings/${booking._id}`,
+      actionLabel: 'View Booking',
+      priority: 'high'
+    });
+
+    // ✅ Notify admins about new booking
+    if (io) {
+      io.to('admin-room').emit('admin-notification', {
+        type: 'new-booking',
+        bookingId: booking._id,
+        userName: req.user.name,
+        userEmail: req.user.email,
+        message: `📋 New ${booking.type} booking from ${req.user.name}`,
+        timestamp: new Date()
+      });
+    }
 
     console.log(`✅ Booking created successfully: ${booking._id}`);
 
@@ -407,7 +423,38 @@ export const updateBookingStatus = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // If booking is confirmed, update revenue
+    const io = req.app.get('io');
+
+    // ✅ Notify user when booking is confirmed
+    if (status === 'confirmed') {
+      await createNotification(io, booking.user, {
+        type: 'booking',
+        title: '✅ Booking Approved!',
+        message: `Your ${booking.type} booking has been approved.`,
+        icon: 'CheckCircle',
+        color: 'text-green-500',
+        bgColor: 'bg-green-500/10',
+        actionUrl: `/bookings/${booking._id}`,
+        actionLabel: 'View Booking',
+        priority: 'high'
+      });
+    }
+
+    // ✅ Notify user when booking is cancelled
+    if (status === 'cancelled') {
+      await createNotification(io, booking.user, {
+        type: 'booking',
+        title: '❌ Booking Cancelled',
+        message: `Your ${booking.type} booking has been cancelled.`,
+        icon: 'AlertCircle',
+        color: 'text-red-500',
+        bgColor: 'bg-red-500/10',
+        actionUrl: `/bookings/${booking._id}`,
+        actionLabel: 'View Details',
+        priority: 'high'
+      });
+    }
+
     if (status === 'confirmed') {
       await Revenue.findOneAndUpdate(
         { bookingId: booking._id },
@@ -442,7 +489,20 @@ export const cancelBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // Update revenue status
+    // ✅ Notify user about cancellation
+    const io = req.app.get('io');
+    await createNotification(io, booking.user, {
+      type: 'booking',
+      title: '❌ Booking Cancelled',
+      message: `Your ${booking.type} booking has been cancelled.`,
+      icon: 'AlertCircle',
+      color: 'text-red-500',
+      bgColor: 'bg-red-500/10',
+      actionUrl: `/bookings/${booking._id}`,
+      actionLabel: 'View Details',
+      priority: 'high'
+    });
+
     await Revenue.findOneAndUpdate(
       { bookingId: booking._id },
       { status: 'refunded' }
@@ -476,7 +536,6 @@ export const getBookingStats = async (req, res) => {
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
 
-    // Get today's bookings
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -486,7 +545,6 @@ export const getBookingStats = async (req, res) => {
       createdAt: { $gte: today, $lt: tomorrow }
     });
 
-    // Get this week's bookings
     const weekStart = new Date(today);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekEnd = new Date(weekStart);
@@ -496,7 +554,6 @@ export const getBookingStats = async (req, res) => {
       createdAt: { $gte: weekStart, $lt: weekEnd }
     });
 
-    // Get this month's bookings
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     

@@ -60,22 +60,22 @@ const Navbar = () => {
   // ============================================
   // FETCH UNREAD COUNT
   // ============================================
-  const fetchUnreadCount = async () => {
-    if (!user) return
-    
-    try {
-      setLoadingNotifications(true)
-      const response = await axios.get('/notifications/stats')
-      if (response.data.success) {
-        setUnreadCount(response.data.stats.unread || 0)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching unread count:', error)
-    } finally {
-      setLoadingNotifications(false)
+  // In Navbar.jsx - FIXED fetchUnreadCount
+const fetchUnreadCount = async () => {
+  if (!user) return
+  
+  try {
+    setLoadingNotifications(true)
+    const response = await axios.get('/api/notifications/stats')  // ✅ Add /api
+    if (response.data.success) {
+      setUnreadCount(response.data.stats.unread || 0)
     }
+  } catch (error) {
+    console.error('❌ Error fetching unread count:', error)
+  } finally {
+    setLoadingNotifications(false)
   }
-
+}
   // ============================================
   // SOCKET EVENT LISTENERS
   // ============================================

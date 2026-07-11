@@ -1,8 +1,8 @@
-// backend/controllers/favoriteController.js
 import Favorite from '../models/Favorite.js';
 import Hotel from '../models/Hotel.js';
 import Tour from '../models/Tour.js';
 import Destination from '../models/Destination.js';
+import { createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Get user's favorites
 // @route   GET /api/favorites
@@ -18,7 +18,6 @@ export const getFavorites = async (req, res) => {
     const favorites = await Favorite.find(query)
       .sort({ addedAt: -1 });
 
-    // Populate the actual items
     const populatedFavorites = await Promise.all(
       favorites.map(async (favorite) => {
         let item = null;
@@ -45,7 +44,6 @@ export const getFavorites = async (req, res) => {
       })
     );
 
-    // Filter out favorites where item no longer exists
     const validFavorites = populatedFavorites.filter(f => f.item !== null);
 
     res.json({
@@ -79,7 +77,6 @@ export const addFavorite = async (req, res) => {
       });
     }
 
-    // Check if item exists
     let itemExists = false;
     if (itemType === 'hotel') {
       itemExists = await Hotel.exists({ _id: itemId });
@@ -96,7 +93,6 @@ export const addFavorite = async (req, res) => {
       });
     }
 
-    // Check if already favorited
     const existingFavorite = await Favorite.findOne({
       user: req.user.id,
       itemType,
@@ -116,7 +112,6 @@ export const addFavorite = async (req, res) => {
       itemId,
     });
 
-    // Get item details for notification
     let itemName = '';
     if (itemType === 'hotel') {
       const hotel = await Hotel.findById(itemId);
@@ -129,7 +124,19 @@ export const addFavorite = async (req, res) => {
       itemName = dest?.name || 'Destination';
     }
 
-    // Emit socket event
+    // ✅ Notify user about favorite
+    await createNotification(io, req.user.id, {
+      type: 'favorite',
+      title: '❤️ Added to Favorites!',
+      message: `"${itemName}" has been added to your favorites.`,
+      icon: 'Heart',
+      color: 'text-red-500',
+      bgColor: 'bg-red-500/10',
+      actionUrl: '/favorites',
+      actionLabel: 'View Favorites',
+      priority: 'low'
+    });
+
     if (io) {
       io.emit('favorite-added', {
         favoriteId: favorite._id,
@@ -149,7 +156,6 @@ export const addFavorite = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Add favorite error:', error);
-    // Handle duplicate key error
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -174,7 +180,6 @@ export const removeFavorite = async (req, res) => {
       });
     }
 
-    // Check if user owns this favorite
     if (favorite.user.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -185,7 +190,6 @@ export const removeFavorite = async (req, res) => {
     const itemType = favorite.itemType;
     const itemId = favorite.itemId;
 
-    // Get item name for notification
     let itemName = '';
     if (itemType === 'hotel') {
       const hotel = await Hotel.findById(itemId);
@@ -200,7 +204,6 @@ export const removeFavorite = async (req, res) => {
 
     await favorite.deleteOne();
 
-    // Emit socket event
     if (io) {
       io.emit('favorite-removed', {
         favoriteId: req.params.id,
@@ -252,7 +255,6 @@ export const removeFavoriteByItem = async (req, res) => {
 
     await favorite.deleteOne();
 
-    // Emit socket event
     if (io) {
       io.emit('favorite-removed', {
         favoriteId: favorite._id,

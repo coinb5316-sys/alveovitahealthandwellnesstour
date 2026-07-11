@@ -1,5 +1,5 @@
-// backend/controllers/tourController.js
 import Tour from '../models/Tour.js';
+import { notifyAllUsers, createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Get all tours
 // @route   GET /api/tours
@@ -68,20 +68,26 @@ export const createTour = async (req, res) => {
     };
     const tour = await Tour.create(tourData);
 
-    // Emit tour creation notification
-    if (io) {
-      io.emit('tour-created', {
-        tourId: tour._id,
-        title: tour.title,
-        region: tour.region,
-        createdBy: req.user.name,
-        timestamp: new Date()
-      });
+    // ✅ Notify all users about new tour
+    await notifyAllUsers(io, {
+      type: 'tour',
+      title: `🌟 New Tour: ${tour.title}`,
+      message: `Explore "${tour.title}" in ${tour.region}. Book now!`,
+      icon: 'Plane',
+      color: 'text-green-500',
+      bgColor: 'bg-green-500/10',
+      actionUrl: `/tours/${tour._id}`,
+      actionLabel: 'View Tour',
+      priority: 'medium'
+    });
 
+    // ✅ Admin notification
+    if (io) {
       io.to('admin-room').emit('admin-notification', {
         type: 'tour-created',
         tourId: tour._id,
-        message: `New tour "${tour.title}" created by ${req.user.name}`,
+        createdBy: req.user.name,
+        message: `📌 New tour "${tour.title}" created by ${req.user.name}`,
         timestamp: new Date()
       });
     }
@@ -108,20 +114,25 @@ export const updateTour = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Tour not found' });
     }
 
-    // Emit tour update notification
-    if (io) {
-      io.emit('tour-updated', {
-        tourId: tour._id,
-        title: tour.title,
-        region: tour.region,
-        updatedBy: req.user.name,
-        timestamp: new Date()
-      });
+    // ✅ Notify users about tour update
+    await notifyAllUsers(io, {
+      type: 'tour',
+      title: `📝 Tour Updated: ${tour.title}`,
+      message: `"${tour.title}" has been updated. Check out the new details!`,
+      icon: 'Edit',
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/10',
+      actionUrl: `/tours/${tour._id}`,
+      actionLabel: 'View Updates',
+      priority: 'medium'
+    });
 
+    if (io) {
       io.to('admin-room').emit('admin-notification', {
         type: 'tour-updated',
         tourId: tour._id,
-        message: `Tour "${tour.title}" updated by ${req.user.name}`,
+        updatedBy: req.user.name,
+        message: `📝 Tour "${tour.title}" updated by ${req.user.name}`,
         timestamp: new Date()
       });
     }
@@ -146,7 +157,7 @@ export const deleteTour = async (req, res) => {
     const tourTitle = tour.title;
     await Tour.findByIdAndDelete(req.params.id);
 
-    // Emit tour deletion notification
+    // ✅ Notify about tour deletion
     if (io) {
       io.emit('tour-deleted', {
         tourId: req.params.id,
@@ -158,7 +169,7 @@ export const deleteTour = async (req, res) => {
       io.to('admin-room').emit('admin-notification', {
         type: 'tour-deleted',
         tourId: req.params.id,
-        message: `Tour "${tourTitle}" deleted by ${req.user.name}`,
+        message: `🗑️ Tour "${tourTitle}" deleted by ${req.user.name}`,
         timestamp: new Date()
       });
     }
