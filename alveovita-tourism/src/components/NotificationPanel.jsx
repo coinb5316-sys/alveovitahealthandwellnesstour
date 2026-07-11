@@ -39,17 +39,17 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   const initialLoadDone = useRef(false)
 
   // ============================================
-  // FIXED: Get API endpoint WITH /api prefix
+  // FIXED: Get API endpoint WITHOUT /api (baseURL already has it)
   // ============================================
   const getApiEndpoint = useCallback(() => {
     if (user?.role === 'admin') {
-      return '/api/notifications/admin'
+      return '/notifications/admin'  // ← REMOVED /api
     }
-    return '/api/notifications'
+    return '/notifications'          // ← REMOVED /api
   }, [user?.role])
 
   // ============================================
-  // Fetch notifications with proper error handling
+  // Fetch notifications
   // ============================================
   const fetchNotifications = useCallback(async (reset = true) => {
     if (!user) {
@@ -140,11 +140,11 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [loading, hasMore, fetchNotifications])
 
   // ============================================
-  // FIXED: Mark as read WITH /api prefix
+  // FIXED: Mark as read WITHOUT /api prefix
   // ============================================
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      await axios.put(`/api/notifications/${notificationId}/read`)
+      await axios.put(`/notifications/${notificationId}/read`)
       
       if (isMounted.current) {
         setNotifications(prev => prev.map(n => 
@@ -162,13 +162,13 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [getUnreadCount])
 
   // ============================================
-  // FIXED: Mark all as read WITH /api prefix
+  // FIXED: Mark all as read WITHOUT /api prefix
   // ============================================
   const markAllAsRead = useCallback(async () => {
     try {
       const endpoint = user?.role === 'admin' 
-        ? '/api/notifications/admin/read-all'
-        : '/api/notifications/read-all'
+        ? '/notifications/admin/read-all' 
+        : '/notifications/read-all'
       
       await axios.put(endpoint)
       
@@ -188,7 +188,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [user?.role, showToast, getUnreadCount])
 
   // ============================================
-  // FIXED: Delete notification WITH /api prefix
+  // FIXED: Delete notification WITHOUT /api prefix
   // ============================================
   const deleteNotification = useCallback(async (notificationId, e) => {
     e?.stopPropagation()
@@ -197,7 +197,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     
     try {
       setIsDeleting(true)
-      await axios.delete(`/api/notifications/${notificationId}`)
+      await axios.delete(`/notifications/${notificationId}`)
       
       if (isMounted.current) {
         const deleted = notifications.find(n => n._id === notificationId)
@@ -225,7 +225,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [notifications, showToast, getUnreadCount])
 
   // ============================================
-  // FIXED: Delete all WITH /api prefix
+  // FIXED: Delete all WITHOUT /api prefix
   // ============================================
   const deleteAllNotifications = useCallback(async () => {
     if (!confirm('Delete all notifications?')) return
@@ -233,8 +233,8 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     try {
       setIsDeleting(true)
       const endpoint = user?.role === 'admin' 
-        ? '/api/notifications/admin/delete-all'
-        : '/api/notifications/delete-all'
+        ? '/notifications/admin/delete-all' 
+        : '/notifications/delete-all'
       
       await axios.delete(endpoint)
       
