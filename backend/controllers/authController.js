@@ -1,10 +1,10 @@
+// backend/controllers/authController.js
 import User from '../models/User.js';
 import { generateToken, generateRefreshToken } from '../utils/generateToken.js';
 import { OAuth2Client } from 'google-auth-library';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import { createNotification } from '../utils/notificationHelper.js';
 
 dotenv.config();
 
@@ -43,33 +43,6 @@ export const register = async (req, res) => {
 
     await user.save();
 
-    const io = req.app.get('io');
-
-    // ✅ Send welcome notification to user
-    await createNotification(io, user._id, {
-      type: 'welcome',
-      title: '🎉 Welcome to Alveovita!',
-      message: `Thank you for joining us, ${name}! Start exploring wellness tours and destinations.`,
-      icon: 'Award',
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10',
-      actionUrl: '/dashboard',
-      actionLabel: 'Go to Dashboard',
-      priority: 'high'
-    });
-
-    // ✅ Notify admins about new user
-    if (io) {
-      io.to('admin-room').emit('admin-notification', {
-        type: 'new-user',
-        userId: user._id,
-        userName: user.name,
-        userEmail: user.email,
-        message: `🆕 New user registered: ${user.name} (${user.email})`,
-        timestamp: new Date()
-      });
-    }
-
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
@@ -102,7 +75,7 @@ export const register = async (req, res) => {
   }
 };
 
-// Login - Add login notification
+// Login
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -139,20 +112,6 @@ export const login = async (req, res) => {
 
     user.lastLogin = new Date();
     await user.save();
-
-    // ✅ Notify about login from new device
-    const io = req.app.get('io');
-    await createNotification(io, user._id, {
-      type: 'security',
-      title: '🔐 New Login Detected',
-      message: `You logged in from ${req.headers['user-agent']?.substring(0, 50) || 'a new device'}`,
-      icon: 'Shield',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10',
-      actionUrl: '/security',
-      actionLabel: 'Review Activity',
-      priority: 'medium'
-    });
 
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
@@ -215,8 +174,6 @@ export const googleLogin = async (req, res) => {
 
     let user = await User.findOne({ email });
 
-    const io = req.app.get('io');
-
     if (!user) {
       user = new User({
         name: name || email.split('@')[0],
@@ -226,30 +183,6 @@ export const googleLogin = async (req, res) => {
         emailVerified: true,
       });
       await user.save();
-
-      // ✅ Welcome notification for Google signup
-      await createNotification(io, user._id, {
-        type: 'welcome',
-        title: '🎉 Welcome to Alveovita!',
-        message: `Thank you for joining us, ${user.name}! Start exploring wellness tours.`,
-        icon: 'Award',
-        color: 'text-amber-500',
-        bgColor: 'bg-amber-500/10',
-        actionUrl: '/dashboard',
-        actionLabel: 'Go to Dashboard',
-        priority: 'high'
-      });
-
-      if (io) {
-        io.to('admin-room').emit('admin-notification', {
-          type: 'new-user',
-          userId: user._id,
-          userName: user.name,
-          userEmail: user.email,
-          message: `🆕 New Google user registered: ${user.name} (${user.email})`,
-          timestamp: new Date()
-        });
-      }
     } else if (!user.googleId) {
       user.googleId = googleId;
       user.avatar = user.avatar || picture || '';
@@ -258,19 +191,6 @@ export const googleLogin = async (req, res) => {
 
     user.lastLogin = new Date();
     await user.save();
-
-    // ✅ Notify about Google login
-    await createNotification(io, user._id, {
-      type: 'security',
-      title: '🔐 Google Login',
-      message: 'You signed in with Google successfully.',
-      icon: 'Shield',
-      color: 'text-green-500',
-      bgColor: 'bg-green-500/10',
-      actionUrl: '/security',
-      actionLabel: 'View Activity',
-      priority: 'low'
-    });
 
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
@@ -304,7 +224,8 @@ export const googleLogin = async (req, res) => {
   }
 };
 
-// Forgot Password
+// Forgot Password - Send reset link
+// Forgot Password - Send reset link
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -338,28 +259,17 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordExpires = new Date(resetTokenExpiry);
     await user.save();
 
-    // ✅ Notify about password reset request
-    const io = req.app.get('io');
-    await createNotification(io, user._id, {
-      type: 'security',
-      title: '🔐 Password Reset Requested',
-      message: 'A password reset was requested for your account.',
-      icon: 'Key',
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-500/10',
-      actionUrl: '/reset-password',
-      actionLabel: 'Reset Password',
-      priority: 'high'
-    });
-
+    // Import and send email
     const { sendPasswordResetEmail } = await import('../config/email.js');
     const result = await sendPasswordResetEmail(user, resetToken);
 
+    // Always return success, even if email fails (for UX)
     res.json({
       success: true,
       message: result.messageId 
         ? 'Password reset link sent to your email' 
         : 'Password reset link generated. Please check your console for the link.',
+      // For development - include the token in response
       resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined
     });
   } catch (error) {
@@ -390,6 +300,7 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    // Find user with valid token
     const user = await User.findOne({
       resetPasswordToken: token,
       resetPasswordExpires: { $gt: new Date() }
@@ -402,27 +313,15 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    // Hash new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Update password and clear reset token
     user.password = hashedPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
-
-    // ✅ Notify about successful password reset
-    const io = req.app.get('io');
-    await createNotification(io, user._id, {
-      type: 'security',
-      title: '✅ Password Reset Successful',
-      message: 'Your password has been changed successfully.',
-      icon: 'CheckCircle',
-      color: 'text-green-500',
-      bgColor: 'bg-green-500/10',
-      actionUrl: '/login',
-      actionLabel: 'Login Now',
-      priority: 'high'
-    });
 
     res.json({
       success: true,

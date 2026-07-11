@@ -1,5 +1,5 @@
+// backend/controllers/hotelController.js
 import Hotel from '../models/Hotel.js';
-import { notifyAllUsers, createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Get all hotels
 // @route   GET /api/hotels
@@ -67,24 +67,20 @@ export const createHotel = async (req, res) => {
     };
     const hotel = await Hotel.create(hotelData);
 
-    // ✅ Notify all users about new hotel
-    await notifyAllUsers(io, {
-      type: 'hotel',
-      title: `🏨 New Hotel: ${hotel.name}`,
-      message: `Discover "${hotel.name}" in ${hotel.region}. Book your stay now!`,
-      icon: 'Hotel',
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-500/10',
-      actionUrl: `/hotels/${hotel._id}`,
-      actionLabel: 'View Hotel',
-      priority: 'medium'
-    });
-
+    // Emit hotel creation notification
     if (io) {
+      io.emit('hotel-created', {
+        hotelId: hotel._id,
+        name: hotel.name,
+        region: hotel.region,
+        createdBy: req.user.name,
+        timestamp: new Date()
+      });
+
       io.to('admin-room').emit('admin-notification', {
         type: 'hotel-created',
         hotelId: hotel._id,
-        message: `🏨 New hotel "${hotel.name}" created by ${req.user.name}`,
+        message: `New hotel "${hotel.name}" created by ${req.user.name}`,
         timestamp: new Date()
       });
     }
@@ -111,24 +107,20 @@ export const updateHotel = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hotel not found' });
     }
 
-    // ✅ Notify about hotel update
-    await notifyAllUsers(io, {
-      type: 'hotel',
-      title: `📝 Hotel Updated: ${hotel.name}`,
-      message: `"${hotel.name}" has been updated. Check out the new details!`,
-      icon: 'Edit',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10',
-      actionUrl: `/hotels/${hotel._id}`,
-      actionLabel: 'View Updates',
-      priority: 'medium'
-    });
-
+    // Emit hotel update notification
     if (io) {
+      io.emit('hotel-updated', {
+        hotelId: hotel._id,
+        name: hotel.name,
+        region: hotel.region,
+        updatedBy: req.user.name,
+        timestamp: new Date()
+      });
+
       io.to('admin-room').emit('admin-notification', {
         type: 'hotel-updated',
         hotelId: hotel._id,
-        message: `📝 Hotel "${hotel.name}" updated by ${req.user.name}`,
+        message: `Hotel "${hotel.name}" updated by ${req.user.name}`,
         timestamp: new Date()
       });
     }
@@ -153,6 +145,7 @@ export const deleteHotel = async (req, res) => {
     const hotelName = hotel.name;
     await Hotel.findByIdAndDelete(req.params.id);
 
+    // Emit hotel deletion notification
     if (io) {
       io.emit('hotel-deleted', {
         hotelId: req.params.id,
@@ -164,7 +157,7 @@ export const deleteHotel = async (req, res) => {
       io.to('admin-room').emit('admin-notification', {
         type: 'hotel-deleted',
         hotelId: req.params.id,
-        message: `🗑️ Hotel "${hotelName}" deleted by ${req.user.name}`,
+        message: `Hotel "${hotelName}" deleted by ${req.user.name}`,
         timestamp: new Date()
       });
     }

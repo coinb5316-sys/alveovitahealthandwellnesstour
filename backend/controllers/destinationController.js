@@ -1,5 +1,5 @@
+// backend/controllers/destinationController.js
 import Destination from '../models/Destination.js';
-import { notifyAllUsers, createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Get all destinations
 // @route   GET /api/destinations
@@ -68,24 +68,20 @@ export const createDestination = async (req, res) => {
     };
     const destination = await Destination.create(destinationData);
 
-    // ✅ Notify all users about new destination
-    await notifyAllUsers(io, {
-      type: 'destination',
-      title: `📍 New Destination: ${destination.name}`,
-      message: `Explore "${destination.name}" in ${destination.region}. Start planning your visit!`,
-      icon: 'MapPin',
-      color: 'text-red-500',
-      bgColor: 'bg-red-500/10',
-      actionUrl: `/destinations/${destination._id}`,
-      actionLabel: 'View Destination',
-      priority: 'medium'
-    });
-
+    // Emit destination creation notification
     if (io) {
+      io.emit('destination-created', {
+        destinationId: destination._id,
+        name: destination.name,
+        region: destination.region,
+        createdBy: req.user.name,
+        timestamp: new Date()
+      });
+
       io.to('admin-room').emit('admin-notification', {
         type: 'destination-created',
         destinationId: destination._id,
-        message: `📍 New destination "${destination.name}" created by ${req.user.name}`,
+        message: `New destination "${destination.name}" created by ${req.user.name}`,
         timestamp: new Date()
       });
     }
@@ -112,24 +108,20 @@ export const updateDestination = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Destination not found' });
     }
 
-    // ✅ Notify about destination update
-    await notifyAllUsers(io, {
-      type: 'destination',
-      title: `📝 Destination Updated: ${destination.name}`,
-      message: `"${destination.name}" has been updated. Check out the new details!`,
-      icon: 'Edit',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10',
-      actionUrl: `/destinations/${destination._id}`,
-      actionLabel: 'View Updates',
-      priority: 'medium'
-    });
-
+    // Emit destination update notification
     if (io) {
+      io.emit('destination-updated', {
+        destinationId: destination._id,
+        name: destination.name,
+        region: destination.region,
+        updatedBy: req.user.name,
+        timestamp: new Date()
+      });
+
       io.to('admin-room').emit('admin-notification', {
         type: 'destination-updated',
         destinationId: destination._id,
-        message: `📝 Destination "${destination.name}" updated by ${req.user.name}`,
+        message: `Destination "${destination.name}" updated by ${req.user.name}`,
         timestamp: new Date()
       });
     }
@@ -154,6 +146,7 @@ export const deleteDestination = async (req, res) => {
     const destinationName = destination.name;
     await Destination.findByIdAndDelete(req.params.id);
 
+    // Emit destination deletion notification
     if (io) {
       io.emit('destination-deleted', {
         destinationId: req.params.id,
@@ -165,7 +158,7 @@ export const deleteDestination = async (req, res) => {
       io.to('admin-room').emit('admin-notification', {
         type: 'destination-deleted',
         destinationId: req.params.id,
-        message: `🗑️ Destination "${destinationName}" deleted by ${req.user.name}`,
+        message: `Destination "${destinationName}" deleted by ${req.user.name}`,
         timestamp: new Date()
       });
     }
