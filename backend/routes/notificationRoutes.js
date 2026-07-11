@@ -1,7 +1,6 @@
 // backend/routes/notificationRoutes.js
 import express from 'express';
-import { protect } from '../middleware/auth.js';
-import { admin } from '../middleware/admin.js';
+import { protect, admin } from '../middleware/auth.js';
 import {
   getUserNotifications,
   getNotificationStats,
