@@ -1,75 +1,140 @@
 // src/context/NotificationContext.jsx
-import React, { createContext, useState, useContext } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle, AlertCircle, X, Info, AlertTriangle } from 'lucide-react'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import axios from '../api/axios';
+import { useAuth } from './AuthContext';
+import { useSocket } from './SocketContext';
 
-export const NotificationContext = createContext()
+const NotificationContext = createContext();
+
+export const useNotifications = () => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error('useNotifications must be used within NotificationProvider');
+  }
+  return context;
+};
 
 export const NotificationProvider = ({ children }) => {
-  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const { socket, isConnected } = useSocket();
 
-  const showToast = (message, type = 'info', duration = 4000) => {
-    const id = Date.now()
-    setNotifications(prev => [...prev, { id, message, type }])
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id))
-    }, duration)
-  }
-
-  const getIcon = (type) => {
-    switch(type) {
-      case 'success': return <CheckCircle className="w-5 h-5 text-green-400" />
-      case 'error': return <AlertCircle className="w-5 h-5 text-red-400" />
-      case 'warning': return <AlertTriangle className="w-5 h-5 text-yellow-400" />
-      default: return <Info className="w-5 h-5 text-blue-400" />
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/notifications/stats');
+      if (response.data.success) {
+        setUnreadCount(response.data.stats.userUnread || 0);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch unread count:', error);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [user]);
 
-  const getColor = (type) => {
-    switch(type) {
-      case 'success': return 'border-green-500/20 bg-green-500/10'
-      case 'error': return 'border-red-500/20 bg-red-500/10'
-      case 'warning': return 'border-yellow-500/20 bg-yellow-500/10'
-      default: return 'border-blue-500/20 bg-blue-500/10'
+  const markAsRead = useCallback(async (notificationId) => {
+    try {
+      const response = await axios.put(`/api/notifications/${notificationId}/read`);
+      if (response.data.success) {
+        setUnreadCount(response.data.unreadCount);
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark as read:', error);
     }
-  }
+    return false;
+  }, []);
+
+  const markAllAsRead = useCallback(async () => {
+    try {
+      const response = await axios.put('/api/notifications/read/all');
+      if (response.data.success) {
+        setUnreadCount(0);
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark all as read:', error);
+    }
+    return false;
+  }, []);
+
+  const deleteNotification = useCallback(async (notificationId) => {
+    try {
+      const response = await axios.delete(`/api/notifications/${notificationId}`);
+      if (response.data.success) {
+        setUnreadCount(response.data.unreadCount);
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete notification:', error);
+    }
+    return false;
+  }, []);
+
+  // Socket events
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleNewNotification = (data) => {
+      if (data.unreadCount !== undefined) {
+        setUnreadCount(data.unreadCount);
+      } else {
+        setUnreadCount(prev => prev + 1);
+      }
+    };
+
+    const handleNotificationRead = (data) => {
+      if (data.unreadCount !== undefined) {
+        setUnreadCount(data.unreadCount);
+      }
+    };
+
+    const handleAllRead = (data) => {
+      setUnreadCount(0);
+    };
+
+    const handleNotificationDeleted = (data) => {
+      if (data.unreadCount !== undefined) {
+        setUnreadCount(data.unreadCount);
+      }
+    };
+
+    socket.on('new-notification', handleNewNotification);
+    socket.on('notification-read', handleNotificationRead);
+    socket.on('all-notifications-read', handleAllRead);
+    socket.on('notification-deleted', handleNotificationDeleted);
+
+    return () => {
+      socket.off('new-notification', handleNewNotification);
+      socket.off('notification-read', handleNotificationRead);
+      socket.off('all-notifications-read', handleAllRead);
+      socket.off('notification-deleted', handleNotificationDeleted);
+    };
+  }, [socket, isConnected]);
+
+  // Fetch initial count
+  useEffect(() => {
+    if (user) {
+      fetchUnreadCount();
+    }
+  }, [user, fetchUnreadCount]);
+
+  const value = {
+    unreadCount,
+    loading,
+    fetchUnreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  };
 
   return (
-    <NotificationContext.Provider value={{ showToast }}>
+    <NotificationContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[9999] space-y-3 max-w-md w-full">
-        <AnimatePresence>
-          {notifications.map(({ id, message, type }) => (
-            <motion.div
-              key={id}
-              initial={{ opacity: 0, x: 50, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 50, scale: 0.9 }}
-              className={`p-4 rounded-xl border backdrop-blur-sm ${getColor(type)} border-gray-200/20`}
-              style={{ background: 'rgba(0,0,0,0.8)' }}
-            >
-              <div className="flex items-start gap-3">
-                {getIcon(type)}
-                <p className="text-sm text-white flex-1">{message}</p>
-                <button
-                  onClick={() => setNotifications(prev => prev.filter(n => n.id !== id))}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
     </NotificationContext.Provider>
-  )
-}
-
-export const useNotification = () => {
-  const context = useContext(NotificationContext)
-  if (!context) {
-    throw new Error('useNotification must be used within NotificationProvider')
-  }
-  return context
-}
+  );
+};

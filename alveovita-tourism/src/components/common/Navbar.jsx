@@ -1,5 +1,5 @@
 // src/components/common/Navbar.jsx
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -18,7 +18,8 @@ import {
   Lock, Unlock, Eye, EyeOff, Smartphone, Laptop,
   Headphones, Video, Mic, Image as ImageIcon,
   Plus, Minus, Circle, AlertTriangle, Info as InfoIcon,
-  Loader2
+  Loader2, Check, Trash2, CheckCheck, Filter,
+  Hotel, MapPin as MapPinIcon, Package as PackageIcon
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
@@ -29,6 +30,9 @@ import NotificationPanel from '../NotificationPanel'
 import logo from '../../assets/images/sun1.png?url'
 
 const Navbar = () => {
+  // ============================================
+  // STATE
+  // ============================================
   const [isOpen, setIsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -37,18 +41,26 @@ const Navbar = () => {
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
-  const [activeNotification, setActiveNotification] = useState(null)
   const [avatarError, setAvatarError] = useState(false)
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [loadingNotifications, setLoadingNotifications] = useState(false)
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
-  
+  const [quickNotifications, setQuickNotifications] = useState([])
+  const [loadingQuick, setLoadingQuick] = useState(false)
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  // ============================================
+  // CONTEXT HOOKS
+  // ============================================
   const { isDark, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
   const { socket, isConnected } = useSocket()
   const { showToast } = useToast()
-  
+
+  // ============================================
+  // REFS
+  // ============================================
   const searchRef = useRef(null)
   const dropdownRef = useRef(null)
   const notificationRef = useRef(null)
@@ -60,53 +72,131 @@ const Navbar = () => {
   // ============================================
   // FETCH UNREAD COUNT
   // ============================================
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     if (!user) return
     
     try {
       setLoadingNotifications(true)
-      const response = await axios.get('/notifications/stats')
+      const response = await axios.get('/api/notifications/stats')
       if (response.data.success) {
-        setUnreadCount(response.data.stats.unread || 0)
+        setUnreadCount(response.data.stats.userUnread || 0)
       }
     } catch (error) {
       console.error('❌ Error fetching unread count:', error)
     } finally {
       setLoadingNotifications(false)
     }
-  }
+  }, [user])
+
+  // ============================================
+  // FETCH QUICK NOTIFICATIONS (for dropdown preview)
+  // ============================================
+  const fetchQuickNotifications = useCallback(async () => {
+    if (!user) return
+    
+    try {
+      setLoadingQuick(true)
+      const response = await axios.get('/api/notifications', {
+        params: { page: 1, limit: 5, filter: 'unread' }
+      })
+      if (response.data.success) {
+        setQuickNotifications(response.data.notifications || [])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching quick notifications:', error)
+    } finally {
+      setLoadingQuick(false)
+    }
+  }, [user])
+
+  // ============================================
+  // MARK NOTIFICATION AS READ (from quick preview)
+  // ============================================
+  const handleQuickMarkAsRead = useCallback(async (notificationId) => {
+    try {
+      const response = await axios.put(`/api/notifications/${notificationId}/read`)
+      if (response.data.success) {
+        setQuickNotifications(prev => 
+          prev.map(n => 
+            n._id === notificationId 
+              ? { ...n, read: true }
+              : n
+          )
+        )
+        setUnreadCount(response.data.unreadCount)
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark as read:', error)
+    }
+  }, [])
+
+  // ============================================
+  // DELETE NOTIFICATION (from quick preview)
+  // ============================================
+  const handleQuickDelete = useCallback(async (notificationId) => {
+    try {
+      const response = await axios.delete(`/api/notifications/${notificationId}`)
+      if (response.data.success) {
+        setQuickNotifications(prev => prev.filter(n => n._id !== notificationId))
+        setUnreadCount(response.data.unreadCount)
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete notification:', error)
+    }
+  }, [])
 
   // ============================================
   // SOCKET EVENT LISTENERS
   // ============================================
   useEffect(() => {
-    if (!socket) return
+    if (!socket || !isConnected) return
 
     const handleNewNotification = (data) => {
-      if (data.notification && !data.notification.read) {
-        setUnreadCount(prev => prev + 1)
+      if (data.notification) {
+        // Add to quick notifications
+        setQuickNotifications(prev => [data.notification, ...prev].slice(0, 5))
+        // Update unread count
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount)
+        } else {
+          setUnreadCount(prev => prev + 1)
+        }
+        // Show toast
         showToast('🔔 ' + data.notification.title, 'info')
       }
     }
 
     const handleNotificationRead = (data) => {
+      if (data.notificationId) {
+        setQuickNotifications(prev => 
+          prev.map(n => 
+            n._id === data.notificationId 
+              ? { ...n, read: true }
+              : n
+          )
+        )
+      }
       if (data.unreadCount !== undefined) {
         setUnreadCount(data.unreadCount)
       } else {
-        // Fallback: fetch updated count
         fetchUnreadCount()
       }
     }
 
-    const handleAllNotificationsRead = (data) => {
+    const handleAllNotificationsRead = () => {
+      setQuickNotifications(prev => prev.map(n => ({ ...n, read: true })))
       setUnreadCount(0)
     }
 
     const handleNotificationDeleted = (data) => {
+      if (data.notificationId) {
+        setQuickNotifications(prev => prev.filter(n => n._id !== data.notificationId))
+      }
       fetchUnreadCount()
     }
 
-    const handleAllNotificationsDeleted = (data) => {
+    const handleAllNotificationsDeleted = () => {
+      setQuickNotifications([])
       setUnreadCount(0)
     }
 
@@ -123,43 +213,54 @@ const Navbar = () => {
       socket.off('notification-deleted', handleNotificationDeleted)
       socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
     }
-  }, [socket, showToast])
+  }, [socket, isConnected, showToast, fetchUnreadCount])
 
   // ============================================
-  // FETCH UNREAD COUNT ON USER CHANGE
+  // FETCH DATA ON USER CHANGE
   // ============================================
   useEffect(() => {
     if (user) {
       fetchUnreadCount()
+      fetchQuickNotifications()
     } else {
       setUnreadCount(0)
+      setQuickNotifications([])
     }
-  }, [user])
+  }, [user, fetchUnreadCount, fetchQuickNotifications])
 
-  // Reset avatar error when user changes
+  // ============================================
+  // SCROLL DETECTION
+  // ============================================
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // ============================================
+  // RESET AVATAR ERROR ON USER CHANGE
+  // ============================================
   useEffect(() => {
     setAvatarError(false)
   }, [user?.avatar])
 
-  // Close mobile menu on route change
+  // ============================================
+  // CLOSE MOBILE MENU ON ROUTE CHANGE
+  // ============================================
   useEffect(() => {
     setIsOpen(false)
   }, [location])
 
-  // Handle click outside for mobile menu
+  // ============================================
+  // CLICK OUTSIDE HANDLERS
+  // ============================================
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target) && !e.target.closest('.mobile-toggle')) {
         setIsOpen(false)
       }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Handle click outside for other dropdowns
-  useEffect(() => {
-    const handleClickOutside = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setSearchOpen(false)
       }
@@ -177,7 +278,9 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Prevent body scroll when mobile menu is open
+  // ============================================
+  // PREVENT BODY SCROLL
+  // ============================================
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -189,6 +292,9 @@ const Navbar = () => {
     }
   }, [isOpen])
 
+  // ============================================
+  // SEARCH HANDLERS
+  // ============================================
   useEffect(() => {
     if (searchQuery.length > 1) {
       const results = searchableItems.filter(item =>
@@ -214,7 +320,9 @@ const Navbar = () => {
     }
   }
 
-  // Get user initials for avatar fallback
+  // ============================================
+  // USER AVATAR HELPERS
+  // ============================================
   const getUserInitials = () => {
     if (!user?.name) return 'U'
     const names = user.name.split(' ')
@@ -222,13 +330,14 @@ const Navbar = () => {
     return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase()
   }
 
-  // Get user avatar URL with fallback handling
   const getUserAvatar = () => {
     if (!user?.avatar || avatarError) return null
     return user.avatar
   }
 
-  // Professional avatar component
+  // ============================================
+  // USER AVATAR COMPONENT
+  // ============================================
   const UserAvatar = ({ size = 'md', className = '' }) => {
     const avatarUrl = getUserAvatar()
     const initials = getUserInitials()
@@ -253,13 +362,14 @@ const Navbar = () => {
             {initials}
           </div>
         )}
-        {/* Online status dot */}
         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-[#0a0a0a] shadow-lg shadow-green-500/20"></div>
       </div>
     )
   }
 
-  // Services Data
+  // ============================================
+  // DATA
+  // ============================================
   const services = [
     { 
       name: 'Wellness Retreats', 
@@ -295,7 +405,6 @@ const Navbar = () => {
     },
   ]
 
-  // Public links
   const publicLinks = [
     { name: 'Home', icon: Home, href: '/' },
     { name: 'About', icon: Info, href: '/about' },
@@ -304,7 +413,6 @@ const Navbar = () => {
     { name: 'Contact', icon: PhoneCall, href: '/contact' },
   ]
 
-  // Authenticated user menu items
   const userMenuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-blue-400' },
     { name: 'My Bookings', icon: Calendar, href: '/bookings', color: 'text-green-400' },
@@ -313,7 +421,6 @@ const Navbar = () => {
     { name: 'Settings', icon: Settings, href: '/settings', color: 'text-gray-400' },
   ]
 
-  // Search data
   const searchableItems = [
     ...services.map(s => ({ ...s, type: 'service', category: 'Services' })),
     ...publicLinks.map(l => ({ ...l, type: 'page', category: 'Pages' })),
@@ -327,6 +434,9 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path
 
+  // ============================================
+  // LOGO COMPONENT
+  // ============================================
   const Logo = () => (
     <div className="flex items-center gap-3 group">
       <div className="relative">
@@ -361,8 +471,55 @@ const Navbar = () => {
     </div>
   )
 
+  // ============================================
+  // GET ICON FOR NOTIFICATION TYPE
+  // ============================================
+  const getNotificationIcon = (type, iconName) => {
+    const icons = {
+      booking: Calendar,
+      payment: CreditCard,
+      review: Star,
+      message: MessageSquare,
+      system: Bell,
+      tour: PackageIcon,
+      hotel: Hotel,
+      destination: MapPinIcon,
+      experience: Heart,
+      reminder: Clock,
+      promotion: Gift,
+      alert: AlertCircle,
+    }
+    const Icon = icons[type] || Bell
+    return <Icon className="w-4 h-4" />
+  }
+
+  // ============================================
+  // GET TIME AGO
+  // ============================================
+  const getTimeAgo = (date) => {
+    if (!date) return 'Just now'
+    const now = new Date()
+    const diff = now - new Date(date)
+    const seconds = Math.floor(diff / 1000)
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+    if (seconds < 60) return 'Just now'
+    if (minutes < 60) return `${minutes}m ago`
+    if (hours < 24) return `${hours}h ago`
+    if (days < 7) return `${days}d ago`
+    return `${Math.floor(days / 7)}w ago`
+  }
+
+  // ============================================
+  // RENDER
+  // ============================================
   return (
-    <nav className="fixed top-0 w-full z-50 bg-gradient-to-r from-[#0a0a0a] via-[#1a0a00] to-[#0a0a0a] border-b border-amber-500/10 shadow-2xl shadow-amber-500/5">
+    <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+      isScrolled 
+        ? 'bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-amber-500/20 shadow-2xl shadow-amber-500/10' 
+        : 'bg-gradient-to-r from-[#0a0a0a] via-[#1a0a00] to-[#0a0a0a] border-b border-amber-500/10 shadow-2xl shadow-amber-500/5'
+    }`}>
       {/* Top glowing gradient bar */}
       <div className="h-0.5 w-full bg-gradient-to-r from-amber-400/50 via-orange-400 to-amber-400/50 animate-pulse" />
 
@@ -374,7 +531,9 @@ const Navbar = () => {
             <div className="absolute -inset-2 rounded-2xl bg-gradient-to-r from-amber-400/0 via-amber-400/5 to-orange-400/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
           </Link>
 
-          {/* Desktop Menu - Hidden on mobile */}
+          {/* ============================================ */}
+          {/* DESKTOP MENU */}
+          {/* ============================================ */}
           <div className="hidden lg:flex items-center gap-1">
             {/* Public Links */}
             {publicLinks.map((link) => (
@@ -563,12 +722,17 @@ const Navbar = () => {
               </div>
 
               {/* ============================================ */}
-              {/* NOTIFICATIONS - Integrated with backend */}
+              {/* NOTIFICATIONS - ENHANCED WITH QUICK PREVIEW */}
               {/* ============================================ */}
               {user && (
                 <div className="relative" ref={notificationRef}>
                   <button
-                    onClick={() => setNotificationPanelOpen(true)}
+                    onClick={() => {
+                      setNotificationOpen(!notificationOpen)
+                      if (!notificationOpen) {
+                        fetchQuickNotifications()
+                      }
+                    }}
                     className="relative p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
                     aria-label="Notifications"
                   >
@@ -588,51 +752,177 @@ const Navbar = () => {
                     )}
                   </button>
 
-                  {/* Quick notification preview on hover/click */}
+                  {/* Notification Quick Preview Dropdown */}
                   <AnimatePresence>
                     {notificationOpen && (
                       <motion.div 
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 mt-2 w-[380px] rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
                       >
-                        <div className="p-4 border-b border-amber-500/10">
+                        {/* Header */}
+                        <div className="p-4 border-b border-amber-500/10 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
                           <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-white text-sm">Notifications</h3>
-                            <button 
-                              onClick={() => {
-                                setNotificationOpen(false)
-                                setNotificationPanelOpen(true)
-                              }}
-                              className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
-                            >
-                              View all
-                            </button>
-                          </div>
-                        </div>
-                        <div className="max-h-80 overflow-y-auto">
-                          {unreadCount === 0 ? (
-                            <div className="p-6 text-center">
-                              <Bell className="w-10 h-10 text-gray-600 mx-auto mb-2" />
-                              <p className="text-sm text-gray-400">No new notifications</p>
+                            <div className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-amber-400" />
+                              <h3 className="font-bold text-white text-sm">Notifications</h3>
+                              {unreadCount > 0 && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                                  {unreadCount} new
+                                </span>
+                              )}
                             </div>
-                          ) : (
-                            <div className="p-2">
-                              <p className="text-xs text-gray-500 text-center py-2">
-                                You have {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
-                              </p>
+                            <div className="flex items-center gap-1">
+                              {unreadCount > 0 && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await axios.put('/api/notifications/read/all')
+                                      setQuickNotifications(prev => prev.map(n => ({ ...n, read: true })))
+                                      setUnreadCount(0)
+                                      showToast('All notifications marked as read', 'success')
+                                    } catch (error) {
+                                      console.error('❌ Failed to mark all as read:', error)
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
+                                  title="Mark all as read"
+                                >
+                                  <CheckCheck className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => {
                                   setNotificationOpen(false)
                                   setNotificationPanelOpen(true)
                                 }}
-                                className="w-full text-center py-3 rounded-xl text-sm font-medium transition-all text-amber-400 hover:bg-amber-500/10"
+                                className="text-xs text-amber-400 hover:text-amber-300 transition-colors px-2 py-1 rounded-lg hover:bg-amber-500/10"
                               >
-                                Open notifications panel →
+                                View all
                               </button>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Notification List */}
+                        <div className="max-h-[400px] overflow-y-auto p-2 space-y-1">
+                          {loadingQuick ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                            </div>
+                          ) : quickNotifications.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-8">
+                              <div className="p-3 rounded-full bg-amber-500/10 mb-3">
+                                <Bell className="w-8 h-8 text-amber-400/40" />
+                              </div>
+                              <p className="text-sm text-gray-400 font-medium">No new notifications</p>
+                              <p className="text-xs text-gray-500">You're all caught up! 🎉</p>
+                            </div>
+                          ) : (
+                            quickNotifications.map((notification) => (
+                              <motion.div
+                                key={notification._id}
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`group relative rounded-xl p-3 transition-all duration-300 ${
+                                  !notification.read
+                                    ? 'bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10'
+                                    : 'hover:bg-gray-800/30'
+                                }`}
+                              >
+                                {/* Unread indicator */}
+                                {!notification.read && (
+                                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-amber-400 to-orange-400 rounded-r-full" />
+                                )}
+
+                                <div className="flex items-start gap-3 ml-2">
+                                  {/* Icon */}
+                                  <div className={`p-2 rounded-xl flex-shrink-0 ${notification.bgColor || 'bg-gray-800/50'}`}>
+                                    {getNotificationIcon(notification.type, notification.icon)}
+                                  </div>
+
+                                  {/* Content */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className={`text-sm font-medium ${
+                                          !notification.read ? 'text-white' : 'text-gray-300'
+                                        }`}>
+                                          {notification.title}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
+                                          {notification.message}
+                                        </p>
+                                      </div>
+                                      <span className="text-[10px] text-gray-500 flex-shrink-0">
+                                        {getTimeAgo(notification.createdAt)}
+                                      </span>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                      {notification.actionUrl && (
+                                        <a
+                                          href={notification.actionUrl}
+                                          className="text-[10px] text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-0.5"
+                                          onClick={() => setNotificationOpen(false)}
+                                        >
+                                          View
+                                          <ChevronDown className="w-3 h-3 -rotate-90" />
+                                        </a>
+                                      )}
+                                      {notification.priority === 'urgent' && (
+                                        <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/30 text-red-400 border border-red-500/30 animate-pulse">
+                                          Urgent
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Action buttons */}
+                                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {!notification.read && (
+                                      <button
+                                        onClick={() => handleQuickMarkAsRead(notification._id)}
+                                        className="p-1 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
+                                        title="Mark as read"
+                                      >
+                                        <Check className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleQuickDelete(notification._id)}
+                                      className="p-1 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))
                           )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-3 border-t border-amber-500/10 bg-gray-900/50">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-gray-500">
+                              {unreadCount > 0 ? `${unreadCount} unread` : 'All read'}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setNotificationOpen(false)
+                                setNotificationPanelOpen(true)
+                              }}
+                              className="text-xs text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+                            >
+                              Open full panel
+                              <ChevronDown className="w-3 h-3 -rotate-90" />
+                            </button>
+                          </div>
                         </div>
                       </motion.div>
                     )}
@@ -640,7 +930,7 @@ const Navbar = () => {
                 </div>
               )}
 
-              {/* Theme Toggle - Show to everyone */}
+              {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
                 className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
@@ -657,7 +947,11 @@ const Navbar = () => {
               {/* User Section */}
               {user ? (
                 <div className="flex items-center gap-2" ref={dropdownRef}>
-                  <Link to="/favorites" className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10" aria-label="Favorites">
+                  <Link 
+                    to="/favorites" 
+                    className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10" 
+                    aria-label="Favorites"
+                  >
                     <Heart className="w-5 h-5" />
                   </Link>
                   
@@ -692,7 +986,6 @@ const Navbar = () => {
                           exit={{ opacity: 0, y: 10, scale: 0.95 }}
                           className="absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
                         >
-                          {/* User Info with professional avatar */}
                           <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/10">
                             <div className="flex items-center gap-3">
                               <UserAvatar size="lg" />
@@ -759,9 +1052,10 @@ const Navbar = () => {
             </div>
           </div>
 
-          {/* Mobile Controls */}
+          {/* ============================================ */}
+          {/* MOBILE CONTROLS */}
+          {/* ============================================ */}
           <div className="flex items-center gap-1 sm:gap-2 lg:hidden">
-            {/* Mobile Search Toggle */}
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
               className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
@@ -784,10 +1078,12 @@ const Navbar = () => {
               </Link>
             )}
 
-            {/* Mobile Notifications */}
             {user && (
               <button
-                onClick={() => setNotificationPanelOpen(true)}
+                onClick={() => {
+                  setNotificationPanelOpen(true)
+                  fetchQuickNotifications()
+                }}
                 className="relative p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
                 aria-label="Notifications"
               >
@@ -810,7 +1106,9 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile Search Bar - Expandable */}
+        {/* ============================================ */}
+        {/* MOBILE SEARCH BAR */}
+        {/* ============================================ */}
         <AnimatePresence>
           {isMobileSearchOpen && (
             <motion.div 
@@ -865,7 +1163,9 @@ const Navbar = () => {
           )}
         </AnimatePresence>
 
-        {/* Mobile Menu - Full screen overlay */}
+        {/* ============================================ */}
+        {/* MOBILE MENU */}
+        {/* ============================================ */}
         <AnimatePresence>
           {isOpen && (
             <motion.div 
@@ -879,7 +1179,6 @@ const Navbar = () => {
             >
               <div className="h-full overflow-y-auto pb-20">
                 <div className="py-3 space-y-1">
-                  {/* User section in mobile menu */}
                   {user ? (
                     <div className="px-4 py-3 mb-2 bg-gradient-to-r from-amber-500/5 to-orange-500/5 rounded-xl mx-2 border border-amber-500/10">
                       <div className="flex items-center gap-3">
@@ -915,7 +1214,6 @@ const Navbar = () => {
                     </div>
                   )}
 
-                  {/* Navigation Links */}
                   <div className="px-2">
                     {publicLinks.map((link) => (
                       <Link
@@ -937,7 +1235,6 @@ const Navbar = () => {
                     ))}
                   </div>
 
-                  {/* Services Section */}
                   <div className="mt-2">
                     <div className="px-4 py-2 text-xs font-semibold text-amber-400/60 uppercase tracking-wider flex items-center gap-2">
                       <Package className="w-4 h-4" />
@@ -977,7 +1274,6 @@ const Navbar = () => {
 
                   <hr className="my-2 border-amber-500/10 mx-4" />
 
-                  {/* Authenticated User Menu Items */}
                   {user && (
                     <div className="px-2">
                       {userMenuItems.map((item) => (

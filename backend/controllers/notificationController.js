@@ -3,54 +3,63 @@ import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 
 // ============================================
-// USER NOTIFICATION FUNCTIONS
+// GET NOTIFICATIONS FOR A USER (PAGINATED)
 // ============================================
-
 export const getUserNotifications = async (req, res) => {
   try {
-    const { page = 1, limit = 20, read, type } = req.query;
+    const { page = 1, limit = 20, filter = 'all' } = req.query;
+    const userId = req.user.id;
     
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Build query
     const query = {
-      user: req.user.id,
-      isDeleted: false
+      user: userId,
+      isDeleted: false,
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: new Date() } }
+      ]
     };
     
-    if (read === 'true') {
-      query.read = true;
-    } else if (read === 'false') {
+    // Apply filters
+    if (filter === 'unread') {
       query.read = false;
+    } else if (filter === 'read') {
+      query.read = true;
+    } else if (filter !== 'all') {
+      query.type = filter;
     }
     
-    if (type && type !== 'all') {
-      query.type = type;
-    }
+    // Get notifications with pagination
+    const notifications = await Notification.find(query)
+      .sort({ priority: -1, createdAt: -1 })
+      .limit(limitNum)
+      .skip(skip)
+      .lean();
     
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const total = await Notification.countDocuments(query);
+    const unreadCount = await Notification.getUnreadCount(userId);
     
-    const [notifications, total, unreadCount] = await Promise.all([
-      Notification.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .lean(),
-      Notification.countDocuments(query),
-      Notification.getUnreadCount(req.user.id)
-    ]);
-    
-    const hasMore = total > skip + notifications.length;
+    // Format notifications for frontend
+    const formattedNotifications = notifications.map(notif => ({
+      ...notif,
+      timeAgo: getTimeAgo(notif.createdAt),
+      isUnread: !notif.read,
+    }));
     
     res.json({
       success: true,
-      notifications,
-      total,
-      unreadCount,
+      notifications: formattedNotifications,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        hasMore,
-        totalPages: Math.ceil(total / parseInt(limit))
-      }
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        totalItems: total,
+        itemsPerPage: limitNum,
+      },
+      unreadCount,
     });
   } catch (error) {
     console.error('❌ Get user notifications error:', error);
@@ -61,36 +70,138 @@ export const getUserNotifications = async (req, res) => {
   }
 };
 
-export const getNotificationStats = async (req, res) => {
+// ============================================
+// GET ADMIN NOTIFICATIONS (ALL USERS)
+// ============================================
+export const getAdminNotifications = async (req, res) => {
   try {
-    const unread = await Notification.getUnreadCount(req.user.id);
-    const total = await Notification.countDocuments({
-      user: req.user.id,
-      isDeleted: false
-    });
+    // Only admins can access this
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin only.'
+      });
+    }
+    
+    const { page = 1, limit = 20, filter = 'all', userId } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Build query
+    const query = {
+      isDeleted: false,
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: new Date() } }
+      ]
+    };
+    
+    // Filter by user if provided
+    if (userId) {
+      query.user = userId;
+    }
+    
+    // Apply filters
+    if (filter === 'unread') {
+      query.read = false;
+    } else if (filter === 'read') {
+      query.read = true;
+    } else if (filter !== 'all') {
+      query.type = filter;
+    }
+    
+    // Get notifications with user population
+    const notifications = await Notification.find(query)
+      .populate('user', 'name email avatar role')
+      .populate('sender', 'name email avatar')
+      .sort({ priority: -1, createdAt: -1 })
+      .limit(limitNum)
+      .skip(skip)
+      .lean();
+    
+    const total = await Notification.countDocuments(query);
+    
+    // Get stats
+    const stats = await getAdminNotificationStats();
     
     res.json({
       success: true,
-      stats: {
-        unread,
-        total
-      }
+      notifications,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        totalItems: total,
+        itemsPerPage: limitNum,
+      },
+      stats,
     });
   } catch (error) {
-    console.error('❌ Get notification stats error:', error);
+    console.error('❌ Get admin notifications error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to get notification stats'
+      message: error.message || 'Failed to fetch admin notifications'
     });
   }
 };
 
-export const markNotificationAsRead = async (req, res) => {
+// ============================================
+// GET NOTIFICATION BY ID
+// ============================================
+export const getNotificationById = async (req, res) => {
   try {
+    const { id } = req.params;
+    
     const notification = await Notification.findOne({
-      _id: req.params.id,
+      _id: id,
       user: req.user.id,
-      isDeleted: false
+      isDeleted: false,
+    }).lean();
+    
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+    
+    // Mark as seen
+    if (!notification.seen) {
+      await Notification.findByIdAndUpdate(id, {
+        seen: true,
+        seenAt: new Date(),
+      });
+    }
+    
+    res.json({
+      success: true,
+      notification: {
+        ...notification,
+        timeAgo: getTimeAgo(notification.createdAt),
+      },
+    });
+  } catch (error) {
+    console.error('❌ Get notification error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch notification'
+    });
+  }
+};
+
+// ============================================
+// MARK NOTIFICATION AS READ
+// ============================================
+export const markAsRead = async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    const { id } = req.params;
+    
+    const notification = await Notification.findOne({
+      _id: id,
+      user: req.user.id,
+      isDeleted: false,
     });
     
     if (!notification) {
@@ -102,24 +213,24 @@ export const markNotificationAsRead = async (req, res) => {
     
     await notification.markAsRead();
     
+    // Get updated unread count
     const unreadCount = await Notification.getUnreadCount(req.user.id);
     
-    const io = req.app.get('io');
+    // Emit socket event
     if (io) {
       io.to(`user-${req.user.id}`).emit('notification-read', {
-        notificationId: notification._id,
-        unreadCount
+        notificationId: id,
+        unreadCount,
       });
     }
     
     res.json({
       success: true,
-      notification,
+      message: 'Notification marked as read',
       unreadCount,
-      message: 'Notification marked as read'
     });
   } catch (error) {
-    console.error('❌ Mark notification as read error:', error);
+    console.error('❌ Mark as read error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to mark notification as read'
@@ -127,20 +238,30 @@ export const markNotificationAsRead = async (req, res) => {
   }
 };
 
+// ============================================
+// MARK ALL NOTIFICATIONS AS READ
+// ============================================
 export const markAllAsRead = async (req, res) => {
   try {
-    await Notification.markAllAsRead(req.user.id);
-    
     const io = req.app.get('io');
+    
+    const result = await Notification.markAllAsRead(req.user.id);
+    
+    // Get updated unread count
+    const unreadCount = await Notification.getUnreadCount(req.user.id);
+    
+    // Emit socket event
     if (io) {
       io.to(`user-${req.user.id}`).emit('all-notifications-read', {
-        userId: req.user.id
+        unreadCount: 0,
       });
     }
     
     res.json({
       success: true,
-      message: 'All notifications marked as read'
+      message: 'All notifications marked as read',
+      modifiedCount: result.modifiedCount,
+      unreadCount,
     });
   } catch (error) {
     console.error('❌ Mark all as read error:', error);
@@ -151,12 +272,18 @@ export const markAllAsRead = async (req, res) => {
   }
 };
 
+// ============================================
+// DELETE NOTIFICATION
+// ============================================
 export const deleteNotification = async (req, res) => {
   try {
+    const io = req.app.get('io');
+    const { id } = req.params;
+    
     const notification = await Notification.findOne({
-      _id: req.params.id,
+      _id: id,
       user: req.user.id,
-      isDeleted: false
+      isDeleted: false,
     });
     
     if (!notification) {
@@ -166,18 +293,26 @@ export const deleteNotification = async (req, res) => {
       });
     }
     
-    await notification.softDelete();
+    notification.isDeleted = true;
+    notification.deletedAt = new Date();
+    notification.deletedBy = req.user.id;
+    await notification.save();
     
-    const io = req.app.get('io');
+    // Get updated unread count
+    const unreadCount = await Notification.getUnreadCount(req.user.id);
+    
+    // Emit socket event
     if (io) {
       io.to(`user-${req.user.id}`).emit('notification-deleted', {
-        notificationId: notification._id
+        notificationId: id,
+        unreadCount,
       });
     }
     
     res.json({
       success: true,
-      message: 'Notification deleted'
+      message: 'Notification deleted',
+      unreadCount,
     });
   } catch (error) {
     console.error('❌ Delete notification error:', error);
@@ -188,316 +323,258 @@ export const deleteNotification = async (req, res) => {
   }
 };
 
-export const deleteAllNotifications = async (req, res) => {
+// ============================================
+// DELETE ALL NOTIFICATIONS (READ ONLY)
+// ============================================
+export const deleteAllRead = async (req, res) => {
   try {
-    await Notification.deleteAll(req.user.id);
-    
     const io = req.app.get('io');
+    
+    const result = await Notification.deleteAllRead(req.user.id);
+    
+    // Get updated unread count
+    const unreadCount = await Notification.getUnreadCount(req.user.id);
+    
+    // Emit socket event
     if (io) {
       io.to(`user-${req.user.id}`).emit('all-notifications-deleted', {
-        userId: req.user.id
+        unreadCount,
       });
     }
     
     res.json({
       success: true,
-      message: 'All notifications deleted'
-    });
-  } catch (error) {
-    console.error('❌ Delete all notifications error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to delete all notifications'
-    });
-  }
-};
-
-// ============================================
-// ADMIN NOTIFICATION FUNCTIONS
-// ============================================
-
-export const getAdminNotifications = async (req, res) => {
-  try {
-    const { page = 1, limit = 20, read, type, userId } = req.query;
-    
-    const query = { isDeleted: false };
-    
-    if (userId && userId !== 'all') {
-      query.user = userId;
-    }
-    
-    if (read === 'true') {
-      query.read = true;
-    } else if (read === 'false') {
-      query.read = false;
-    }
-    
-    if (type && type !== 'all') {
-      query.type = type;
-    }
-    
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    const [notifications, total, unreadCount] = await Promise.all([
-      Notification.find(query)
-        .populate('user', 'name email avatar')
-        .populate('createdBy', 'name email')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .lean(),
-      Notification.countDocuments(query),
-      Notification.countDocuments({ read: false, isDeleted: false })
-    ]);
-    
-    const hasMore = total > skip + notifications.length;
-    
-    res.json({
-      success: true,
-      notifications,
-      total,
+      message: 'All read notifications deleted',
+      modifiedCount: result.modifiedCount,
       unreadCount,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        hasMore,
-        totalPages: Math.ceil(total / parseInt(limit))
-      }
     });
   } catch (error) {
-    console.error('❌ Get admin notifications error:', error);
+    console.error('❌ Delete all read error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch admin notifications'
+      message: error.message || 'Failed to delete read notifications'
     });
   }
 };
 
-export const adminMarkAllAsRead = async (req, res) => {
+// ============================================
+// GET NOTIFICATION STATS
+// ============================================
+export const getNotificationStats = async (req, res) => {
   try {
-    const result = await Notification.updateMany(
-      { read: false, isDeleted: false },
-      { read: true, readAt: new Date() }
-    );
+    const stats = await getAdminNotificationStats();
     
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('all-notifications-read', {
-        adminId: req.user.id
-      });
-    }
+    // Get user's unread count
+    const userUnread = await Notification.getUnreadCount(req.user.id);
     
     res.json({
       success: true,
-      message: `All ${result.modifiedCount} notifications marked as read`,
-      count: result.modifiedCount
+      stats: {
+        ...stats,
+        userUnread,
+      },
     });
   } catch (error) {
-    console.error('❌ Admin mark all as read error:', error);
+    console.error('❌ Get notification stats error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to mark all as read'
+      message: error.message || 'Failed to get notification stats'
     });
   }
 };
 
-export const adminDeleteAllNotifications = async (req, res) => {
+// ============================================
+// ADMIN: CREATE SYSTEM NOTIFICATION
+// ============================================
+export const createSystemNotification = async (req, res) => {
   try {
-    const result = await Notification.updateMany(
-      { isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() }
-    );
-    
     const io = req.app.get('io');
-    if (io) {
-      io.emit('all-notifications-deleted', {
-        adminId: req.user.id
-      });
-    }
     
-    res.json({
-      success: true,
-      message: `All ${result.modifiedCount} notifications deleted`,
-      count: result.modifiedCount
-    });
-  } catch (error) {
-    console.error('❌ Admin delete all notifications error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to delete all notifications'
-    });
-  }
-};
-
-export const adminDeleteNotification = async (req, res) => {
-  try {
-    const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true }
-    );
+    const { 
+      title, 
+      message, 
+      type = 'system', 
+      icon, 
+      color, 
+      bgColor, 
+      actionUrl, 
+      actionLabel, 
+      priority = 'medium',
+      target = 'all', // 'all', 'users', 'admins', or specific userId
+      metadata = {},
+    } = req.body;
     
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-    
-    const io = req.app.get('io');
-    if (io && notification.user) {
-      io.to(`user-${notification.user}`).emit('notification-deleted', {
-        notificationId: notification._id
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: 'Notification deleted'
-    });
-  } catch (error) {
-    console.error('❌ Admin delete notification error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to delete notification'
-    });
-  }
-};
-
-export const createAdminNotification = async (req, res) => {
-  try {
-    const { userId, type, title, message, icon, color, bgColor, priority, actionUrl, actionLabel, metadata } = req.body;
-    
-    if (!userId || !type || !title || !message) {
+    if (!title || !message) {
       return res.status(400).json({
         success: false,
-        message: 'userId, type, title, and message are required'
+        message: 'Title and message are required'
       });
     }
     
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    let users = [];
+    
+    if (target === 'all') {
+      users = await User.find({ status: 'active' }).select('_id');
+    } else if (target === 'users') {
+      users = await User.find({ role: 'user', status: 'active' }).select('_id');
+    } else if (target === 'admins') {
+      users = await User.find({ role: 'admin', status: 'active' }).select('_id');
+    } else if (target === 'specific' && req.body.userId) {
+      const user = await User.findById(req.body.userId).select('_id');
+      if (user) users = [user];
     }
     
-    const notification = await Notification.create({
-      user: userId,
-      type,
-      title,
-      message,
-      icon: icon || 'Bell',
-      color: color || 'text-amber-500',
-      bgColor: bgColor || 'bg-amber-500/10',
-      priority: priority || 'medium',
-      actionUrl: actionUrl || null,
-      actionLabel: actionLabel || null,
-      metadata: metadata || {},
-      createdBy: req.user.id
-    });
-    
-    const io = req.app.get('io');
-    if (io) {
-      const unreadCount = await Notification.getUnreadCount(userId);
-      io.to(`user-${userId}`).emit('new-notification', {
-        notification,
-        unreadCount
-      });
-      
-      io.to('admin-room').emit('admin-notification', {
-        type: 'notification-created',
-        userId,
-        userName: user.name,
-        title,
-        message,
-        createdBy: req.user.name,
-        timestamp: new Date()
-      });
-    }
-    
-    res.status(201).json({
-      success: true,
-      notification,
-      message: 'Notification created successfully'
-    });
-  } catch (error) {
-    console.error('❌ Create admin notification error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to create notification'
-    });
-  }
-};
-
-export const createBulkNotifications = async (req, res) => {
-  try {
-    const { userIds, type, title, message, icon, color, bgColor, priority, actionUrl, actionLabel, metadata } = req.body;
-    
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+    if (users.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'userIds array is required'
+        message: 'No users found for this notification'
       });
     }
     
-    if (!type || !title || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'type, title, and message are required'
-      });
-    }
-    
-    const users = await User.find({ _id: { $in: userIds } });
-    const validUserIds = users.map(u => u._id.toString());
-    
-    if (validUserIds.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No valid users found'
-      });
-    }
-    
-    const notifications = await Notification.insertMany(
-      validUserIds.map(userId => ({
-        user: userId,
-        type,
+    const notifications = [];
+    for (const user of users) {
+      notifications.push({
+        user: user._id,
+        type: type || 'system',
         title,
         message,
         icon: icon || 'Bell',
-        color: color || 'text-amber-500',
-        bgColor: bgColor || 'bg-amber-500/10',
-        priority: priority || 'medium',
+        color: color || 'text-blue-500',
+        bgColor: bgColor || 'bg-blue-500/10',
         actionUrl: actionUrl || null,
-        actionLabel: actionLabel || null,
+        actionLabel: actionLabel || 'View',
+        priority: priority || 'medium',
+        group: target === 'all' ? 'all' : target === 'admins' ? 'admins' : 'specific',
         metadata: metadata || {},
-        createdBy: req.user.id
-      }))
-    );
+        sender: req.user.id,
+        senderName: req.user.name,
+        senderAvatar: req.user.avatar || null,
+      });
+    }
     
-    const io = req.app.get('io');
+    const created = await Notification.insertMany(notifications);
+    
+    // Emit socket events
     if (io) {
-      for (const notification of notifications) {
-        const unreadCount = await Notification.getUnreadCount(notification.user);
-        io.to(`user-${notification.user}`).emit('new-notification', {
-          notification,
-          unreadCount
+      for (const notif of created) {
+        const unreadCount = await Notification.getUnreadCount(notif.user);
+        io.to(`user-${notif.user}`).emit('new-notification', {
+          notification: notif,
+          unreadCount,
         });
       }
     }
     
     res.status(201).json({
       success: true,
-      count: notifications.length,
-      message: `${notifications.length} notifications created successfully`
+      message: `System notification sent to ${created.length} users`,
+      count: created.length,
     });
   } catch (error) {
-    console.error('❌ Create bulk notifications error:', error);
+    console.error('❌ Create system notification error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to create bulk notifications'
+      message: error.message || 'Failed to create system notification'
     });
   }
 };
+
+// ============================================
+// GET NOTIFICATION TYPES
+// ============================================
+export const getNotificationTypes = async (req, res) => {
+  res.json({
+    success: true,
+    types: [
+      { value: 'all', label: 'All' },
+      { value: 'booking', label: 'Bookings' },
+      { value: 'payment', label: 'Payments' },
+      { value: 'review', label: 'Reviews' },
+      { value: 'message', label: 'Messages' },
+      { value: 'system', label: 'System' },
+      { value: 'tour', label: 'Tours' },
+      { value: 'hotel', label: 'Hotels' },
+      { value: 'destination', label: 'Destinations' },
+      { value: 'experience', label: 'Experiences' },
+      { value: 'reminder', label: 'Reminders' },
+      { value: 'promotion', label: 'Promotions' },
+      { value: 'alert', label: 'Alerts' },
+    ]
+  });
+};
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+function getTimeAgo(date) {
+  const now = new Date();
+  const diff = now - new Date(date);
+  
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+  const years = Math.floor(days / 365);
+  
+  if (seconds < 60) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  if (weeks < 4) return `${weeks}w ago`;
+  if (months < 12) return `${months}mo ago`;
+  return `${years}y ago`;
+}
+
+async function getAdminNotificationStats() {
+  const total = await Notification.countDocuments({ isDeleted: false });
+  const unread = await Notification.countDocuments({ read: false, isDeleted: false });
+  const read = await Notification.countDocuments({ read: true, isDeleted: false });
+  
+  // Count by type
+  const byType = await Notification.aggregate([
+    { $match: { isDeleted: false } },
+    { $group: { _id: '$type', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+  ]);
+  
+  // Count by priority
+  const byPriority = await Notification.aggregate([
+    { $match: { isDeleted: false } },
+    { $group: { _id: '$priority', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+  ]);
+  
+  // Last 7 days trend
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const trend = await Notification.aggregate([
+    { 
+      $match: { 
+        isDeleted: false,
+        createdAt: { $gte: sevenDaysAgo }
+      }
+    },
+    {
+      $group: {
+        _id: { 
+          $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+        },
+        count: { $sum: 1 }
+      }
+    },
+    { $sort: { _id: 1 } },
+  ]);
+  
+  return {
+    total,
+    unread,
+    read,
+    byType,
+    byPriority,
+    trend,
+  };
+}

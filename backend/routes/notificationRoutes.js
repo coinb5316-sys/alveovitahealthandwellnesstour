@@ -3,35 +3,55 @@ import express from 'express';
 import { protect, admin } from '../middleware/auth.js';
 import {
   getUserNotifications,
-  getNotificationStats,
-  markNotificationAsRead,
+  getAdminNotifications,
+  getNotificationById,
+  markAsRead,
   markAllAsRead,
   deleteNotification,
-  deleteAllNotifications,
-  getAdminNotifications,
-  adminMarkAllAsRead,
-  adminDeleteAllNotifications,
-  adminDeleteNotification,
-  createAdminNotification,
-  createBulkNotifications
+  deleteAllRead,
+  getNotificationStats,
+  createSystemNotification,
+  getNotificationTypes,
 } from '../controllers/notificationController.js';
 
 const router = express.Router();
 
-// USER ROUTES
-router.get('/', protect, getUserNotifications);
-router.get('/stats', protect, getNotificationStats);
-router.put('/:id/read', protect, markNotificationAsRead);
-router.put('/read-all', protect, markAllAsRead);
-router.delete('/:id', protect, deleteNotification);
-router.delete('/delete-all', protect, deleteAllNotifications);
+// ============================================
+// USER ROUTES (Authenticated users)
+// ============================================
 
+// Get user's notifications
+router.get('/', protect, getUserNotifications);
+
+// Get notification by ID
+router.get('/:id', protect, getNotificationById);
+
+// Mark notification as read
+router.put('/:id/read', protect, markAsRead);
+
+// Mark all as read
+router.put('/read/all', protect, markAllAsRead);
+
+// Delete notification
+router.delete('/:id', protect, deleteNotification);
+
+// Delete all read notifications
+router.delete('/read/all', protect, deleteAllRead);
+
+// Get notification stats
+router.get('/stats', protect, getNotificationStats);
+
+// Get notification types
+router.get('/types', protect, getNotificationTypes);
+
+// ============================================
 // ADMIN ROUTES
+// ============================================
+
+// Get admin notifications (all users)
 router.get('/admin', protect, admin, getAdminNotifications);
-router.put('/admin/read-all', protect, admin, adminMarkAllAsRead);
-router.delete('/admin/delete-all', protect, admin, adminDeleteAllNotifications);
-router.delete('/admin/:id', protect, admin, adminDeleteNotification);
-router.post('/admin/create', protect, admin, createAdminNotification);
-router.post('/admin/create-bulk', protect, admin, createBulkNotifications);
+
+// Create system notification
+router.post('/system', protect, admin, createSystemNotification);
 
 export default router;
