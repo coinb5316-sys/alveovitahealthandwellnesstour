@@ -1,9 +1,94 @@
 // backend/controllers/reviewController.js
 import Tour from '../models/Tour.js';
 import Hotel from '../models/Hotel.js';
+import Notification from '../models/Notification.js';
 
-// @desc    Get all reviews for a tour
-// @route   GET /api/tours/:id/reviews
+// ============================================
+// NOTIFICATION HELPERS
+// ============================================
+
+const createReviewNotification = async (io, userId, review, itemType, itemName, itemId, rating) => {
+  try {
+    const notificationData = {
+      user: userId,
+      type: 'review',
+      title: `New ${itemType} Review`,
+      message: `Your review "${review.title}" for ${itemType} "${itemName}" has been submitted`,
+      icon: 'Star',
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-500/10',
+      actionUrl: `/${itemType}s/${itemId}`,
+      actionLabel: 'View Review',
+      priority: 'medium',
+      metadata: { 
+        reviewId: review._id,
+        itemId,
+        itemType,
+        rating 
+      }
+    };
+    
+    const notification = await Notification.create(notificationData);
+    
+    if (io) {
+      const unreadCount = await Notification.getUnreadCount(userId);
+      io.to(`user-${userId}`).emit('new-notification', {
+        notification,
+        unreadCount
+      });
+    }
+    
+    return notification;
+  } catch (error) {
+    console.error('❌ Create review notification error:', error);
+    return null;
+  }
+};
+
+const createAdminReviewNotification = async (io, review, itemType, itemName, userName) => {
+  try {
+    // Find admin users
+    const adminUsers = await User.find({ role: 'admin' });
+    
+    for (const admin of adminUsers) {
+      const notificationData = {
+        user: admin._id,
+        type: 'review',
+        title: `New ${itemType} Review`,
+        message: `${userName} reviewed "${itemName}" with ${review.rating} stars`,
+        icon: 'Star',
+        color: 'text-amber-500',
+        bgColor: 'bg-amber-500/10',
+        actionUrl: `/admin/reviews`,
+        actionLabel: 'View Review',
+        priority: 'medium',
+        metadata: { 
+          reviewId: review._id,
+          itemId: review.itemId,
+          itemType,
+          rating: review.rating 
+        }
+      };
+      
+      const notification = await Notification.create(notificationData);
+      
+      if (io) {
+        const unreadCount = await Notification.getUnreadCount(admin._id);
+        io.to(`user-${admin._id}`).emit('new-notification', {
+          notification,
+          unreadCount
+        });
+      }
+    }
+  } catch (error) {
+    console.error('❌ Create admin review notification error:', error);
+  }
+};
+
+// ============================================
+// CONTROLLER FUNCTIONS
+// ============================================
+
 export const getTourReviews = async (req, res) => {
   try {
     const tour = await Tour.findById(req.params.id)
@@ -32,8 +117,6 @@ export const getTourReviews = async (req, res) => {
   }
 };
 
-// @desc    Get all reviews for a hotel
-// @route   GET /api/hotels/:id/reviews
 export const getHotelReviews = async (req, res) => {
   try {
     const hotel = await Hotel.findById(req.params.id)
@@ -62,8 +145,6 @@ export const getHotelReviews = async (req, res) => {
   }
 };
 
-// @desc    Add a review to a tour
-// @route   POST /api/tours/:id/reviews
 export const addTourReview = async (req, res) => {
   try {
     const { rating, title, comment, images } = req.body;
@@ -118,7 +199,16 @@ export const addTourReview = async (req, res) => {
 
     await tour.save();
 
-    // Emit review notification
+    // Get the saved review
+    const savedReview = tour.reviewList[tour.reviewList.length - 1];
+
+    // Create notification for user
+    await createReviewNotification(io, req.user.id, savedReview, 'tour', tour.title, tourId, rating);
+
+    // Create notification for admins
+    await createAdminReviewNotification(io, savedReview, 'tour', tour.title, req.user.name);
+
+    // Emit admin notification via socket
     if (io) {
       io.to('admin-room').emit('admin-notification', {
         type: 'new-review',
@@ -144,8 +234,6 @@ export const addTourReview = async (req, res) => {
   }
 };
 
-// @desc    Add a review to a hotel
-// @route   POST /api/hotels/:id/reviews
 export const addHotelReview = async (req, res) => {
   try {
     const { rating, title, comment, images } = req.body;
@@ -200,7 +288,14 @@ export const addHotelReview = async (req, res) => {
 
     await hotel.save();
 
-    // Emit review notification
+    const savedReview = hotel.reviewList[hotel.reviewList.length - 1];
+
+    // Create notification for user
+    await createReviewNotification(io, req.user.id, savedReview, 'hotel', hotel.name, hotelId, rating);
+
+    // Create notification for admins
+    await createAdminReviewNotification(io, savedReview, 'hotel', hotel.name, req.user.name);
+
     if (io) {
       io.to('admin-room').emit('admin-notification', {
         type: 'new-review',
@@ -226,15 +321,12 @@ export const addHotelReview = async (req, res) => {
   }
 };
 
-// @desc    Get all reviews (admin)
-// @route   GET /api/admin/reviews
 export const getAdminReviews = async (req, res) => {
   try {
     const { status, page = 1, limit = 20, type } = req.query;
 
     let allReviews = [];
 
-    // Fetch tour reviews
     const tours = await Tour.find({ 'reviewList.0': { $exists: true } })
       .populate('reviewList.user', 'name avatar email')
       .lean();
@@ -254,7 +346,6 @@ export const getAdminReviews = async (req, res) => {
       });
     });
 
-    // Fetch hotel reviews
     const hotels = await Hotel.find({ 'reviewList.0': { $exists: true } })
       .populate('reviewList.user', 'name avatar email')
       .lean();
@@ -274,17 +365,14 @@ export const getAdminReviews = async (req, res) => {
       });
     });
 
-    // Filter by type if specified
     if (type && type !== 'all') {
       allReviews = allReviews.filter(r => r.type === type);
     }
 
-    // Filter by status if specified
     if (status && status !== 'all') {
       allReviews = allReviews.filter(r => r.status === status);
     }
 
-    // Sort by date
     allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const total = allReviews.length;
@@ -307,8 +395,6 @@ export const getAdminReviews = async (req, res) => {
   }
 };
 
-// @desc    Update review status (admin)
-// @route   PUT /api/admin/reviews/:reviewId/status
 export const updateReviewStatus = async (req, res) => {
   try {
     const { status, reply } = req.body;
@@ -322,13 +408,11 @@ export const updateReviewStatus = async (req, res) => {
       });
     }
 
-    // Check tours first
     let tour = await Tour.findOne({ 'reviewList._id': reviewId });
     let item = tour;
     let itemType = 'tour';
 
     if (!tour) {
-      // Check hotels
       const hotel = await Hotel.findOne({ 'reviewList._id': reviewId });
       if (hotel) {
         item = hotel;
@@ -351,7 +435,6 @@ export const updateReviewStatus = async (req, res) => {
       review.reply = { admin: reply, date: new Date() };
     }
 
-    // Update rating
     const allApproved = item.reviewList.filter(r => r.status === 'approved');
     if (allApproved.length > 0) {
       const avgRating = allApproved.reduce((sum, r) => sum + r.rating, 0) / allApproved.length;
@@ -364,7 +447,33 @@ export const updateReviewStatus = async (req, res) => {
 
     await item.save();
 
-    // Emit review status change notification
+    // Create notification for the review author
+    if (review.user) {
+      const notificationData = {
+        user: review.user,
+        type: 'review',
+        title: `Review ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+        message: `Your review "${review.title}" for ${itemType} "${itemType === 'tour' ? item.title : item.name}" has been ${status}`,
+        icon: 'Star',
+        color: status === 'approved' ? 'text-green-500' : 'text-red-500',
+        bgColor: status === 'approved' ? 'bg-green-500/10' : 'bg-red-500/10',
+        actionUrl: `/${itemType}s/${item._id}`,
+        actionLabel: 'View Review',
+        priority: 'medium',
+        metadata: { reviewId, status }
+      };
+      
+      const notification = await Notification.create(notificationData);
+      
+      if (io) {
+        const unreadCount = await Notification.getUnreadCount(review.user);
+        io.to(`user-${review.user}`).emit('new-notification', {
+          notification,
+          unreadCount
+        });
+      }
+    }
+
     if (io) {
       io.to('admin-room').emit('admin-notification', {
         type: 'review-status-changed',
@@ -391,14 +500,11 @@ export const updateReviewStatus = async (req, res) => {
   }
 };
 
-// @desc    Delete review (admin)
-// @route   DELETE /api/admin/reviews/:reviewId
 export const deleteReview = async (req, res) => {
   try {
     const { reviewId } = req.params;
     const io = req.app.get('io');
 
-    // Check tours first
     let tour = await Tour.findOne({ 'reviewList._id': reviewId });
     let item = tour;
     let itemType = 'tour';
@@ -432,7 +538,6 @@ export const deleteReview = async (req, res) => {
 
     await item.save();
 
-    // Emit review deletion notification
     if (io) {
       io.to('admin-room').emit('admin-notification', {
         type: 'review-deleted',

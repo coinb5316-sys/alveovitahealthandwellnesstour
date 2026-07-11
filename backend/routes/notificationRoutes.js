@@ -1,38 +1,38 @@
+// backend/routes/notificationRoutes.js
 import express from 'express';
+import { protect } from '../middleware/auth.js';
+import { admin } from '../middleware/admin.js';
 import {
-  getNotifications,
-  getAdminNotifications,
-  getNotificationById,
-  createNotification,
-  markAsRead,
+  getUserNotifications,
+  getNotificationStats,
+  markNotificationAsRead,
   markAllAsRead,
   deleteNotification,
   deleteAllNotifications,
-  getNotificationStats,
+  getAdminNotifications,
+  adminMarkAllAsRead,
+  adminDeleteAllNotifications,
+  adminDeleteNotification,
+  createAdminNotification,
   createBulkNotifications
 } from '../controllers/notificationController.js';
-import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// ============================================
-// FIXED: Routes with proper order
-// ============================================
-
-// Admin routes - must come before :id routes
-router.get('/admin', protect, admin, getAdminNotifications);
-router.put('/admin/read-all', protect, admin, markAllAsRead);
-router.delete('/admin/delete-all', protect, admin, deleteAllNotifications);
-
-// User routes
-router.get('/', protect, getNotifications);
+// USER ROUTES
+router.get('/', protect, getUserNotifications);
 router.get('/stats', protect, getNotificationStats);
-router.post('/', protect, createNotification);
-router.post('/bulk', protect, admin, createBulkNotifications);
-
-// Individual notification routes - these must come AFTER the specific routes above
-router.get('/:id', protect, getNotificationById);
-router.put('/:id/read', protect, markAsRead);
+router.put('/:id/read', protect, markNotificationAsRead);
+router.put('/read-all', protect, markAllAsRead);
 router.delete('/:id', protect, deleteNotification);
+router.delete('/delete-all', protect, deleteAllNotifications);
+
+// ADMIN ROUTES
+router.get('/admin', protect, admin, getAdminNotifications);
+router.put('/admin/read-all', protect, admin, adminMarkAllAsRead);
+router.delete('/admin/delete-all', protect, admin, adminDeleteAllNotifications);
+router.delete('/admin/:id', protect, admin, adminDeleteNotification);
+router.post('/admin/create', protect, admin, createAdminNotification);
+router.post('/admin/create-bulk', protect, admin, createBulkNotifications);
 
 export default router;

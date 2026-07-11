@@ -4,11 +4,60 @@ import paystack from '../config/paystack.js';
 import { protect } from '../middleware/auth.js';
 import Booking from '../models/Booking.js';
 import Revenue from '../models/Revenue.js';
+import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
-// @desc    Test Paystack connection
-// @route   GET /api/payments/test
+// ============================================
+// NOTIFICATION HELPERS
+// ============================================
+
+const createPaymentNotification = async (io, userId, booking, status, amount) => {
+  try {
+    const itemName = booking.tourTitle || booking.hotelName || 'Alveovita';
+    const type = booking.type || 'tour';
+    
+    const notificationData = {
+      user: userId,
+      type: 'payment',
+      title: status === 'success' ? 'Payment Successful' : 'Payment Failed',
+      message: status === 'success' 
+        ? `Your payment of $${amount} for "${itemName}" has been confirmed`
+        : `Payment of $${amount} for "${itemName}" failed. Please try again.`,
+      icon: 'CreditCard',
+      color: status === 'success' ? 'text-green-500' : 'text-red-500',
+      bgColor: status === 'success' ? 'bg-green-500/10' : 'bg-red-500/10',
+      actionUrl: `/bookings/${booking._id}`,
+      actionLabel: status === 'success' ? 'View Booking' : 'Retry Payment',
+      priority: status === 'success' ? 'high' : 'urgent',
+      metadata: { 
+        bookingId: booking._id, 
+        amount,
+        status 
+      }
+    };
+    
+    const notification = await Notification.create(notificationData);
+    
+    if (io) {
+      const unreadCount = await Notification.getUnreadCount(userId);
+      io.to(`user-${userId}`).emit('new-notification', {
+        notification,
+        unreadCount
+      });
+    }
+    
+    return notification;
+  } catch (error) {
+    console.error('❌ Create payment notification error:', error);
+    return null;
+  }
+};
+
+// ============================================
+// ROUTES
+// ============================================
+
 router.get('/test', async (req, res) => {
   try {
     const response = await paystack.bank.list();
@@ -27,10 +76,9 @@ router.get('/test', async (req, res) => {
   }
 });
 
-// @desc    Initialize payment
-// @route   POST /api/payments/initialize
 router.post('/initialize', protect, async (req, res) => {
   try {
+    const io = req.app.get('io');
     const { email, amount, tourTitle, hotelName, customerName, bookingData } = req.body;
 
     console.log('📝 Payment initialization request:', {
@@ -41,7 +89,6 @@ router.post('/initialize', protect, async (req, res) => {
       userId: req.user.id
     });
 
-    // Validate amount
     if (!amount || amount <= 0) {
       return res.status(400).json({
         success: false,
@@ -49,7 +96,6 @@ router.post('/initialize', protect, async (req, res) => {
       });
     }
 
-    // Check if there's already a pending booking for this user and tour/hotel
     const existingBooking = await Booking.findOne({
       user: req.user.id,
       type: bookingData?.type || 'tour',
@@ -61,7 +107,6 @@ router.post('/initialize', protect, async (req, res) => {
     let booking;
 
     if (existingBooking) {
-      // Update existing booking instead of creating a new one
       booking = existingBooking;
       booking.totalAmount = amount;
       booking.guests = bookingData?.guests || 1;
@@ -74,7 +119,6 @@ router.post('/initialize', protect, async (req, res) => {
       await booking.save();
       console.log('🔄 Updated existing booking:', booking._id);
     } else {
-      // Create a new booking only if none exists
       booking = await Booking.create({
         user: req.user.id,
         type: bookingData?.type || 'tour',
@@ -136,7 +180,6 @@ router.post('/initialize', protect, async (req, res) => {
     console.log('📤 Paystack response message:', response.message);
 
     if (!response.status) {
-      // Only delete if it's a new booking and payment failed
       if (!existingBooking) {
         await Booking.findByIdAndDelete(booking._id);
       }
@@ -148,7 +191,6 @@ router.post('/initialize', protect, async (req, res) => {
       });
     }
 
-    // Update booking with payment reference
     await Booking.findByIdAndUpdate(booking._id, {
       paymentReference: reference,
     });
@@ -182,10 +224,9 @@ router.post('/initialize', protect, async (req, res) => {
   }
 });
 
-// @desc    Verify payment
-// @route   GET /api/payments/verify/:reference
 router.get('/verify/:reference', async (req, res) => {
   try {
+    const io = req.app.get('io');
     console.log('🔍 Verifying payment:', req.params.reference);
 
     const response = await paystack.transaction.verify({
@@ -205,7 +246,6 @@ router.get('/verify/:reference', async (req, res) => {
     }
 
     if (response.data.status === 'success') {
-      // Update booking status
       const booking = await Booking.findOneAndUpdate(
         { paymentReference: req.params.reference },
         { 
@@ -215,9 +255,7 @@ router.get('/verify/:reference', async (req, res) => {
         { new: true }
       );
 
-      // Create revenue record if booking exists
       if (booking) {
-        // Check if revenue record already exists to avoid duplicates
         const existingRevenue = await Revenue.findOne({ bookingId: booking._id });
         if (!existingRevenue) {
           await Revenue.create({
@@ -229,6 +267,9 @@ router.get('/verify/:reference', async (req, res) => {
             status: 'completed',
           });
         }
+
+        // Create payment success notification
+        await createPaymentNotification(io, booking.user, booking, 'success', booking.totalAmount);
       }
 
       res.json({
@@ -237,14 +278,19 @@ router.get('/verify/:reference', async (req, res) => {
         booking: booking,
       });
     } else {
-      // Update booking as failed
-      await Booking.findOneAndUpdate(
+      const booking = await Booking.findOneAndUpdate(
         { paymentReference: req.params.reference },
         { 
           status: 'cancelled',
           paymentStatus: 'failed'
-        }
+        },
+        { new: true }
       );
+
+      if (booking) {
+        // Create payment failure notification
+        await createPaymentNotification(io, booking.user, booking, 'failed', booking.totalAmount);
+      }
 
       res.status(400).json({
         success: false,
@@ -269,10 +315,9 @@ router.get('/verify/:reference', async (req, res) => {
   }
 });
 
-// @desc    Webhook for Paystack events
-// @route   POST /api/payments/webhook
 router.post('/webhook', async (req, res) => {
   try {
+    const io = req.app.get('io');
     const signature = req.headers['x-paystack-signature'];
     const crypto = await import('crypto');
     const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
@@ -288,7 +333,6 @@ router.post('/webhook', async (req, res) => {
     
     switch (event.event) {
       case 'charge.success':
-        // Check if booking already exists with this reference
         const existingBooking = await Booking.findOne({ paymentReference: event.data.reference });
         if (existingBooking && existingBooking.status !== 'confirmed') {
           await Booking.findOneAndUpdate(
@@ -298,17 +342,25 @@ router.post('/webhook', async (req, res) => {
               paymentStatus: 'paid'
             }
           );
+          
+          // Create payment success notification from webhook
+          await createPaymentNotification(io, existingBooking.user, existingBooking, 'success', existingBooking.totalAmount);
           console.log('✅ Payment successful:', event.data.reference);
         }
         break;
       case 'charge.failed':
-        await Booking.findOneAndUpdate(
+        const failedBooking = await Booking.findOneAndUpdate(
           { paymentReference: event.data.reference },
           { 
             status: 'cancelled',
             paymentStatus: 'failed'
-          }
+          },
+          { new: true }
         );
+        
+        if (failedBooking) {
+          await createPaymentNotification(io, failedBooking.user, failedBooking, 'failed', failedBooking.totalAmount);
+        }
         console.log('❌ Payment failed:', event.data.reference);
         break;
       default:

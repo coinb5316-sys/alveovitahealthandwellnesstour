@@ -5,26 +5,25 @@ const notificationSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true
   },
   type: {
     type: String,
-    enum: [
-      'booking', 'payment', 'review', 'tour', 'hotel', 
-      'destination', 'experience', 'message', 'system',
-      'favorite', 'alert', 'promotion', 'reminder',
-      'booking_confirmed', 'booking_cancelled', 'booking_completed',
-      'review_approved', 'review_rejected', 'review_reply'
-    ],
+    enum: ['booking', 'payment', 'review', 'system', 'admin', 'tour', 'hotel', 'destination', 'experience', 'favorite', 'user', 'contact', 'chat'],
     required: true
   },
   title: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
+    maxlength: 100
   },
   message: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
+    maxlength: 500
   },
   icon: {
     type: String,
@@ -32,11 +31,24 @@ const notificationSchema = new mongoose.Schema({
   },
   color: {
     type: String,
-    default: 'text-blue-500'
+    default: 'text-amber-500'
   },
   bgColor: {
     type: String,
-    default: 'bg-blue-500/10'
+    default: 'bg-amber-500/10'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
+    default: 'medium'
+  },
+  actionUrl: {
+    type: String,
+    trim: true
+  },
+  actionLabel: {
+    type: String,
+    trim: true
   },
   read: {
     type: Boolean,
@@ -45,23 +57,9 @@ const notificationSchema = new mongoose.Schema({
   readAt: {
     type: Date
   },
-  actionUrl: {
-    type: String
-  },
-  actionLabel: {
-    type: String
-  },
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'medium', 'high', 'urgent'],
-    default: 'medium'
-  },
-  expiresAt: {
-    type: Date
   },
   isDeleted: {
     type: Boolean,
@@ -70,25 +68,57 @@ const notificationSchema = new mongoose.Schema({
   deletedAt: {
     type: Date
   },
-  sentAt: {
-    type: Date,
-    default: Date.now
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
-}, { timestamps: true });
+}, {
+  timestamps: true
+});
 
-// Indexes for performance
+// Indexes
 notificationSchema.index({ user: 1, read: 1 });
 notificationSchema.index({ user: 1, createdAt: -1 });
-notificationSchema.index({ type: 1 });
-notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+notificationSchema.index({ type: 1, createdAt: -1 });
+notificationSchema.index({ isDeleted: 1 });
 
-// Pre-save middleware
-notificationSchema.pre('save', function(next) {
-  if (this.isModified('read') && this.read) {
-    this.readAt = new Date();
-  }
-  next();
-});
+// Static methods
+notificationSchema.statics.getUnreadCount = async function(userId) {
+  const count = await this.countDocuments({
+    user: userId,
+    read: false,
+    isDeleted: false
+  });
+  return count;
+};
+
+notificationSchema.statics.markAllAsRead = async function(userId) {
+  const result = await this.updateMany(
+    { user: userId, read: false, isDeleted: false },
+    { read: true, readAt: new Date() }
+  );
+  return result;
+};
+
+notificationSchema.statics.deleteAll = async function(userId) {
+  const result = await this.updateMany(
+    { user: userId, isDeleted: false },
+    { isDeleted: true, deletedAt: new Date() }
+  );
+  return result;
+};
+
+notificationSchema.methods.markAsRead = function() {
+  this.read = true;
+  this.readAt = new Date();
+  return this.save();
+};
+
+notificationSchema.methods.softDelete = function() {
+  this.isDeleted = true;
+  this.deletedAt = new Date();
+  return this.save();
+};
 
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;
