@@ -40,6 +40,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
+  const [searchSuggestions, setSearchSuggestions] = useState([])
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
@@ -49,6 +50,8 @@ const Navbar = () => {
   const [quickNotifications, setQuickNotifications] = useState([])
   const [loadingQuick, setLoadingQuick] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState(null)
 
   // ============================================
   // CONTEXT HOOKS
@@ -66,6 +69,7 @@ const Navbar = () => {
   const notificationRef = useRef(null)
   const servicesRef = useRef(null)
   const mobileMenuRef = useRef(null)
+  const searchTimeoutRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -89,7 +93,7 @@ const Navbar = () => {
   }, [user])
 
   // ============================================
-  // FETCH QUICK NOTIFICATIONS (for dropdown preview)
+  // FETCH QUICK NOTIFICATIONS
   // ============================================
   const fetchQuickNotifications = useCallback(async () => {
     if (!user) return
@@ -110,7 +114,127 @@ const Navbar = () => {
   }, [user])
 
   // ============================================
-  // MARK NOTIFICATION AS READ (from quick preview)
+  // SEARCH SUGGESTIONS FROM BACKEND
+  // ============================================
+  const fetchSearchSuggestions = useCallback(async (query) => {
+    if (!query || query.trim().length < 1) {
+      setSearchSuggestions([])
+      return
+    }
+
+    setSearchLoading(true)
+    setSearchError(null)
+    
+    try {
+      const response = await axios.get('/api/search/suggestions', {
+        params: { q: query.trim(), limit: 6 }
+      })
+      
+      if (response.data.success) {
+        setSearchSuggestions(response.data.suggestions || [])
+      } else {
+        setSearchSuggestions([])
+      }
+    } catch (error) {
+      console.error('❌ Search suggestions error:', error)
+      setSearchError('Failed to load suggestions')
+      setSearchSuggestions([])
+    } finally {
+      setSearchLoading(false)
+    }
+  }, [])
+
+  // ============================================
+  // PERFORM FULL SEARCH
+  // ============================================
+  const performSearch = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      showToast('Please enter at least 2 characters', 'info')
+      return
+    }
+
+    setSearchLoading(true)
+    setSearchError(null)
+    
+    try {
+      const response = await axios.get('/api/search', {
+        params: { 
+          q: query.trim(), 
+          limit: 20, 
+          page: 1 
+        }
+      })
+      
+      if (response.data.success) {
+        setSearchResults(response.data.results || [])
+        setSearchSuggestions([])
+        navigate(`/search?q=${encodeURIComponent(query.trim())}`)
+        setSearchOpen(false)
+        setSearchQuery('')
+        setIsMobileSearchOpen(false)
+        setIsOpen(false)
+      }
+    } catch (error) {
+      console.error('❌ Search error:', error)
+      setSearchError('Search failed. Please try again.')
+      showToast('Search failed. Please try again.', 'error')
+    } finally {
+      setSearchLoading(false)
+    }
+  }, [navigate, showToast])
+
+  // ============================================
+  // HANDLE SEARCH INPUT WITH DEBOUNCE
+  // ============================================
+  const handleSearchInput = useCallback((e) => {
+    const value = e.target.value
+    setSearchQuery(value)
+    setSearchError(null)
+    
+    clearTimeout(searchTimeoutRef.current)
+    
+    if (value.trim().length >= 1) {
+      setIsSearching(true)
+      searchTimeoutRef.current = setTimeout(() => {
+        fetchSearchSuggestions(value)
+      }, 300)
+    } else {
+      setIsSearching(false)
+      setSearchSuggestions([])
+    }
+  }, [fetchSearchSuggestions])
+
+  // ============================================
+  // HANDLE SEARCH SUBMIT
+  // ============================================
+  const handleSearch = (e) => {
+    e.preventDefault()
+    if (searchQuery.trim().length >= 2) {
+      performSearch(searchQuery)
+    } else {
+      showToast('Please enter at least 2 characters', 'info')
+    }
+  }
+
+  // ============================================
+  // HANDLE SUGGESTION CLICK
+  // ============================================
+  const handleSuggestionClick = (suggestion) => {
+    setSearchQuery(suggestion.text || '')
+    if (suggestion.id && suggestion.type) {
+      navigate(`/${suggestion.type}/${suggestion.id}`)
+    } else {
+      navigate(`/search?q=${encodeURIComponent(suggestion.text || searchQuery)}`)
+    }
+    setSearchOpen(false)
+    setSearchQuery('')
+    setIsMobileSearchOpen(false)
+    setIsOpen(false)
+    setSearchSuggestions([])
+  }
+
+  // ============================================
+  // MARK NOTIFICATION AS READ
   // ============================================
   const handleQuickMarkAsRead = useCallback(async (notificationId) => {
     try {
@@ -131,7 +255,7 @@ const Navbar = () => {
   }, [])
 
   // ============================================
-  // DELETE NOTIFICATION (from quick preview)
+  // DELETE NOTIFICATION
   // ============================================
   const handleQuickDelete = useCallback(async (notificationId) => {
     try {
@@ -153,15 +277,12 @@ const Navbar = () => {
 
     const handleNewNotification = (data) => {
       if (data.notification) {
-        // Add to quick notifications
         setQuickNotifications(prev => [data.notification, ...prev].slice(0, 5))
-        // Update unread count
         if (data.unreadCount !== undefined) {
           setUnreadCount(data.unreadCount)
         } else {
           setUnreadCount(prev => prev + 1)
         }
-        // Show toast
         showToast('🔔 ' + data.notification.title, 'info')
       }
     }
@@ -251,6 +372,8 @@ const Navbar = () => {
   // ============================================
   useEffect(() => {
     setIsOpen(false)
+    setSearchOpen(false)
+    setSearchSuggestions([])
   }, [location])
 
   // ============================================
@@ -263,6 +386,7 @@ const Navbar = () => {
       }
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setSearchOpen(false)
+        setSearchSuggestions([])
       }
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsDropdownOpen(false)
@@ -291,34 +415,6 @@ const Navbar = () => {
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
-
-  // ============================================
-  // SEARCH HANDLERS
-  // ============================================
-  useEffect(() => {
-    if (searchQuery.length > 1) {
-      const results = searchableItems.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.location && item.location.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-      setSearchResults(results.slice(0, 6))
-      setIsSearching(true)
-    } else {
-      setSearchResults([])
-      setIsSearching(false)
-    }
-  }, [searchQuery])
-
-  const handleSearch = (e) => {
-    e.preventDefault()
-    if (searchQuery.length > 0) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`)
-      setSearchOpen(false)
-      setSearchQuery('')
-      setIsMobileSearchOpen(false)
-      setIsOpen(false)
-    }
-  }
 
   // ============================================
   // USER AVATAR HELPERS
@@ -421,17 +517,6 @@ const Navbar = () => {
     { name: 'Settings', icon: Settings, href: '/settings', color: 'text-gray-400' },
   ]
 
-  const searchableItems = [
-    ...services.map(s => ({ ...s, type: 'service', category: 'Services' })),
-    ...publicLinks.map(l => ({ ...l, type: 'page', category: 'Pages' })),
-    { name: 'Kempinski Hotel', type: 'hotel', category: 'Hotels', location: 'Accra' },
-    { name: 'Movenpick Hotel', type: 'hotel', category: 'Hotels', location: 'Accra' },
-    { name: 'Royal Senchi Resort', type: 'hotel', category: 'Hotels', location: 'Akosombo' },
-    { name: 'Mole National Park Safari', type: 'tour', category: 'Tours', location: 'Mole' },
-    { name: 'Cape Coast Castle Tour', type: 'tour', category: 'Tours', location: 'Cape Coast' },
-    { name: 'Kumasi Heritage Walk', type: 'tour', category: 'Tours', location: 'Kumasi' },
-  ]
-
   const isActive = (path) => location.pathname === path
 
   // ============================================
@@ -491,6 +576,34 @@ const Navbar = () => {
     }
     const Icon = icons[type] || Bell
     return <Icon className="w-4 h-4" />
+  }
+
+  // ============================================
+  // GET ICON FOR SEARCH SUGGESTION TYPE
+  // ============================================
+  const getSuggestionIcon = (type) => {
+    const icons = {
+      hotel: Hotel,
+      tour: Compass,
+      destination: MapPinIcon,
+      experience: Sparkles,
+      page: Home,
+      service: PackageIcon
+    }
+    const Icon = icons[type] || Search
+    return <Icon className="w-4 h-4" />
+  }
+
+  const getSuggestionColor = (type) => {
+    const colors = {
+      hotel: 'text-blue-500 bg-blue-500/10',
+      tour: 'text-green-500 bg-green-500/10',
+      destination: 'text-purple-500 bg-purple-500/10',
+      experience: 'text-amber-500 bg-amber-500/10',
+      page: 'text-gray-500 bg-gray-500/10',
+      service: 'text-rose-500 bg-rose-500/10'
+    }
+    return colors[type] || 'text-gray-500 bg-gray-500/10'
   }
 
   // ============================================
@@ -626,10 +739,18 @@ const Navbar = () => {
 
             {/* Right side */}
             <div className="flex items-center gap-1 ml-4">
-              {/* Search */}
+              {/* Enhanced Search */}
               <div ref={searchRef} className="relative">
                 <button
-                  onClick={() => setSearchOpen(!searchOpen)}
+                  onClick={() => {
+                    setSearchOpen(!searchOpen)
+                    if (!searchOpen) {
+                      setTimeout(() => {
+                        const input = searchRef.current?.querySelector('input')
+                        if (input) input.focus()
+                      }, 100)
+                    }
+                  }}
                   className={`p-2.5 rounded-xl transition-all duration-300 hover:scale-110 ${
                     searchOpen
                       ? 'bg-amber-500/20 text-amber-400 shadow-lg shadow-amber-500/20'
@@ -646,74 +767,112 @@ const Navbar = () => {
                       initial={{ opacity: 0, y: -10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                      className="absolute right-0 mt-2 w-80 xl:w-96 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-0 mt-2 w-96 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
                     >
                       <form onSubmit={handleSearch} className="p-3">
-                        <div className={`flex items-center gap-2 rounded-xl px-4 transition-all bg-gray-800/50 ${isSearching ? 'ring-2 ring-amber-400' : ''}`}>
-                          <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        <div className={`flex items-center gap-2 rounded-xl px-4 transition-all bg-gray-800/50 ${(isSearching || searchLoading) ? 'ring-2 ring-amber-400' : ''}`}>
+                          {searchLoading ? (
+                            <Loader2 className="w-5 h-5 text-amber-400 animate-spin flex-shrink-0" />
+                          ) : (
+                            <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          )}
                           <input
                             type="text"
-                            placeholder="Search tours, services..."
+                            placeholder="Search hotels, tours, experiences..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={handleSearchInput}
                             className="w-full py-3 bg-transparent outline-none text-white placeholder-gray-400 text-sm"
                             autoFocus
                           />
                           {searchQuery && (
                             <button
                               type="button"
-                              onClick={() => setSearchQuery('')}
+                              onClick={() => {
+                                setSearchQuery('')
+                                setSearchSuggestions([])
+                                setIsSearching(false)
+                              }}
                               className="p-1 rounded-full hover:bg-gray-700 transition-colors text-gray-400 hover:text-white flex-shrink-0"
                             >
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        
+                        {/* Search button */}
+                        <button
+                          type="submit"
+                          className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30 flex items-center justify-center gap-2"
+                          disabled={searchLoading}
+                        >
+                          {searchLoading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Searching...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="w-4 h-4" />
+                              Search
+                            </>
+                          )}
+                        </button>
                       </form>
 
-                      {isSearching && searchResults.length > 0 && (
+                      {/* Search Suggestions */}
+                      {(searchSuggestions.length > 0 || searchLoading) && (
                         <div className="p-2 pt-0 border-t border-amber-500/10">
-                          <div className="px-3 py-2 text-xs font-semibold text-amber-400/60 uppercase tracking-wider">
-                            Results
-                          </div>
-                          {searchResults.map((result, idx) => (
-                            <Link
-                              key={idx}
-                              to={result.href || '#'}
-                              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white"
-                              onClick={() => {
-                                setSearchOpen(false)
-                                setSearchQuery('')
-                              }}
-                            >
-                              {result.icon && <result.icon className="w-5 h-5 text-amber-400 flex-shrink-0" />}
-                              <div className="min-w-0 flex-1">
-                                <div className="font-medium text-sm truncate">{result.name}</div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  {result.category}
-                                  {result.location && ` • ${result.location}`}
-                                </div>
+                          {searchLoading && searchSuggestions.length === 0 && (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                              <span className="ml-2 text-sm text-gray-400">Loading suggestions...</span>
+                            </div>
+                          )}
+                          
+                          {searchSuggestions.length > 0 && (
+                            <>
+                              <div className="px-3 py-2 text-xs font-semibold text-amber-400/60 uppercase tracking-wider">
+                                Suggestions
                               </div>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
-                                {result.type}
-                              </span>
-                            </Link>
-                          ))}
-                          <button
-                            onClick={handleSearch}
-                            className="w-full text-center py-3 rounded-xl text-sm font-medium transition-all text-amber-400 hover:bg-amber-500/10"
-                          >
-                            See all results for "{searchQuery}"
-                          </button>
-                        </div>
-                      )}
-
-                      {isSearching && searchResults.length === 0 && (
-                        <div className="p-6 text-center">
-                          <Search className="w-12 h-12 mx-auto text-gray-600 mb-2" />
-                          <p className="text-sm text-gray-400">
-                            No results found for "{searchQuery}"
-                          </p>
+                              {searchSuggestions.map((suggestion, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleSuggestionClick(suggestion)}
+                                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
+                                >
+                                  <div className={`p-2 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
+                                    {getSuggestionIcon(suggestion.type)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-sm truncate">{suggestion.text}</div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {suggestion.typeLabel || suggestion.type}
+                                      {suggestion.location && ` • ${suggestion.location}`}
+                                      {suggestion.region && !suggestion.location && ` • ${suggestion.region}`}
+                                    </div>
+                                  </div>
+                                  <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                </button>
+                              ))}
+                              
+                              {searchQuery.trim().length >= 2 && (
+                                <button
+                                  onClick={() => performSearch(searchQuery)}
+                                  className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
+                                >
+                                  See all results for "{searchQuery}"
+                                </button>
+                              )}
+                            </>
+                          )}
+                          
+                          {searchError && (
+                            <div className="p-4 text-center">
+                              <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                              <p className="text-sm text-red-400">{searchError}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </motion.div>
@@ -722,7 +881,7 @@ const Navbar = () => {
               </div>
 
               {/* ============================================ */}
-              {/* NOTIFICATIONS - ENHANCED WITH QUICK PREVIEW */}
+              {/* NOTIFICATIONS */}
               {/* ============================================ */}
               {user && (
                 <div className="relative" ref={notificationRef}>
@@ -864,14 +1023,14 @@ const Navbar = () => {
                                     {/* Actions */}
                                     <div className="flex items-center gap-2 mt-1.5">
                                       {notification.actionUrl && (
-                                        <a
-                                          href={notification.actionUrl}
+                                        <Link
+                                          to={notification.actionUrl}
                                           className="text-[10px] text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-0.5"
                                           onClick={() => setNotificationOpen(false)}
                                         >
                                           View
                                           <ChevronDown className="w-3 h-3 -rotate-90" />
-                                        </a>
+                                        </Link>
                                       )}
                                       {notification.priority === 'urgent' && (
                                         <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/30 text-red-400 border border-red-500/30 animate-pulse">
@@ -1107,7 +1266,7 @@ const Navbar = () => {
         </div>
 
         {/* ============================================ */}
-        {/* MOBILE SEARCH BAR */}
+        {/* MOBILE SEARCH BAR - Enhanced */}
         {/* ============================================ */}
         <AnimatePresence>
           {isMobileSearchOpen && (
@@ -1119,44 +1278,64 @@ const Navbar = () => {
               className="lg:hidden pb-3"
             >
               <form onSubmit={handleSearch} className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                {searchLoading ? (
+                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-amber-400 animate-spin" />
+                ) : (
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                )}
                 <input
                   type="text"
-                  placeholder="Search tours, services, destinations..."
+                  placeholder="Search hotels, tours, experiences..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchInput}
                   className="w-full pl-10 pr-12 py-3 rounded-xl outline-none bg-gray-800/50 text-white placeholder-gray-400 border border-amber-500/10 focus:border-amber-400 text-sm"
                   autoFocus
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => {
+                      setSearchQuery('')
+                      setSearchSuggestions([])
+                      setIsSearching(false)
+                    }}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-700 transition-colors text-gray-400 hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
               </form>
-              {isSearching && searchResults.length > 0 && (
+              
+              {/* Mobile Search Suggestions */}
+              {searchSuggestions.length > 0 && (
                 <div className="mt-2 rounded-xl border border-amber-500/10 bg-gray-800/30 overflow-hidden">
-                  {searchResults.slice(0, 3).map((result, idx) => (
-                    <Link
+                  {searchSuggestions.slice(0, 4).map((suggestion, idx) => (
+                    <button
                       key={idx}
-                      to={result.href || '#'}
-                      className="flex items-center gap-3 px-3 py-2 transition-all hover:bg-amber-500/10 text-gray-300 hover:text-white"
-                      onClick={() => {
-                        setIsMobileSearchOpen(false)
-                        setSearchQuery('')
-                      }}
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      className="w-full flex items-center gap-3 px-4 py-3 transition-all hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
                     >
-                      {result.icon && <result.icon className="w-4 h-4 text-amber-400 flex-shrink-0" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-sm truncate">{result.name}</div>
-                        <div className="text-xs text-gray-500 truncate">{result.category}</div>
+                      <div className={`p-1.5 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
+                        {getSuggestionIcon(suggestion.type)}
                       </div>
-                    </Link>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm truncate">{suggestion.text}</div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {suggestion.typeLabel || suggestion.type}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-500" />
+                    </button>
                   ))}
+                  
+                  {searchQuery.trim().length >= 2 && (
+                    <button
+                      onClick={() => performSearch(searchQuery)}
+                      className="w-full text-center py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    >
+                      See all results for "{searchQuery}"
+                    </button>
+                  )}
                 </div>
               )}
             </motion.div>

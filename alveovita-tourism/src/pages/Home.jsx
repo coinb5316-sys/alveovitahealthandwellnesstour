@@ -55,6 +55,10 @@ const Home = () => {
   const [likedExperiences, setLikedExperiences] = useState({})
   const [bookmarkedExperiences, setBookmarkedExperiences] = useState({})
   const [notification, setNotification] = useState(null)
+  const [searchSuggestions, setSearchSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false)
+  const [searchError, setSearchError] = useState(null)
   
   // Data states
   const [hotels, setHotels] = useState([])
@@ -63,6 +67,9 @@ const Home = () => {
   const [totalHotels, setTotalHotels] = useState(0)
   const [totalTours, setTotalTours] = useState(0)
   const [totalExperiences, setTotalExperiences] = useState(0)
+
+  // Search timeout ref
+  let searchTimeout = null
 
   // Socket.IO event listeners
   useEffect(() => {
@@ -300,9 +307,117 @@ const Home = () => {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Fetch data when region or search term changes
   useEffect(() => {
     fetchData()
   }, [selectedRegion, searchTerm])
+
+  // Fetch search suggestions with debounce
+  const fetchSearchSuggestions = async (query) => {
+    if (!query || query.trim().length < 1) {
+      setSearchSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    setIsSearchingSuggestions(true)
+    setSearchError(null)
+
+    try {
+      const response = await axios.get('/api/search/suggestions', {
+        params: { q: query.trim(), limit: 5 }
+      })
+      
+      if (response.data.success) {
+        setSearchSuggestions(response.data.suggestions || [])
+        setShowSuggestions(response.data.suggestions.length > 0)
+      } else {
+        setSearchSuggestions([])
+        setShowSuggestions(false)
+      }
+    } catch (error) {
+      console.error('Search suggestions error:', error)
+      setSearchError('Failed to load suggestions')
+      setSearchSuggestions([])
+      setShowSuggestions(false)
+    } finally {
+      setIsSearchingSuggestions(false)
+    }
+  }
+
+  // Handle search input with debounce
+  const handleSearchInput = (e) => {
+    const value = e.target.value
+    setSearchTerm(value)
+    
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+      fetchSearchSuggestions(value)
+    }, 300)
+  }
+
+  // Handle search submission
+  const handleSearchSubmit = () => {
+    if (searchTerm.trim().length >= 2) {
+      navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`)
+      setShowSuggestions(false)
+      setSearchSuggestions([])
+    } else if (searchTerm.trim().length > 0) {
+      showToast('Please enter at least 2 characters', 'info')
+    } else {
+      navigate('/search')
+    }
+  }
+
+  // Handle search on Enter key
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSearchSubmit()
+    }
+    if (e.key === 'Escape') {
+      setShowSuggestions(false)
+      setSearchSuggestions([])
+    }
+  }
+
+  // Handle suggestion click
+  const handleSuggestionClick = (suggestion) => {
+    if (suggestion.id && suggestion.type) {
+      navigate(`/${suggestion.type}/${suggestion.id}`)
+    } else {
+      navigate(`/search?q=${encodeURIComponent(suggestion.text || searchTerm)}`)
+    }
+    setShowSuggestions(false)
+    setSearchSuggestions([])
+    setSearchTerm('')
+  }
+
+  // Get icon for suggestion type
+  const getSuggestionIcon = (type) => {
+    const icons = {
+      hotel: Hotel,
+      tour: Compass,
+      destination: MapPin,
+      experience: Sparkles,
+      page: Home,
+      service: Package
+    }
+    const Icon = icons[type] || Search
+    return <Icon className="w-4 h-4" />
+  }
+
+  const getSuggestionColor = (type) => {
+    const colors = {
+      hotel: 'text-blue-500 bg-blue-500/10',
+      tour: 'text-green-500 bg-green-500/10',
+      destination: 'text-purple-500 bg-purple-500/10',
+      experience: 'text-amber-500 bg-amber-500/10',
+      page: 'text-gray-500 bg-gray-500/10',
+      service: 'text-rose-500 bg-rose-500/10'
+    }
+    return colors[type] || 'text-gray-500 bg-gray-500/10'
+  }
 
   const fetchData = async () => {
     try {
@@ -739,29 +854,82 @@ const Home = () => {
                         {slide.description}
                       </p>
 
-                      {/* Premium Search Bar */}
+                      {/* Enhanced Premium Search Bar with Suggestions */}
                       <div className="mt-10 flex flex-col sm:flex-row gap-4">
                         <div className="flex-1 relative group">
                           <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
                           <div className="relative">
-                            <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-amber-400 w-5 h-5" />
+                            <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-amber-400 w-5 h-5 z-10" />
                             <input
                               type="text"
                               placeholder="Search luxury hotels, tours, experiences..."
                               value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
+                              onChange={handleSearchInput}
+                              onKeyDown={handleSearchKeyDown}
+                              onFocus={() => searchSuggestions.length > 0 && setShowSuggestions(true)}
+                              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                               className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-all shadow-2xl"
                             />
+                            {isSearchingSuggestions && (
+                              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                              </div>
+                            )}
+                            
+                            {/* Search Suggestions Dropdown */}
+                            <AnimatePresence>
+                              {showSuggestions && searchSuggestions.length > 0 && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a] border border-amber-500/20 z-50"
+                                >
+                                  <div className="p-2 max-h-72 overflow-y-auto">
+                                    {searchSuggestions.map((suggestion, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => handleSuggestionClick(suggestion)}
+                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
+                                      >
+                                        <div className={`p-2 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
+                                          {getSuggestionIcon(suggestion.type)}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="font-medium text-sm truncate">{suggestion.text}</div>
+                                          <div className="text-xs text-gray-500 truncate">
+                                            {suggestion.typeLabel || suggestion.type}
+                                            {suggestion.location && ` • ${suggestion.location}`}
+                                            {suggestion.region && !suggestion.location && ` • ${suggestion.region}`}
+                                          </div>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                      </button>
+                                    ))}
+                                    {searchTerm.trim().length >= 2 && (
+                                      <button
+                                        onClick={handleSearchSubmit}
+                                        className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
+                                      >
+                                        See all results for "{searchTerm}"
+                                      </button>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         </div>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
+                          onClick={handleSearchSubmit}
                           className="relative group bg-gradient-to-r from-amber-500 to-orange-500 text-white px-10 py-5 rounded-2xl font-semibold shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 transition-all flex items-center justify-center space-x-3 overflow-hidden"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                          <MapPin className="w-5 h-5 relative z-10" />
-                          <span className="relative z-10">Explore Regions</span>
+                          <Search className="w-5 h-5 relative z-10" />
+                          <span className="relative z-10">Search</span>
                           <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
                         </motion.button>
                       </div>

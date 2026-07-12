@@ -37,6 +37,7 @@ import autoReplyRoutes from './routes/autoReplyRoutes.js';
 import chatSessionRoutes from './routes/chatSessionRoutes.js';
 import favoriteRoutes from './routes/favoriteRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import searchRoutes from './routes/searchRoutes.js';
 
 // ==================== SOCKET.IO IMPORTS ====================
 import { setupSocketIO } from './routes/socketRoutes.js';
@@ -436,6 +437,8 @@ app.use('/api/chat-sessions', chatSessionRoutes);
 app.use('/api/favorites', favoriteRoutes);
 
 app.use('/api/notifications', notificationRoutes);
+
+app.use('/api/search', searchRoutes);
 
 // ==================== TEST ROUTES ====================
 

@@ -71,6 +71,7 @@ import ResetPassword from './pages/ResetPassword';
 
 // ✅ NOTIFICATIONS PAGE - Add this import
 import Notifications from './pages/Notifications';
+import SearchResults from './pages/SearchResults';
 
 function App() {
   return (
@@ -98,6 +99,7 @@ function App() {
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/search" element={<SearchResults />} />
                     
                     {/* ==================== COMPANY PAGES ==================== */}
                     <Route path="/team" element={<Team />} />
