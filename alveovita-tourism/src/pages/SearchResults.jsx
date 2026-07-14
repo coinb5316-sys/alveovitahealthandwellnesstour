@@ -8,7 +8,8 @@ import {
   ChevronDown, ChevronUp, Grid, List,
   ArrowLeft, Heart, Share2, Bookmark, AlertCircle,
   Sliders, RefreshCw, ChevronRight, Eye,
-  TrendingUp, Award, Crown, Gem
+  TrendingUp, Award, Crown, Gem, Stethoscope,  // <-- ADD Stethoscope HERE
+  Home, Package, MapPin as MapPinIcon
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../hooks/useToast';

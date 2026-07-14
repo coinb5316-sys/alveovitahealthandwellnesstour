@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, X, Loader2, MapPin, Star, 
   Hotel, Compass, Map, Sparkles, Filter,
-  ChevronRight, Clock, Users, Heart
+  ChevronRight, Clock, Users, Heart, Stethoscope  // <-- ADD Stethoscope HERE
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../hooks/useToast';
 import axios from '../../api/axios';
+
 
 const SearchBar = ({ 
   placeholder = 'Search hotels, tours, destinations...',
