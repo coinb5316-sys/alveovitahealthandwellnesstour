@@ -1,58 +1,13 @@
-// backend/routes/paymentRoutes.js
+// routes/paymentRoutes.js - COMPLETE with Alveoly Notification Pattern
 import express from 'express';
 import paystack from '../config/paystack.js';
 import { protect } from '../middleware/auth.js';
 import Booking from '../models/Booking.js';
 import Revenue from '../models/Revenue.js';
-import Notification from '../models/Notification.js';
+import User from '../models/User.js';
+import { createNotification } from '../controllers/notificationController.js';
 
 const router = express.Router();
-
-// ============================================
-// NOTIFICATION HELPERS
-// ============================================
-
-const createPaymentNotification = async (io, userId, booking, status, amount) => {
-  try {
-    const itemName = booking.tourTitle || booking.hotelName || 'Alveovita';
-    const type = booking.type || 'tour';
-    
-    const notificationData = {
-      user: userId,
-      type: 'payment',
-      title: status === 'success' ? 'Payment Successful' : 'Payment Failed',
-      message: status === 'success' 
-        ? `Your payment of $${amount} for "${itemName}" has been confirmed`
-        : `Payment of $${amount} for "${itemName}" failed. Please try again.`,
-      icon: 'CreditCard',
-      color: status === 'success' ? 'text-green-500' : 'text-red-500',
-      bgColor: status === 'success' ? 'bg-green-500/10' : 'bg-red-500/10',
-      actionUrl: `/bookings/${booking._id}`,
-      actionLabel: status === 'success' ? 'View Booking' : 'Retry Payment',
-      priority: status === 'success' ? 'high' : 'urgent',
-      metadata: { 
-        bookingId: booking._id, 
-        amount,
-        status 
-      }
-    };
-    
-    const notification = await Notification.create(notificationData);
-    
-    if (io) {
-      const unreadCount = await Notification.getUnreadCount(userId);
-      io.to(`user-${userId}`).emit('new-notification', {
-        notification,
-        unreadCount
-      });
-    }
-    
-    return notification;
-  } catch (error) {
-    console.error('❌ Create payment notification error:', error);
-    return null;
-  }
-};
 
 // ============================================
 // ROUTES
@@ -268,8 +223,31 @@ router.get('/verify/:reference', async (req, res) => {
           });
         }
 
-        // Create payment success notification
-        await createPaymentNotification(io, booking.user, booking, 'success', booking.totalAmount);
+        // Create payment success notification for user
+        const itemName = booking.tourTitle || booking.hotelName || 'Alveovita';
+        await createNotification(
+          booking.user,
+          'user',
+          'success',
+          `✅ Payment Successful: ${itemName}`,
+          `Your payment of $${booking.totalAmount} for "${itemName}" has been confirmed.`,
+          `/bookings/${booking._id}`,
+          { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_success' }
+        );
+
+        // Create notification for admins
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+          await createNotification(
+            admin._id,
+            'admin',
+            'success',
+            `💰 Payment Received: $${booking.totalAmount}`,
+            `Payment of $${booking.totalAmount} received from ${booking.customerName} for "${itemName}".`,
+            `/admin/payments`,
+            { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_received' }
+          );
+        }
       }
 
       res.json({
@@ -288,8 +266,31 @@ router.get('/verify/:reference', async (req, res) => {
       );
 
       if (booking) {
-        // Create payment failure notification
-        await createPaymentNotification(io, booking.user, booking, 'failed', booking.totalAmount);
+        // Create payment failure notification for user
+        const itemName = booking.tourTitle || booking.hotelName || 'Alveovita';
+        await createNotification(
+          booking.user,
+          'user',
+          'error',
+          `❌ Payment Failed: ${itemName}`,
+          `Payment of $${booking.totalAmount} for "${itemName}" failed. Please try again.`,
+          `/bookings/${booking._id}`,
+          { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_failed' }
+        );
+
+        // Create notification for admins
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+          await createNotification(
+            admin._id,
+            'admin',
+            'warning',
+            `❌ Payment Failed: $${booking.totalAmount}`,
+            `Payment of $${booking.totalAmount} from ${booking.customerName} for "${itemName}" failed.`,
+            `/admin/payments`,
+            { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_failed_admin' }
+          );
+        }
       }
 
       res.status(400).json({
@@ -344,7 +345,17 @@ router.post('/webhook', async (req, res) => {
           );
           
           // Create payment success notification from webhook
-          await createPaymentNotification(io, existingBooking.user, existingBooking, 'success', existingBooking.totalAmount);
+          const itemName = existingBooking.tourTitle || existingBooking.hotelName || 'Alveovita';
+          await createNotification(
+            existingBooking.user,
+            'user',
+            'success',
+            `✅ Payment Successful: ${itemName}`,
+            `Your payment of $${existingBooking.totalAmount} for "${itemName}" has been confirmed.`,
+            `/bookings/${existingBooking._id}`,
+            { bookingId: existingBooking._id, amount: existingBooking.totalAmount, action: 'payment_success' }
+          );
+          
           console.log('✅ Payment successful:', event.data.reference);
         }
         break;
@@ -359,7 +370,16 @@ router.post('/webhook', async (req, res) => {
         );
         
         if (failedBooking) {
-          await createPaymentNotification(io, failedBooking.user, failedBooking, 'failed', failedBooking.totalAmount);
+          const itemName = failedBooking.tourTitle || failedBooking.hotelName || 'Alveovita';
+          await createNotification(
+            failedBooking.user,
+            'user',
+            'error',
+            `❌ Payment Failed: ${itemName}`,
+            `Payment of $${failedBooking.totalAmount} for "${itemName}" failed. Please try again.`,
+            `/bookings/${failedBooking._id}`,
+            { bookingId: failedBooking._id, amount: failedBooking.totalAmount, action: 'payment_failed' }
+          );
         }
         console.log('❌ Payment failed:', event.data.reference);
         break;

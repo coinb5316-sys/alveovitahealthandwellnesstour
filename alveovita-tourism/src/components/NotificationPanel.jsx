@@ -1,4 +1,4 @@
-// src/components/NotificationPanel.jsx
+// src/components/NotificationPanel.jsx - COMPLETE with Alveoly Pattern
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -57,7 +57,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         params.append('type', selectedType);
       }
       
-      const response = await axios.get(`/api/notifications?${params}`);
+      const response = await axios.get(`/notifications?${params}`);
       
       if (response.data.success) {
         const { notifications: newNotifications, pagination, unreadCount: count } = response.data;
@@ -87,7 +87,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   const fetchTypes = useCallback(async () => {
     try {
-      const response = await axios.get('/api/notifications/types');
+      const response = await axios.get('/notifications/types');
       if (response.data.success) {
         setTypes(response.data.types);
       }
@@ -101,7 +101,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   const fetchStats = useCallback(async () => {
     try {
-      const response = await axios.get('/api/notifications/stats');
+      const response = await axios.get('/notifications/stats');
       if (response.data.success) {
         setStats(response.data.stats);
       }
@@ -115,9 +115,8 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   const handleMarkAsRead = async (notificationId) => {
     try {
-      const response = await axios.put(`/api/notifications/${notificationId}/read`);
+      const response = await axios.put(`/notifications/${notificationId}/read`);
       if (response.data.success) {
-        // Update local state
         setNotifications(prev => 
           prev.map(n => 
             n._id === notificationId 
@@ -139,9 +138,8 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   const handleMarkAllAsRead = async () => {
     try {
-      const response = await axios.put('/api/notifications/read/all');
+      const response = await axios.put('/notifications/read-all');
       if (response.data.success) {
-        // Update local state
         setNotifications(prev => 
           prev.map(n => ({ ...n, read: true, readAt: new Date() }))
         );
@@ -159,9 +157,8 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   const handleDelete = async (notificationId) => {
     try {
-      const response = await axios.delete(`/api/notifications/${notificationId}`);
+      const response = await axios.delete(`/notifications/${notificationId}`);
       if (response.data.success) {
-        // Remove from local state
         setNotifications(prev => prev.filter(n => n._id !== notificationId));
         setUnreadCount(response.data.unreadCount);
         showToast('Notification deleted', 'success');
@@ -179,9 +176,8 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     if (!confirm('Delete all read notifications?')) return;
     
     try {
-      const response = await axios.delete('/api/notifications/read/all');
+      const response = await axios.delete('/notifications/read-all');
       if (response.data.success) {
-        // Remove read notifications from local state
         setNotifications(prev => prev.filter(n => !n.read));
         setUnreadCount(response.data.unreadCount);
         showToast('All read notifications deleted', 'success');
@@ -225,11 +221,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [hasMore, loadingMore, loadMore]);
 
   // ============================================
-  // SOCKET EVENTS
+  // SOCKET EVENTS (Alveoly Pattern)
   // ============================================
   useEffect(() => {
     if (!socket || !isConnected) return;
     
+    // Alveoly pattern: new_notification
     const handleNewNotification = (data) => {
       if (data.notification) {
         setNotifications(prev => [data.notification, ...prev]);
@@ -269,12 +266,14 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       }
     };
     
-    socket.on('new-notification', handleNewNotification);
+    socket.on('new_notification', handleNewNotification);
+    socket.on('new-notification', handleNewNotification); // legacy support
     socket.on('notification-read', handleNotificationRead);
     socket.on('all-notifications-read', handleAllRead);
     socket.on('notification-deleted', handleNotificationDeleted);
     
     return () => {
+      socket.off('new_notification', handleNewNotification);
       socket.off('new-notification', handleNewNotification);
       socket.off('notification-read', handleNotificationRead);
       socket.off('all-notifications-read', handleAllRead);

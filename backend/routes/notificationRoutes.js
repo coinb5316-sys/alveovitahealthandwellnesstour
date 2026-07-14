@@ -1,57 +1,46 @@
-// backend/routes/notificationRoutes.js
-import express from 'express';
-import { protect, admin } from '../middleware/auth.js';
+// routes/notificationRoutes.js - Alveoly Pattern (COMPLETE)
+import express from "express";
 import {
   getUserNotifications,
-  getAdminNotifications,
-  getNotificationById,
   markAsRead,
   markAllAsRead,
   deleteNotification,
-  deleteAllRead,
+  deleteAllNotifications,
+  getNotificationCount,
   getNotificationStats,
-  createSystemNotification,
-  getNotificationTypes,
-} from '../controllers/notificationController.js';
+  sendTestNotification
+} from "../controllers/notificationController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// ============================================
-// USER ROUTES (Authenticated users)
-// ============================================
+// All routes require authentication
+router.use(protect);
 
-// Get user's notifications
-router.get('/', protect, getUserNotifications);
+// ================= GET NOTIFICATIONS =================
+router.get("/", getUserNotifications);
 
-// Get notification by ID
-router.get('/:id', protect, getNotificationById);
+// ================= GET UNREAD COUNT =================
+router.get("/count", getNotificationCount);
 
-// Mark notification as read
-router.put('/:id/read', protect, markAsRead);
+// ================= GET NOTIFICATION STATS (Admin only) =================
+router.get("/stats", getNotificationStats);
 
-// Mark all as read
-router.put('/read/all', protect, markAllAsRead);
+// ================= MARK AS READ =================
+router.put("/:id/read", markAsRead);
 
-// Delete notification
-router.delete('/:id', protect, deleteNotification);
+// ================= MARK ALL AS READ =================
+router.put("/read-all", markAllAsRead);
 
-// Delete all read notifications
-router.delete('/read/all', protect, deleteAllRead);
+// ================= DELETE NOTIFICATION =================
+router.delete("/:id", deleteNotification);
 
-// Get notification stats
-router.get('/stats', protect, getNotificationStats);
+// ================= DELETE ALL NOTIFICATIONS =================
+router.delete("/delete-all", deleteAllNotifications);
 
-// Get notification types
-router.get('/types', protect, getNotificationTypes);
-
-// ============================================
-// ADMIN ROUTES
-// ============================================
-
-// Get admin notifications (all users)
-router.get('/admin', protect, admin, getAdminNotifications);
-
-// Create system notification
-router.post('/system', protect, admin, createSystemNotification);
+// ================= TEST NOTIFICATION (Development only) =================
+if (process.env.NODE_ENV === "development") {
+  router.post("/test", sendTestNotification);
+}
 
 export default router;

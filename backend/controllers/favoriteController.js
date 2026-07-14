@@ -1,8 +1,9 @@
-// backend/controllers/favoriteController.js
+// controllers/favoriteController.js - COMPLETE with Alveoly Notification Pattern
 import Favorite from '../models/Favorite.js';
 import Hotel from '../models/Hotel.js';
 import Tour from '../models/Tour.js';
 import Destination from '../models/Destination.js';
+import { createNotification } from './notificationController.js';
 
 // @desc    Get user's favorites
 // @route   GET /api/favorites
@@ -81,12 +82,20 @@ export const addFavorite = async (req, res) => {
 
     // Check if item exists
     let itemExists = false;
+    let itemName = '';
+    
     if (itemType === 'hotel') {
-      itemExists = await Hotel.exists({ _id: itemId });
+      const hotel = await Hotel.findById(itemId);
+      itemExists = !!hotel;
+      itemName = hotel?.name || 'Hotel';
     } else if (itemType === 'tour') {
-      itemExists = await Tour.exists({ _id: itemId });
+      const tour = await Tour.findById(itemId);
+      itemExists = !!tour;
+      itemName = tour?.title || 'Tour';
     } else if (itemType === 'destination') {
-      itemExists = await Destination.exists({ _id: itemId });
+      const dest = await Destination.findById(itemId);
+      itemExists = !!dest;
+      itemName = dest?.name || 'Destination';
     }
 
     if (!itemExists) {
@@ -116,18 +125,16 @@ export const addFavorite = async (req, res) => {
       itemId,
     });
 
-    // Get item details for notification
-    let itemName = '';
-    if (itemType === 'hotel') {
-      const hotel = await Hotel.findById(itemId);
-      itemName = hotel?.name || 'Hotel';
-    } else if (itemType === 'tour') {
-      const tour = await Tour.findById(itemId);
-      itemName = tour?.title || 'Tour';
-    } else if (itemType === 'destination') {
-      const dest = await Destination.findById(itemId);
-      itemName = dest?.name || 'Destination';
-    }
+    // Create notification
+    await createNotification(
+      req.user.id,
+      'user',
+      'success',
+      `❤️ Added to Favorites: ${itemName}`,
+      `You added "${itemName}" to your favorites.`,
+      `/${itemType}s/${itemId}`,
+      { itemType, itemId, action: 'favorite_added' }
+    );
 
     // Emit socket event
     if (io) {
@@ -200,6 +207,17 @@ export const removeFavorite = async (req, res) => {
 
     await favorite.deleteOne();
 
+    // Create notification
+    await createNotification(
+      req.user.id,
+      'user',
+      'info',
+      `💔 Removed from Favorites: ${itemName}`,
+      `You removed "${itemName}" from your favorites.`,
+      `/${itemType}s/${itemId}`,
+      { itemType, itemId, action: 'favorite_removed' }
+    );
+
     // Emit socket event
     if (io) {
       io.emit('favorite-removed', {
@@ -250,7 +268,31 @@ export const removeFavoriteByItem = async (req, res) => {
       });
     }
 
+    // Get item name
+    let itemName = '';
+    if (type === 'hotel') {
+      const hotel = await Hotel.findById(id);
+      itemName = hotel?.name || 'Hotel';
+    } else if (type === 'tour') {
+      const tour = await Tour.findById(id);
+      itemName = tour?.title || 'Tour';
+    } else if (type === 'destination') {
+      const dest = await Destination.findById(id);
+      itemName = dest?.name || 'Destination';
+    }
+
     await favorite.deleteOne();
+
+    // Create notification
+    await createNotification(
+      req.user.id,
+      'user',
+      'info',
+      `💔 Removed from Favorites: ${itemName}`,
+      `You removed "${itemName}" from your favorites.`,
+      `/${type}s/${id}`,
+      { itemType: type, itemId: id, action: 'favorite_removed' }
+    );
 
     // Emit socket event
     if (io) {
@@ -260,6 +302,7 @@ export const removeFavoriteByItem = async (req, res) => {
         userName: req.user.name,
         itemType: type,
         itemId: id,
+        itemName,
         timestamp: new Date(),
       });
     }

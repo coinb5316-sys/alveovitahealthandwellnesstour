@@ -1,4 +1,4 @@
-// layouts/AdminLayout.jsx - Updated with all admin menu items including Reviews
+// layouts/AdminLayout.jsx - COMPLETE with Alveoly Notification Pattern
 import { useState, useEffect } from "react";
 import { Outlet, useLocation, NavLink } from "react-router-dom";
 import {
@@ -96,6 +96,7 @@ import {
   Compass as CompassIcon
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import NotificationPanel from "../components/NotificationPanel";
 
 const AdminLayout = () => {
@@ -103,8 +104,8 @@ const AdminLayout = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notificationBadge, setNotificationBadge] = useState(3);
   const { logout, user } = useAuth();
+  const { unreadCount } = useSocket();
   const location = useLocation();
 
   useEffect(() => {
@@ -136,7 +137,6 @@ const AdminLayout = () => {
     }
   };
 
-  // Updated menuItems with Reviews section
   const menuItems = [
     { 
       section: "Dashboard", 
@@ -192,6 +192,9 @@ const AdminLayout = () => {
     if (!user?.name) return "A";
     return user.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
   };
+
+  // Get notification badge count
+  const notificationBadge = unreadCount || 0;
 
   return (
     <div className="h-full flex bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">

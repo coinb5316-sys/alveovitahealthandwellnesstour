@@ -1,3 +1,4 @@
+// src/context/SocketContext.jsx - COMPLETE with Alveoly Pattern
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
@@ -25,24 +26,21 @@ export const SocketProvider = ({ children }) => {
   const maxReconnectAttempts = 10;
 
   // ============================================
-  // FIXED: Get socket URL with proper fallbacks
+  // Get socket URL
   // ============================================
   const getSocketUrl = useCallback(() => {
-    // Try environment variable first
     const envUrl = import.meta.env.VITE_SOCKET_URL;
     if (envUrl) {
       console.log('🔌 [Socket] Using VITE_SOCKET_URL:', envUrl);
       return envUrl;
     }
     
-    // Try API URL
     const apiUrl = import.meta.env.VITE_API_URL;
     if (apiUrl) {
       console.log('🔌 [Socket] Using VITE_API_URL:', apiUrl);
       return apiUrl;
     }
     
-    // Fallback to window location
     const origin = window.location.origin;
     console.log('🔌 [Socket] Using window.location.origin:', origin);
     return origin;
@@ -79,7 +77,7 @@ export const SocketProvider = ({ children }) => {
       query: {
         userId: user?.id || '',
         userType: user?.role || 'guest',
-        platform: 'mobile'
+        platform: 'web'
       }
     });
 
@@ -87,7 +85,7 @@ export const SocketProvider = ({ children }) => {
   }, [token, user, getSocketUrl]);
 
   // ============================================
-  // Setup socket event listeners
+  // Setup socket event listeners (Alveoly Pattern)
   // ============================================
   const setupSocketListeners = useCallback((newSocket) => {
     if (!newSocket) return;
@@ -100,11 +98,18 @@ export const SocketProvider = ({ children }) => {
       reconnectAttempts.current = 0;
       
       if (user?.id) {
-        console.log('🔐 [Socket] Joining user room:', user.id);
+        console.log('🔐 [Socket] Joining user room (Alveoly pattern):', user.id);
+        // Alveoly pattern: join:user
+        newSocket.emit('join:user', user.id);
+        // Also support legacy join-user-room
         newSocket.emit('join-user-room', user.id);
+        // Join notification room
+        newSocket.emit('join:notifications', user.id);
         newSocket.emit('get-unread-count');
         
         if (user?.role === 'admin') {
+          newSocket.emit('join:admin');
+          newSocket.emit('join:admin_notifications');
           newSocket.emit('get-admin-unread-count');
         }
       }
@@ -140,9 +145,13 @@ export const SocketProvider = ({ children }) => {
       setConnectionError(null);
       
       if (user?.id) {
+        newSocket.emit('join:user', user.id);
         newSocket.emit('join-user-room', user.id);
+        newSocket.emit('join:notifications', user.id);
         newSocket.emit('get-unread-count');
         if (user?.role === 'admin') {
+          newSocket.emit('join:admin');
+          newSocket.emit('join:admin_notifications');
           newSocket.emit('get-admin-unread-count');
         }
       }
@@ -154,10 +163,11 @@ export const SocketProvider = ({ children }) => {
     });
 
     // ============================================
-    // NOTIFICATION EVENTS
+    // NOTIFICATION EVENTS (Alveoly Pattern)
     // ============================================
     
-    newSocket.on('new-notification', (data) => {
+    // Alveoly pattern: new_notification
+    newSocket.on('new_notification', (data) => {
       console.log('🔔 [Socket] New notification:', data);
       if (data.unreadCount !== undefined) {
         setUnreadCount(data.unreadCount);
@@ -166,11 +176,27 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
+    // Also support legacy new-notification
+    newSocket.on('new-notification', (data) => {
+      console.log('🔔 [Socket] New notification (legacy):', data);
+      if (data.unreadCount !== undefined) {
+        setUnreadCount(data.unreadCount);
+      } else {
+        setUnreadCount(prev => prev + 1);
+      }
+    });
+
+    // Notification read events
     newSocket.on('notification-read', (data) => {
       console.log('📖 [Socket] Notification read:', data);
       if (data.unreadCount !== undefined) {
         setUnreadCount(data.unreadCount);
       }
+    });
+
+    newSocket.on('all-notifications-read', () => {
+      console.log('✅ [Socket] All notifications read');
+      setUnreadCount(0);
     });
 
     newSocket.on('all-notifications-read', () => {
@@ -188,6 +214,7 @@ export const SocketProvider = ({ children }) => {
       setUnreadCount(0);
     });
 
+    // Unread count updates
     newSocket.on('unread-count', (data) => {
       console.log('📊 [Socket] Unread count:', data);
       if (data.count !== undefined) {
@@ -195,6 +222,7 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
+    // Admin notification events
     newSocket.on('admin-unread-count', (data) => {
       console.log('📊 [Socket] Admin unread count:', data);
       if (data.count !== undefined) {
@@ -202,15 +230,38 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
-    newSocket.on('admin-notification', (data) => {
+    newSocket.on('new_admin_notification', (data) => {
       console.log('👑 [Socket] Admin notification:', data);
       newSocket.emit('get-admin-unread-count');
+    });
+
+    newSocket.on('admin-notification', (data) => {
+      console.log('👑 [Socket] Admin notification (legacy):', data);
+      newSocket.emit('get-admin-unread-count');
+    });
+
+    // ============================================
+    // Join confirmation events
+    // ============================================
+    newSocket.on('joined:user', (data) => {
+      console.log('✅ [Socket] Joined user room:', data);
+    });
+
+    newSocket.on('joined:admin', (data) => {
+      console.log('✅ [Socket] Joined admin room:', data);
+    });
+
+    newSocket.on('joined:notifications', (data) => {
+      console.log('✅ [Socket] Joined notification room:', data);
+    });
+
+    newSocket.on('joined:admin_notifications', (data) => {
+      console.log('✅ [Socket] Joined admin notification room:', data);
     });
 
     // ============================================
     // CHAT EVENTS
     // ============================================
-    
     newSocket.on('authenticated', (data) => {
       console.log('✅ [Socket] Authenticated:', data);
       if (data.sessionId) {
@@ -257,6 +308,7 @@ export const SocketProvider = ({ children }) => {
       newSocket.off('reconnect_attempt');
       newSocket.off('reconnect');
       newSocket.off('reconnect_failed');
+      newSocket.off('new_notification');
       newSocket.off('new-notification');
       newSocket.off('notification-read');
       newSocket.off('all-notifications-read');
@@ -264,7 +316,12 @@ export const SocketProvider = ({ children }) => {
       newSocket.off('all-notifications-deleted');
       newSocket.off('unread-count');
       newSocket.off('admin-unread-count');
+      newSocket.off('new_admin_notification');
       newSocket.off('admin-notification');
+      newSocket.off('joined:user');
+      newSocket.off('joined:admin');
+      newSocket.off('joined:notifications');
+      newSocket.off('joined:admin_notifications');
       newSocket.off('authenticated');
       newSocket.off('auth_error');
       newSocket.off('chat-joined');

@@ -1,6 +1,8 @@
-// backend/controllers/socketController.js
+// controllers/socketController.js - COMPLETE with Alveoly Notification Pattern
 import ChatSession from '../models/ChatSession.js';
 import AutoReply from '../models/AutoReply.js';
+import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
 export const handleSocketConnection = (io, socket) => {
   console.log(`🟢 Socket connected: ${socket.id}`);
@@ -50,7 +52,20 @@ export const handleSocketConnection = (io, socket) => {
         session: session
       });
 
-      // Notify admin about new session
+      // Notify admins about new session
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await createNotification(
+          admin._id,
+          'admin',
+          'info',
+          `💬 New Chat Session from ${session.userName}`,
+          `${session.userName} (${session.userEmail}) started a new chat session.`,
+          `/admin/chat/${session._id}`,
+          { sessionId: session._id, action: 'new_chat_session' }
+        );
+      }
+
       io.emit('new-chat-session', {
         sessionId: session._id,
         userName: session.userName,
@@ -119,6 +134,20 @@ export const handleSocketConnection = (io, socket) => {
           askedAt: new Date(),
           resolved: false
         });
+
+        // Notify admins about unresolved question
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+          await createNotification(
+            admin._id,
+            'admin',
+            'warning',
+            `❓ Unresolved Question from ${session.userName}`,
+            `"${text}" - ${session.userName} needs assistance.`,
+            `/admin/chat/${session._id}`,
+            { sessionId: session._id, action: 'unresolved_question' }
+          );
+        }
       }
       
       session.lastMessageAt = new Date();
@@ -168,8 +197,7 @@ export const handleSocketConnection = (io, socket) => {
           message: 'Admin is typing...'
         });
 
-        // REMOVED: The long "I'm not sure about that..." message
-        // Instead, just show a brief status message
+        // Send status message
         const statusMessage = {
           sender: 'bot',
           text: "⏳ Connecting you to a team member...",
@@ -277,6 +305,19 @@ export const handleSocketConnection = (io, socket) => {
         session.status = 'resolved';
         session.closedAt = new Date();
         await session.save();
+
+        // Notify user that their chat was resolved
+        if (session.user) {
+          await createNotification(
+            session.user,
+            'user',
+            'success',
+            `✅ Chat Session Resolved`,
+            `Your chat session has been resolved. Thank you for reaching out!`,
+            `/chat/${session._id}`,
+            { sessionId: session._id, action: 'chat_resolved' }
+          );
+        }
         
         // Stop admin typing indicator
         io.to(`chat-${sessionId}`).emit('admin-typing', {

@@ -1,8 +1,9 @@
-// backend/controllers/hotelController.js
+// controllers/hotelController.js - Alveoly Pattern (COMPLETE)
 import Hotel from '../models/Hotel.js';
+import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
-// @desc    Get all hotels
-// @route   GET /api/hotels
+// ================= GET ALL HOTELS =================
 export const getHotels = async (req, res) => {
   try {
     const { page = 1, limit = 20, search, region, status, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
@@ -40,8 +41,7 @@ export const getHotels = async (req, res) => {
   }
 };
 
-// @desc    Get single hotel
-// @route   GET /api/hotels/:id
+// ================= GET SINGLE HOTEL =================
 export const getHotelById = async (req, res) => {
   try {
     const hotel = await Hotel.findById(req.params.id);
@@ -55,34 +55,41 @@ export const getHotelById = async (req, res) => {
   }
 };
 
-// @desc    Create hotel
-// @route   POST /api/hotels
+// ================= CREATE HOTEL =================
 export const createHotel = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const hotelData = {
       ...req.body,
       createdBy: req.user.id,
     };
     const hotel = await Hotel.create(hotelData);
 
-    // Emit hotel creation notification
-    if (io) {
-      io.emit('hotel-created', {
-        hotelId: hotel._id,
-        name: hotel.name,
-        region: hotel.region,
-        createdBy: req.user.name,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'success',
+        `🏨 New Hotel Created: ${hotel.name}`,
+        `Hotel "${hotel.name}" has been created in ${hotel.region}.`,
+        `/admin/hotels/${hotel._id}`,
+        { hotelId: hotel._id, action: 'hotel_created' }
+      );
+    }
 
-      io.to('admin-room').emit('admin-notification', {
-        type: 'hotel-created',
-        hotelId: hotel._id,
-        message: `New hotel "${hotel.name}" created by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify all users
+    const users = await User.find({ role: 'user' });
+    for (const user of users) {
+      await createNotification(
+        user._id,
+        'user',
+        'info',
+        `🏨 New Hotel Available: ${hotel.name}`,
+        `Discover "${hotel.name}" in ${hotel.region}. Book your stay now!`,
+        `/hotels/${hotel._id}`,
+        { hotelId: hotel._id, action: 'new_hotel' }
+      );
     }
 
     res.status(201).json({ success: true, hotel });
@@ -92,12 +99,9 @@ export const createHotel = async (req, res) => {
   }
 };
 
-// @desc    Update hotel
-// @route   PUT /api/hotels/:id
+// ================= UPDATE HOTEL =================
 export const updateHotel = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const hotel = await Hotel.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -107,22 +111,18 @@ export const updateHotel = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hotel not found' });
     }
 
-    // Emit hotel update notification
-    if (io) {
-      io.emit('hotel-updated', {
-        hotelId: hotel._id,
-        name: hotel.name,
-        region: hotel.region,
-        updatedBy: req.user.name,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'hotel-updated',
-        hotelId: hotel._id,
-        message: `Hotel "${hotel.name}" updated by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `✏️ Hotel Updated: ${hotel.name}`,
+        `Hotel "${hotel.name}" has been updated.`,
+        `/admin/hotels/${hotel._id}`,
+        { hotelId: hotel._id, action: 'hotel_updated' }
+      );
     }
 
     res.json({ success: true, hotel });
@@ -132,11 +132,9 @@ export const updateHotel = async (req, res) => {
   }
 };
 
-// @desc    Delete hotel
-// @route   DELETE /api/hotels/:id
+// ================= DELETE HOTEL =================
 export const deleteHotel = async (req, res) => {
   try {
-    const io = req.app.get('io');
     const hotel = await Hotel.findById(req.params.id);
     if (!hotel) {
       return res.status(404).json({ success: false, message: 'Hotel not found' });
@@ -145,21 +143,18 @@ export const deleteHotel = async (req, res) => {
     const hotelName = hotel.name;
     await Hotel.findByIdAndDelete(req.params.id);
 
-    // Emit hotel deletion notification
-    if (io) {
-      io.emit('hotel-deleted', {
-        hotelId: req.params.id,
-        name: hotelName,
-        deletedBy: req.user.name,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'hotel-deleted',
-        hotelId: req.params.id,
-        message: `Hotel "${hotelName}" deleted by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'warning',
+        `🗑️ Hotel Deleted: ${hotelName}`,
+        `Hotel "${hotelName}" has been deleted.`,
+        `/admin/hotels`,
+        { hotelId: req.params.id, action: 'hotel_deleted' }
+      );
     }
 
     res.json({ success: true, message: 'Hotel deleted successfully' });

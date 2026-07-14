@@ -1,8 +1,9 @@
-// backend/controllers/tourController.js
+// controllers/tourController.js - Alveoly Pattern (COMPLETE)
 import Tour from '../models/Tour.js';
+import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
-// @desc    Get all tours
-// @route   GET /api/tours
+// ================= GET ALL TOURS =================
 export const getTours = async (req, res) => {
   try {
     const { page = 1, limit = 20, search, region, type, status, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
@@ -41,8 +42,7 @@ export const getTours = async (req, res) => {
   }
 };
 
-// @desc    Get single tour
-// @route   GET /api/tours/:id
+// ================= GET SINGLE TOUR =================
 export const getTourById = async (req, res) => {
   try {
     const tour = await Tour.findById(req.params.id);
@@ -56,34 +56,41 @@ export const getTourById = async (req, res) => {
   }
 };
 
-// @desc    Create tour
-// @route   POST /api/tours
+// ================= CREATE TOUR =================
 export const createTour = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const tourData = {
       ...req.body,
       createdBy: req.user.id,
     };
     const tour = await Tour.create(tourData);
 
-    // Emit tour creation notification
-    if (io) {
-      io.emit('tour-created', {
-        tourId: tour._id,
-        title: tour.title,
-        region: tour.region,
-        createdBy: req.user.name,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'success',
+        `📌 New Tour Created: ${tour.title}`,
+        `Tour "${tour.title}" has been created in ${tour.region}.`,
+        `/admin/tours/${tour._id}`,
+        { tourId: tour._id, action: 'tour_created' }
+      );
+    }
 
-      io.to('admin-room').emit('admin-notification', {
-        type: 'tour-created',
-        tourId: tour._id,
-        message: `New tour "${tour.title}" created by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify all users (bulk notification)
+    const users = await User.find({ role: 'user' });
+    for (const user of users) {
+      await createNotification(
+        user._id,
+        'user',
+        'info',
+        `🌍 New Tour Available: ${tour.title}`,
+        `Explore "${tour.title}" in ${tour.region}. Book now!`,
+        `/tours/${tour._id}`,
+        { tourId: tour._id, action: 'new_tour' }
+      );
     }
 
     res.status(201).json({ success: true, tour });
@@ -93,12 +100,9 @@ export const createTour = async (req, res) => {
   }
 };
 
-// @desc    Update tour
-// @route   PUT /api/tours/:id
+// ================= UPDATE TOUR =================
 export const updateTour = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const tour = await Tour.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -108,22 +112,18 @@ export const updateTour = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Tour not found' });
     }
 
-    // Emit tour update notification
-    if (io) {
-      io.emit('tour-updated', {
-        tourId: tour._id,
-        title: tour.title,
-        region: tour.region,
-        updatedBy: req.user.name,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'tour-updated',
-        tourId: tour._id,
-        message: `Tour "${tour.title}" updated by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `✏️ Tour Updated: ${tour.title}`,
+        `Tour "${tour.title}" has been updated.`,
+        `/admin/tours/${tour._id}`,
+        { tourId: tour._id, action: 'tour_updated' }
+      );
     }
 
     res.json({ success: true, tour });
@@ -133,11 +133,9 @@ export const updateTour = async (req, res) => {
   }
 };
 
-// @desc    Delete tour
-// @route   DELETE /api/tours/:id
+// ================= DELETE TOUR =================
 export const deleteTour = async (req, res) => {
   try {
-    const io = req.app.get('io');
     const tour = await Tour.findById(req.params.id);
     if (!tour) {
       return res.status(404).json({ success: false, message: 'Tour not found' });
@@ -146,21 +144,18 @@ export const deleteTour = async (req, res) => {
     const tourTitle = tour.title;
     await Tour.findByIdAndDelete(req.params.id);
 
-    // Emit tour deletion notification
-    if (io) {
-      io.emit('tour-deleted', {
-        tourId: req.params.id,
-        title: tourTitle,
-        deletedBy: req.user.name,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'tour-deleted',
-        tourId: req.params.id,
-        message: `Tour "${tourTitle}" deleted by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'warning',
+        `🗑️ Tour Deleted: ${tourTitle}`,
+        `Tour "${tourTitle}" has been deleted.`,
+        `/admin/tours`,
+        { tourId: req.params.id, action: 'tour_deleted' }
+      );
     }
 
     res.json({ success: true, message: 'Tour deleted successfully' });

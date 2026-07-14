@@ -1,8 +1,9 @@
-// backend/controllers/destinationController.js
+// controllers/destinationController.js - Alveoly Pattern (COMPLETE)
 import Destination from '../models/Destination.js';
+import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
-// @desc    Get all destinations
-// @route   GET /api/destinations
+// ================= GET ALL DESTINATIONS =================
 export const getDestinations = async (req, res) => {
   try {
     const { page = 1, limit = 20, search, region, category, status, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
@@ -41,8 +42,7 @@ export const getDestinations = async (req, res) => {
   }
 };
 
-// @desc    Get single destination
-// @route   GET /api/destinations/:id
+// ================= GET SINGLE DESTINATION =================
 export const getDestinationById = async (req, res) => {
   try {
     const destination = await Destination.findById(req.params.id);
@@ -56,34 +56,41 @@ export const getDestinationById = async (req, res) => {
   }
 };
 
-// @desc    Create destination
-// @route   POST /api/destinations
+// ================= CREATE DESTINATION =================
 export const createDestination = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const destinationData = {
       ...req.body,
       createdBy: req.user.id,
     };
     const destination = await Destination.create(destinationData);
 
-    // Emit destination creation notification
-    if (io) {
-      io.emit('destination-created', {
-        destinationId: destination._id,
-        name: destination.name,
-        region: destination.region,
-        createdBy: req.user.name,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'success',
+        `📍 New Destination Created: ${destination.name}`,
+        `Destination "${destination.name}" has been created in ${destination.region}.`,
+        `/admin/destinations/${destination._id}`,
+        { destinationId: destination._id, action: 'destination_created' }
+      );
+    }
 
-      io.to('admin-room').emit('admin-notification', {
-        type: 'destination-created',
-        destinationId: destination._id,
-        message: `New destination "${destination.name}" created by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify all users
+    const users = await User.find({ role: 'user' });
+    for (const user of users) {
+      await createNotification(
+        user._id,
+        'user',
+        'info',
+        `📍 New Destination: ${destination.name}`,
+        `Explore "${destination.name}" in ${destination.region}. Plan your visit!`,
+        `/destinations/${destination._id}`,
+        { destinationId: destination._id, action: 'new_destination' }
+      );
     }
 
     res.status(201).json({ success: true, destination });
@@ -93,12 +100,9 @@ export const createDestination = async (req, res) => {
   }
 };
 
-// @desc    Update destination
-// @route   PUT /api/destinations/:id
+// ================= UPDATE DESTINATION =================
 export const updateDestination = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const destination = await Destination.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -108,22 +112,18 @@ export const updateDestination = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Destination not found' });
     }
 
-    // Emit destination update notification
-    if (io) {
-      io.emit('destination-updated', {
-        destinationId: destination._id,
-        name: destination.name,
-        region: destination.region,
-        updatedBy: req.user.name,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'destination-updated',
-        destinationId: destination._id,
-        message: `Destination "${destination.name}" updated by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `✏️ Destination Updated: ${destination.name}`,
+        `Destination "${destination.name}" has been updated.`,
+        `/admin/destinations/${destination._id}`,
+        { destinationId: destination._id, action: 'destination_updated' }
+      );
     }
 
     res.json({ success: true, destination });
@@ -133,11 +133,9 @@ export const updateDestination = async (req, res) => {
   }
 };
 
-// @desc    Delete destination
-// @route   DELETE /api/destinations/:id
+// ================= DELETE DESTINATION =================
 export const deleteDestination = async (req, res) => {
   try {
-    const io = req.app.get('io');
     const destination = await Destination.findById(req.params.id);
     if (!destination) {
       return res.status(404).json({ success: false, message: 'Destination not found' });
@@ -146,21 +144,18 @@ export const deleteDestination = async (req, res) => {
     const destinationName = destination.name;
     await Destination.findByIdAndDelete(req.params.id);
 
-    // Emit destination deletion notification
-    if (io) {
-      io.emit('destination-deleted', {
-        destinationId: req.params.id,
-        name: destinationName,
-        deletedBy: req.user.name,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'destination-deleted',
-        destinationId: req.params.id,
-        message: `Destination "${destinationName}" deleted by ${req.user.name}`,
-        timestamp: new Date()
-      });
+    // Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'warning',
+        `🗑️ Destination Deleted: ${destinationName}`,
+        `Destination "${destinationName}" has been deleted.`,
+        `/admin/destinations`,
+        { destinationId: req.params.id, action: 'destination_deleted' }
+      );
     }
 
     res.json({ success: true, message: 'Destination deleted successfully' });

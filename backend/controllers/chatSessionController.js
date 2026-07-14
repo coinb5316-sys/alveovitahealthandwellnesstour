@@ -1,6 +1,7 @@
-// backend/controllers/chatSessionController.js
+// controllers/chatSessionController.js - COMPLETE with Alveoly Notification Pattern
 import ChatSession from '../models/ChatSession.js';
 import AutoReply from '../models/AutoReply.js';
+import { createNotification } from './notificationController.js';
 
 // @desc    Create a new chat session
 // @route   POST /api/chat-sessions
@@ -22,6 +23,20 @@ export const createChatSession = async (req, res) => {
       openedAt: new Date(),
       lastMessageAt: new Date()
     });
+
+    // Create notification for admins about new chat session
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `💬 New Chat Session from ${name}`,
+        `${name} (${email}) started a new chat session.`,
+        `/admin/chat/${session._id}`,
+        { sessionId: session._id, action: 'new_chat_session' }
+      );
+    }
 
     res.status(201).json({
       success: true,
@@ -76,6 +91,20 @@ export const addMessage = async (req, res) => {
         askedAt: new Date(),
         resolved: false
       });
+
+      // Notify admins about unresolved question
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await createNotification(
+          admin._id,
+          'admin',
+          'warning',
+          `❓ Unresolved Question from ${session.userName}`,
+          `"${text}" - ${session.userName} (${session.userEmail}) needs assistance.`,
+          `/admin/chat/${session._id}`,
+          { sessionId: session._id, action: 'unresolved_question' }
+        );
+      }
     }
 
     await session.save();
@@ -178,6 +207,19 @@ export const updateChatSessionStatus = async (req, res) => {
     session.status = status;
     if (status === 'closed' || status === 'resolved') {
       session.closedAt = new Date();
+
+      // Notify user that their chat was resolved
+      if (session.user) {
+        await createNotification(
+          session.user,
+          'user',
+          'success',
+          `✅ Chat Session Resolved`,
+          `Your chat session has been resolved. Thank you for reaching out!`,
+          `/chat/${session._id}`,
+          { sessionId: session._id, action: 'chat_resolved' }
+        );
+      }
     }
     await session.save();
 

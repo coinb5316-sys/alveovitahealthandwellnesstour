@@ -1,56 +1,9 @@
-// backend/controllers/bookingController.js
+// controllers/bookingController.js - COMPLETE with Alveoly Notification Pattern
 import Booking from '../models/Booking.js';
 import Revenue from '../models/Revenue.js';
 import Tour from '../models/Tour.js';
 import Hotel from '../models/Hotel.js';
-import Notification from '../models/Notification.js';
-import mongoose from 'mongoose';
-
-// ============================================
-// NOTIFICATION HELPERS
-// ============================================
-
-const createBookingNotification = async (io, userId, booking, status, additionalData = {}) => {
-  try {
-    const itemName = booking.tourTitle || booking.hotelName || 'Alveovita';
-    const type = booking.type || 'tour';
-    
-    const notificationData = {
-      user: userId,
-      type: 'booking',
-      title: `Booking ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-      message: `Your ${type} booking for "${itemName}" has been ${status}`,
-      icon: 'Calendar',
-      color: status === 'confirmed' || status === 'completed' ? 'text-green-500' : 
-             status === 'cancelled' ? 'text-red-500' : 'text-amber-500',
-      bgColor: status === 'confirmed' || status === 'completed' ? 'bg-green-500/10' : 
-               status === 'cancelled' ? 'bg-red-500/10' : 'bg-amber-500/10',
-      actionUrl: `/bookings/${booking._id}`,
-      actionLabel: 'View Booking',
-      priority: status === 'confirmed' || status === 'cancelled' ? 'high' : 'medium',
-      metadata: { 
-        bookingId: booking._id,
-        status,
-        ...additionalData 
-      }
-    };
-    
-    const notification = await Notification.create(notificationData);
-    
-    if (io) {
-      const unreadCount = await Notification.getUnreadCount(userId);
-      io.to(`user-${userId}`).emit('new-notification', {
-        notification,
-        unreadCount
-      });
-    }
-    
-    return notification;
-  } catch (error) {
-    console.error('❌ Create booking notification error:', error);
-    return null;
-  }
-};
+import { createNotification } from './notificationController.js';
 
 // ============================================
 // CONTROLLER FUNCTIONS
@@ -339,8 +292,6 @@ export const deleteBooking = async (req, res) => {
 
 export const completeBooking = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
       { 
@@ -354,8 +305,27 @@ export const completeBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // Create notification
-    await createBookingNotification(io, booking.user, booking, 'completed');
+    // Create notification for user
+    await createNotification(
+      booking.user,
+      'user',
+      "success",
+      `✅ Booking Completed: ${booking.tourTitle || booking.hotelName || 'Booking'}`,
+      `Your booking has been marked as completed. Thank you for choosing Alveovita!`,
+      `/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_completed" }
+    );
+
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "success",
+      `✅ Booking Completed: #${booking._id.toString().slice(-6)}`,
+      `Booking for ${booking.customerName} has been marked as completed.`,
+      `/admin/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_completed_admin" }
+    );
 
     console.log(`✅ Booking ${booking._id} marked as completed`);
 
@@ -394,8 +364,6 @@ export const getBookingById = async (req, res) => {
 
 export const createBooking = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const bookingData = {
       ...req.body,
       user: req.user.id,
@@ -406,8 +374,30 @@ export const createBooking = async (req, res) => {
     const booking = await Booking.create(bookingData);
     await booking.populate('user', 'name email');
 
-    // Create notification for new booking
-    await createBookingNotification(io, req.user.id, booking, 'pending');
+    // Create notification for user
+    await createNotification(
+      req.user.id,
+      'user',
+      "info",
+      `📅 New Booking Created: ${booking.tourTitle || booking.hotelName || 'Booking'}`,
+      `Your booking has been created and is pending confirmation.`,
+      `/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_created" }
+    );
+
+    // Create notification for admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        "info",
+        `📅 New Booking: ${booking.customerName}`,
+        `${booking.customerName} booked ${booking.tourTitle || booking.hotelName || 'a service'}.`,
+        `/admin/bookings/${booking._id}`,
+        { bookingId: booking._id, action: "new_booking_admin" }
+      );
+    }
 
     console.log(`✅ Booking created successfully: ${booking._id}`);
 
@@ -424,7 +414,6 @@ export const createBooking = async (req, res) => {
 
 export const updateBookingStatus = async (req, res) => {
   try {
-    const io = req.app.get('io');
     const { status } = req.body;
     
     const booking = await Booking.findByIdAndUpdate(
@@ -444,8 +433,34 @@ export const updateBookingStatus = async (req, res) => {
       );
     }
 
-    // Create notification for status change
-    await createBookingNotification(io, booking.user, booking, status);
+    // Create notification for user
+    const statusMessages = {
+      confirmed: 'Your booking has been confirmed! 🎉',
+      pending: 'Your booking is pending confirmation.',
+      cancelled: 'Your booking has been cancelled.',
+      completed: 'Your booking has been completed. Thank you!'
+    };
+
+    await createNotification(
+      booking.user,
+      'user',
+      status === 'confirmed' ? "success" : status === 'cancelled' ? "warning" : "info",
+      `📊 Booking ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+      statusMessages[status] || `Your booking status has been updated to ${status}.`,
+      `/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_status_update", status }
+    );
+
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "info",
+      `✅ Booking Status Updated: #${booking._id.toString().slice(-6)}`,
+      `Booking for ${booking.customerName} is now ${status}.`,
+      `/admin/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_status_admin", status }
+    );
 
     console.log(`✅ Booking ${booking._id} status updated to: ${status}`);
 
@@ -462,8 +477,6 @@ export const updateBookingStatus = async (req, res) => {
 
 export const cancelBooking = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
       { status: 'cancelled' },
@@ -479,8 +492,27 @@ export const cancelBooking = async (req, res) => {
       { status: 'refunded' }
     );
 
-    // Create cancellation notification
-    await createBookingNotification(io, booking.user, booking, 'cancelled');
+    // Create notification for user
+    await createNotification(
+      booking.user,
+      'user',
+      "warning",
+      `❌ Booking Cancelled: ${booking.tourTitle || booking.hotelName || 'Booking'}`,
+      `Your booking has been cancelled. Please contact support if you have any questions.`,
+      `/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_cancelled" }
+    );
+
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "warning",
+      `❌ Booking Cancelled: #${booking._id.toString().slice(-6)}`,
+      `Booking for ${booking.customerName} has been cancelled.`,
+      `/admin/bookings/${booking._id}`,
+      { bookingId: booking._id, action: "booking_cancelled_admin" }
+    );
 
     console.log(`✅ Booking ${booking._id} cancelled`);
 

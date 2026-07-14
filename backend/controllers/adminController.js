@@ -1,6 +1,6 @@
-// backend/controllers/adminController.js
+// controllers/adminController.js - COMPLETE with Alveoly Notification Pattern
 import User from '../models/User.js';
-import bcrypt from 'bcryptjs';
+import { createNotification } from './notificationController.js';
 
 // @desc    Get all users (Admin only)
 // @route   GET /api/admin/users
@@ -84,7 +84,6 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { name, email, role, phone, location, bio, status } = req.body;
-    const io = req.app.get('io');
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -107,27 +106,27 @@ export const updateUser = async (req, res) => {
 
     const updatedUser = await User.findById(req.params.id).select('-password -refreshTokens');
 
-    // Emit user update notification
-    if (io) {
-      io.emit('user-updated', {
-        userId: user._id,
-        userName: user.name,
-        userEmail: user.email,
-        role: user.role,
-        status: user.status,
-        updatedBy: req.user.id,
-        timestamp: new Date()
-      });
+    // Create notification for user
+    await createNotification(
+      user._id,
+      user.role,
+      "info",
+      "👤 Profile Updated by Admin",
+      `Your profile has been updated by an administrator.`,
+      "/profile",
+      { action: "admin_profile_update", adminId: req.user.id }
+    );
 
-      // Also emit to admin room
-      io.to('admin-room').emit('admin-notification', {
-        type: 'user-updated',
-        userId: user._id,
-        userName: user.name,
-        message: `${user.name} was updated by ${req.user.name}`,
-        timestamp: new Date()
-      });
-    }
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "success",
+      `✅ User Updated: ${user.name}`,
+      `You successfully updated ${user.name}'s profile.`,
+      `/admin/users/${user._id}`,
+      { action: "user_updated", userId: user._id }
+    );
 
     res.json({
       success: true,
@@ -166,27 +165,21 @@ export const deleteUser = async (req, res) => {
       }
     }
 
-    const io = req.app.get('io');
     const deletedUserName = user.name;
+    const deletedUserId = user._id;
 
     await User.findByIdAndDelete(req.params.id);
 
-    // Emit user deletion notification
-    if (io) {
-      io.emit('user-deleted', {
-        userId: req.params.id,
-        userName: deletedUserName,
-        deletedBy: req.user.id,
-        timestamp: new Date()
-      });
-
-      io.to('admin-room').emit('admin-notification', {
-        type: 'user-deleted',
-        userName: deletedUserName,
-        message: `${deletedUserName} was deleted by ${req.user.name}`,
-        timestamp: new Date()
-      });
-    }
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "warning",
+      `🗑️ User Deleted: ${deletedUserName}`,
+      `You successfully deleted ${deletedUserName}'s account.`,
+      `/admin/users`,
+      { action: "user_deleted", userId: deletedUserId }
+    );
 
     res.json({
       success: true,
@@ -206,7 +199,6 @@ export const deleteUser = async (req, res) => {
 export const updateUserRole = async (req, res) => {
   try {
     const { role } = req.body;
-    const io = req.app.get('io');
 
     if (!role || !['user', 'admin'].includes(role)) {
       return res.status(400).json({
@@ -240,25 +232,27 @@ export const updateUserRole = async (req, res) => {
 
     const updatedUser = await User.findById(req.params.id).select('-password -refreshTokens');
 
-    // Emit role change notification
-    if (io) {
-      io.emit('user-role-changed', {
-        userId: user._id,
-        userName: user.name,
-        oldRole: oldRole,
-        newRole: role,
-        updatedBy: req.user.id,
-        timestamp: new Date()
-      });
+    // Create notification for user
+    await createNotification(
+      user._id,
+      user.role,
+      "info",
+      "🔄 Role Updated",
+      `Your account role has been changed from ${oldRole} to ${role}.`,
+      "/profile",
+      { action: "role_change", oldRole, newRole: role }
+    );
 
-      io.to('admin-room').emit('admin-notification', {
-        type: 'user-role-changed',
-        userId: user._id,
-        userName: user.name,
-        message: `${user.name}'s role changed from ${oldRole} to ${role} by ${req.user.name}`,
-        timestamp: new Date()
-      });
-    }
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "success",
+      `✅ Role Changed: ${user.name}`,
+      `You changed ${user.name}'s role from ${oldRole} to ${role}.`,
+      `/admin/users/${user._id}`,
+      { action: "role_changed", userId: user._id, oldRole, newRole: role }
+    );
 
     res.json({
       success: true,
@@ -279,7 +273,6 @@ export const updateUserRole = async (req, res) => {
 export const updateUserStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const io = req.app.get('io');
 
     if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
       return res.status(400).json({
@@ -307,31 +300,33 @@ export const updateUserStatus = async (req, res) => {
       }
     }
 
-    const oldStatus = user.status;
+    const oldStatus = user.status || 'active';
     user.status = status;
     await user.save();
 
     const updatedUser = await User.findById(req.params.id).select('-password -refreshTokens');
 
-    // Emit status change notification
-    if (io) {
-      io.emit('user-status-changed', {
-        userId: user._id,
-        userName: user.name,
-        oldStatus: oldStatus,
-        newStatus: status,
-        updatedBy: req.user.id,
-        timestamp: new Date()
-      });
+    // Create notification for user
+    await createNotification(
+      user._id,
+      user.role,
+      status === 'active' ? "success" : "warning",
+      `📊 Account ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+      `Your account has been ${status} by an administrator.`,
+      "/profile",
+      { action: "status_change", oldStatus, newStatus: status }
+    );
 
-      io.to('admin-room').emit('admin-notification', {
-        type: 'user-status-changed',
-        userId: user._id,
-        userName: user.name,
-        message: `${user.name}'s status changed from ${oldStatus} to ${status} by ${req.user.name}`,
-        timestamp: new Date()
-      });
-    }
+    // Create notification for admin
+    await createNotification(
+      req.user.id,
+      "admin",
+      "info",
+      `✅ Status Changed: ${user.name}`,
+      `You changed ${user.name}'s status from ${oldStatus} to ${status}.`,
+      `/admin/users/${user._id}`,
+      { action: "status_changed", userId: user._id, oldStatus, newStatus: status }
+    );
 
     res.json({
       success: true,

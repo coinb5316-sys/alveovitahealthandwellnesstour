@@ -1,4 +1,4 @@
-// server.js
+// server.js - COMPLETE (Alveoly Pattern + All Original Configurations)
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -83,7 +83,7 @@ const io = new SocketServer(server, {
   }
 });
 
-// ==================== SOCKET.IO AUTHENTICATION MIDDLEWARE (FIXED) ====================
+// ==================== SOCKET.IO AUTHENTICATION MIDDLEWARE ====================
 io.use(async (socket, next) => {
   try {
     // Get token from multiple possible sources
@@ -126,7 +126,7 @@ io.use(async (socket, next) => {
     // Attach user to socket
     socket.userId = user.id;
     socket.user = user;
-    socket.userData = user; // Keep a copy for reference
+    socket.userData = user;
     
     console.log(`✅ Socket authenticated: ${user.name} (${user.id}) - Role: ${user.role}`);
     
@@ -139,7 +139,7 @@ io.use(async (socket, next) => {
   }
 });
 
-// ==================== SOCKET.IO CONNECTION HANDLER (FIXED) ====================
+// ==================== SOCKET.IO CONNECTION HANDLER ====================
 io.on('connection', (socket) => {
   console.log(`🟢 Socket connected: ${socket.id} - User: ${socket.userId}`);
   
@@ -148,57 +148,47 @@ io.on('connection', (socket) => {
     socket.userId = socket.user.id;
   }
   
-  // Join user's personal room for notifications
-  if (socket.userId) {
-    socket.join(`user-${socket.userId}`);
-    console.log(`📌 User ${socket.userId} joined their personal room`);
-    
-    // Send initial unread count with better error handling
-    Notification.countDocuments({
-      user: socket.userId,
-      read: false,
-      isDeleted: false
-    })
-    .then(count => {
-      socket.emit('unread-count', { count });
-      console.log(`📊 Sent initial unread count: ${count} to user ${socket.userId}`);
-    })
-    .catch(err => {
-      console.error('❌ Error getting unread count:', err);
-      socket.emit('unread-count', { count: 0, error: true });
-    });
-  }
-  
-  // Join admin room if user is admin
-  if (socket.user?.role === 'admin') {
-    socket.join('admin-room');
-    console.log(`👑 Admin ${socket.userId} joined admin room`);
-    
-    // Send admin stats
-    Notification.countDocuments({
-      read: false,
-      isDeleted: false
-    })
-    .then(count => {
-      socket.emit('admin-unread-count', { count });
-      console.log(`📊 Sent admin unread count: ${count}`);
-    })
-    .catch(err => {
-      console.error('❌ Error getting admin unread count:', err);
-    });
-  }
-  
-  // Handle joining user room manually (for reconnection scenarios)
+  // ================= USER ROOM JOINING (ALVEOLY PATTERN) =================
+  socket.on("join:user", (userId) => {
+    if (!userId) return;
+    socket.join(userId.toString());
+    console.log(`👤 User ${userId} joined room: ${userId}`);
+    socket.emit("joined:user", { userId, success: true });
+  });
+
+  socket.on("join:admin", () => {
+    socket.join("admin");
+    socket.join("admin_notifications");
+    console.log("🛠️ Admin joined admin rooms");
+    socket.emit("joined:admin", { success: true });
+  });
+
+  // ================= NOTIFICATION ROOMS (ALVEOLY PATTERN) =================
+  socket.on("join:notifications", (userId) => {
+    if (userId) {
+      socket.join(`user_${userId}`);
+      console.log(`📢 User ${userId} joined notification room`);
+      socket.emit("joined:notifications", { success: true });
+    }
+  });
+
+  socket.on("join:admin_notifications", () => {
+    socket.join("admin_notifications");
+    console.log("📢 Admin joined admin notification room");
+    socket.emit("joined:admin_notifications", { success: true });
+  });
+
+  // ================= LEGACY SUPPORT (for existing frontend) =================
   socket.on('join-user-room', (userId) => {
     if (socket.userId === userId) {
       socket.join(`user-${userId}`);
+      socket.join(userId.toString());
       console.log(`📌 User ${userId} manually joined their room`);
       
       // Send fresh unread count
       Notification.countDocuments({
-        user: userId,
-        read: false,
-        isDeleted: false
+        userId: userId,
+        read: false
       })
       .then(count => {
         socket.emit('unread-count', { count });
@@ -210,17 +200,14 @@ io.on('connection', (socket) => {
       console.log(`⚠️ User ${socket.userId} tried to join room for ${userId} - Access denied`);
     }
   });
-  
-  // ==================== NOTIFICATION EVENT HANDLERS (FIXED) ====================
-  
-  // Handle getting unread count
+
+  // ================= GET UNREAD COUNT =================
   socket.on('get-unread-count', async () => {
     if (socket.userId) {
       try {
         const count = await Notification.countDocuments({
-          user: socket.userId,
-          read: false,
-          isDeleted: false
+          userId: socket.userId,
+          read: false
         });
         socket.emit('unread-count', { count });
         console.log(`📊 User ${socket.userId} unread count: ${count}`);
@@ -234,13 +221,12 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Handle getting admin unread count
+  // ================= GET ADMIN UNREAD COUNT =================
   socket.on('get-admin-unread-count', async () => {
     if (socket.user?.role === 'admin') {
       try {
         const count = await Notification.countDocuments({
-          read: false,
-          isDeleted: false
+          read: false
         });
         socket.emit('admin-unread-count', { count });
         console.log(`📊 Admin unread count: ${count}`);
@@ -253,53 +239,8 @@ io.on('connection', (socket) => {
       socket.emit('admin-unread-count', { count: 0, error: true });
     }
   });
-  
-  // ==================== NOTIFICATION EMIT HELPERS ====================
-  
-  // Helper function to emit a new notification to a user
-  const emitNewNotification = async (userId, notification) => {
-    try {
-      const unreadCount = await Notification.countDocuments({
-        user: userId,
-        read: false,
-        isDeleted: false
-      });
-      
-      io.to(`user-${userId}`).emit('new-notification', {
-        notification,
-        unreadCount
-      });
-      
-      console.log(`🔔 Sent new notification to user ${userId}: ${notification.title}`);
-    } catch (error) {
-      console.error('❌ Error emitting new notification:', error);
-    }
-  };
-  
-  // Helper function to update unread count for a user
-  const updateUnreadCount = async (userId) => {
-    try {
-      const count = await Notification.countDocuments({
-        user: userId,
-        read: false,
-        isDeleted: false
-      });
-      io.to(`user-${userId}`).emit('unread-count', { count });
-      return count;
-    } catch (error) {
-      console.error('❌ Error updating unread count:', error);
-      return 0;
-    }
-  };
-  
-  // Store helpers on socket for use in controllers
-  socket.emitNewNotification = emitNewNotification;
-  socket.updateUnreadCount = updateUnreadCount;
-  
-  // Setup chat handlers
-  setupSocketIO(io, socket);
-  
-  // Handle disconnect
+
+  // ================= DISCONNECT =================
   socket.on('disconnect', () => {
     console.log(`🔴 Socket disconnected: ${socket.id} - User: ${socket.userId}`);
     if (socket.sessionId) {
@@ -310,11 +251,29 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Handle errors
   socket.on('error', (error) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
   });
 });
+
+// ================= HELPER FUNCTIONS (ALVEOLY PATTERN) =================
+export const emitNotification = (userId, notification) => {
+  io.to(userId.toString()).emit("new_notification", notification);
+  io.to(`user_${userId}`).emit("new_notification", notification);
+};
+
+export const emitAdminNotification = (notification) => {
+  io.to("admin").emit("new_admin_notification", notification);
+  io.to("admin_notifications").emit("new_admin_notification", notification);
+};
+
+export const emitToRoom = (room, event, data) => {
+  io.to(room).emit(event, data);
+};
+
+export const emitToAll = (event, data) => {
+  io.emit(event, data);
+};
 
 // Make io accessible to routes
 app.set('io', io);
@@ -601,7 +560,7 @@ app.get('/api/test/socket', (req, res) => {
   });
 });
 
-// ==================== TEST NOTIFICATIONS ENDPOINT (NEW) ====================
+// ==================== TEST NOTIFICATIONS ENDPOINT ====================
 app.get('/api/test/notifications', async (req, res) => {
   try {
     const total = await Notification.countDocuments({ isDeleted: false });
@@ -801,7 +760,7 @@ const startServer = async () => {
       
       console.log('');
       console.log('🚀 =========================================');
-      console.log('🚀 TourVibe Backend Server');
+      console.log('🚀 Alveovita Backend Server');
       console.log('🚀 =========================================');
       console.log(`📍 Server running on port: ${PORT}`);
       console.log(`🔗 API URL: ${baseUrl}/api`);
@@ -809,6 +768,12 @@ const startServer = async () => {
       console.log(`🔒 CORS: Allow all origins (mobile compatible)`);
       console.log(`🔐 Socket Auth: JWT token required`);
       console.log('🚀 =========================================');
+      console.log('');
+      console.log('📢 Notification System (Alveoly Pattern):');
+      console.log('   - User rooms: userId, user_{userId}');
+      console.log('   - Admin rooms: admin, admin_notifications');
+      console.log('   - Events: new_notification, new_admin_notification');
+      console.log('   - Helper: emitNotification(), emitAdminNotification()');
       console.log('');
       console.log('📡 Available Endpoints:');
       console.log(`  🏥 Health Check:       GET  ${baseUrl}/api/health`);
@@ -833,14 +798,13 @@ const startServer = async () => {
       console.log(`  📡  Socket Status:   GET  ${baseUrl}/api/socket-status`);
       console.log('');
       console.log('📡 Socket.IO Events:');
-      console.log(`  📤 join-user-room    - Join user notification room`);
+      console.log(`  📤 join:user         - Join user room (Alveoly pattern)`);
+      console.log(`  📤 join:admin        - Join admin room (Alveoly pattern)`);
+      console.log(`  📤 join:notifications - Join notification room (Alveoly pattern)`);
+      console.log(`  📤 join:admin_notifications - Join admin notification room (Alveoly pattern)`);
       console.log(`  📤 get-unread-count  - Get unread notification count`);
       console.log(`  📤 get-admin-unread-count - Get admin unread count`);
-      console.log(`  📤 join-chat         - Join a chat room`);
-      console.log(`  📤 send-message      - Send a message`);
-      console.log(`  📤 admin-message     - Send admin message`);
-      console.log(`  📤 typing            - Typing indicator`);
-      console.log(`  📤 resolve-session   - Resolve chat session`);
+      console.log(`  📤 join-user-room    - Legacy user room join`);
       console.log(`  📥 new-notification  - Receive new notification`);
       console.log(`  📥 notification-read - Notification read`);
       console.log(`  📥 all-notifications-read - All read`);
@@ -848,11 +812,6 @@ const startServer = async () => {
       console.log(`  📥 unread-count      - Unread count update`);
       console.log(`  📥 admin-unread-count - Admin unread count`);
       console.log(`  📥 admin-notification - Admin notification`);
-      console.log(`  📥 new-message       - Receive new message`);
-      console.log(`  📥 user-typing       - Receive typing indicator`);
-      console.log(`  📥 chat-joined       - Chat joined confirmation`);
-      console.log(`  📥 session-resolved  - Session resolved`);
-      console.log(`  📥 chat-error        - Error message`);
       console.log('');
       console.log('🚀 =========================================');
       console.log('✅ Server ready! Waiting for requests...');
@@ -869,7 +828,7 @@ const startServer = async () => {
 // Start the server
 startServer();
 
-// Graceful shutdown
+// ==================== GRACEFUL SHUTDOWN ====================
 const shutdown = () => {
   console.log('');
   console.log('🛑 Shutting down gracefully...');

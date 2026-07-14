@@ -1,4 +1,4 @@
-// layouts/UserLayout.jsx - Updated with user menu items
+// layouts/UserLayout.jsx - COMPLETE with Alveoly Notification Pattern
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
@@ -17,6 +17,7 @@ import {
   Palmtree
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import NotificationPanel from "../components/NotificationPanel";
 
 const UserLayout = () => {
@@ -24,8 +25,8 @@ const UserLayout = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notificationBadge, setNotificationBadge] = useState(3);
   const { logout, user } = useAuth();
+  const { unreadCount } = useSocket();
   const location = useLocation();
 
   useEffect(() => {
@@ -75,6 +76,9 @@ const UserLayout = () => {
     if (!user?.name) return "U";
     return user.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
   };
+
+  // Get notification badge count
+  const notificationBadge = unreadCount || 0;
 
   return (
     <div className="h-full flex bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">

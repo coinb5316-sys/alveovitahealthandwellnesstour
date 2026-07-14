@@ -1,6 +1,8 @@
-// backend/controllers/contactController.js
+// controllers/contactController.js - COMPLETE with Alveoly Notification Pattern
 import Contact from '../models/Contact.js';
 import nodemailer from 'nodemailer';
+import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
 // @desc    Submit contact form
 // @route   POST /api/contact
@@ -83,6 +85,20 @@ export const submitContact = async (req, res) => {
       });
     } catch (autoReplyError) {
       console.error('Auto-reply error:', autoReplyError);
+    }
+
+    // Create notification for admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `📩 New Contact Message from ${name}`,
+        `${name} (${email}) sent a message: "${subject}"`,
+        `/admin/contact/${contact._id}`,
+        { contactId: contact._id, action: 'new_contact' }
+      );
     }
 
     res.status(201).json({
@@ -180,6 +196,18 @@ export const updateContactStatus = async (req, res) => {
         message: 'Message not found'
       });
     }
+
+    // Notify admin about status update
+    await createNotification(
+      req.user.id,
+      'admin',
+      'info',
+      `📋 Contact Status Updated: ${contact.name}`,
+      `Contact message from ${contact.name} marked as ${status}.`,
+      `/admin/contact/${contact._id}`,
+      { contactId: contact._id, action: 'contact_status_update' }
+    );
+
     res.json({ success: true, contact });
   } catch (error) {
     console.error('Update contact status error:', error);
@@ -253,6 +281,17 @@ export const addContactReply = async (req, res) => {
       console.error('Reply email error:', emailError);
     }
 
+    // Notify admin about reply
+    await createNotification(
+      req.user.id,
+      'admin',
+      'success',
+      `✅ Reply Sent to ${contact.name}`,
+      `You replied to ${contact.name}'s message.`,
+      `/admin/contact/${contact._id}`,
+      { contactId: contact._id, action: 'contact_replied' }
+    );
+
     res.json({ success: true, contact });
   } catch (error) {
     console.error('Add reply error:', error);
@@ -274,6 +313,18 @@ export const deleteContact = async (req, res) => {
         message: 'Message not found'
       });
     }
+
+    // Notify admin about deletion
+    await createNotification(
+      req.user.id,
+      'admin',
+      'warning',
+      `🗑️ Contact Message Deleted`,
+      `You deleted contact message from ${contact.name}.`,
+      `/admin/contact`,
+      { contactId: contact._id, action: 'contact_deleted' }
+    );
+
     res.json({
       success: true,
       message: 'Message deleted successfully'
@@ -301,6 +352,20 @@ export const toggleSpam = async (req, res) => {
     contact.isSpam = !contact.isSpam;
     contact.status = contact.isSpam ? 'spam' : 'unread';
     await contact.save();
+
+    // Notify admin about spam toggle
+    await createNotification(
+      req.user.id,
+      'admin',
+      contact.isSpam ? 'warning' : 'info',
+      contact.isSpam ? `🚫 Marked as Spam: ${contact.name}` : `✅ Unmarked as Spam: ${contact.name}`,
+      contact.isSpam 
+        ? `Message from ${contact.name} marked as spam.`
+        : `Message from ${contact.name} removed from spam.`,
+      `/admin/contact/${contact._id}`,
+      { contactId: contact._id, action: 'contact_spam_toggle' }
+    );
+
     res.json({
       success: true,
       contact

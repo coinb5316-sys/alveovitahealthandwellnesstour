@@ -1,5 +1,6 @@
-// backend/controllers/revenueController.js
+// controllers/revenueController.js - COMPLETE with Alveoly Notification Pattern
 import Revenue from '../models/Revenue.js';
+import { createNotification } from './notificationController.js';
 
 // @desc    Get revenue analytics
 // @route   GET /api/analytics/revenue

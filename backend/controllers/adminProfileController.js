@@ -1,7 +1,8 @@
-// backend/controllers/adminProfileController.js
+// controllers/adminProfileController.js - COMPLETE with Alveoly Notification Pattern
 import User from '../models/User.js';
 import cloudinary from '../config/cloudinary.js';
 import bcrypt from 'bcryptjs';
+import { createNotification } from './notificationController.js';
 
 // @desc    Get admin profile
 // @route   GET /api/admin/profile
@@ -55,6 +56,17 @@ export const updateAdminProfile = async (req, res) => {
 
     const updatedUser = await User.findById(req.user.id).select('-password -refreshTokens');
 
+    // Create notification
+    await createNotification(
+      user._id,
+      user.role,
+      "success",
+      "✅ Profile Updated",
+      "Your admin profile has been updated successfully.",
+      "/admin/profile",
+      { action: "profile_update" }
+    );
+
     res.json({
       success: true,
       user: updatedUser,
@@ -68,8 +80,6 @@ export const updateAdminProfile = async (req, res) => {
     });
   }
 };
-
-// backend/controllers/adminProfileController.js - Updated uploadAdminAvatar
 
 // @desc    Upload admin avatar
 // @route   POST /api/admin/avatar
@@ -104,6 +114,17 @@ export const uploadAdminAvatar = async (req, res) => {
     await user.save();
 
     const updatedUser = await User.findById(req.user.id).select('-password -refreshTokens');
+
+    // Create notification
+    await createNotification(
+      user._id,
+      user.role,
+      "success",
+      "🖼️ Avatar Updated",
+      "Your profile avatar has been updated successfully.",
+      "/admin/profile",
+      { action: "avatar_update" }
+    );
 
     res.json({
       success: true,
@@ -166,6 +187,17 @@ export const changeAdminPassword = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
+
+    // Create notification
+    await createNotification(
+      user._id,
+      user.role,
+      "success",
+      "🔑 Password Changed",
+      "Your admin password has been changed successfully.",
+      "/admin/profile",
+      { action: "password_change" }
+    );
 
     res.json({
       success: true,

@@ -1,4 +1,4 @@
-// backend/controllers/searchController.js
+// controllers/searchController.js - COMPLETE
 import Hotel from '../models/Hotel.js';
 import Tour from '../models/Tour.js';
 import Destination from '../models/Destination.js';

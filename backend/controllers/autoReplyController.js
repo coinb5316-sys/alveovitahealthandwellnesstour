@@ -1,4 +1,4 @@
-// backend/controllers/autoReplyController.js
+// controllers/autoReplyController.js - COMPLETE
 import AutoReply from '../models/AutoReply.js';
 
 // @desc    Get all auto-reply rules
@@ -160,7 +160,6 @@ export const toggleAutoReply = async (req, res) => {
     });
   }
 };
-
 
 // @desc    Get bot response (used by Live Chat)
 // @route   POST /api/auto-reply/respond

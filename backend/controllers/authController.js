@@ -1,16 +1,17 @@
-// backend/controllers/authController.js
+// controllers/authController.js - Alveoly Pattern (COMPLETE)
 import User from '../models/User.js';
 import { generateToken, generateRefreshToken } from '../utils/generateToken.js';
 import { OAuth2Client } from 'google-auth-library';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { createNotification } from './notificationController.js';
 
 dotenv.config();
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Register - Manual password hashing
+// ================= REGISTER =================
 export const register = async (req, res) => {
   try {
     const { name, email, password, phone, location } = req.body;
@@ -52,6 +53,31 @@ export const register = async (req, res) => {
     });
     await user.save();
 
+    // Create welcome notification
+    await createNotification(
+      user._id,
+      user.role,
+      "success",
+      "🎉 Welcome to Alveovita!",
+      `Welcome ${user.name}! Start exploring amazing tours, hotels, and destinations.`,
+      "/dashboard",
+      { action: "welcome", userId: user._id }
+    );
+
+    // Create admin notification for new user
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `👤 New User Registered: ${user.name}`,
+        `${user.name} (${user.email}) has just joined Alveovita.`,
+        `/admin/users/${user._id}`,
+        { action: "new_user", userId: user._id }
+      );
+    }
+
     res.status(201).json({
       success: true,
       token,
@@ -75,7 +101,7 @@ export const register = async (req, res) => {
   }
 };
 
-// Login
+// ================= LOGIN =================
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -122,6 +148,17 @@ export const login = async (req, res) => {
     });
     await user.save();
 
+    // Create login notification
+    await createNotification(
+      user._id,
+      user.role,
+      "info",
+      "👋 Welcome Back!",
+      `You've logged in to Alveovita.`,
+      "/dashboard",
+      { action: "login" }
+    );
+
     res.json({
       success: true,
       token,
@@ -145,7 +182,7 @@ export const login = async (req, res) => {
   }
 };
 
-// Google Login
+// ================= GOOGLE LOGIN =================
 export const googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
@@ -183,6 +220,17 @@ export const googleLogin = async (req, res) => {
         emailVerified: true,
       });
       await user.save();
+      
+      // Create welcome notification for new Google user
+      await createNotification(
+        user._id,
+        user.role,
+        "success",
+        "🎉 Welcome to Alveovita!",
+        `Welcome ${user.name}! You've signed up with Google.`,
+        "/dashboard",
+        { action: "welcome_google", userId: user._id }
+      );
     } else if (!user.googleId) {
       user.googleId = googleId;
       user.avatar = user.avatar || picture || '';
@@ -224,8 +272,7 @@ export const googleLogin = async (req, res) => {
   }
 };
 
-// Forgot Password - Send reset link
-// Forgot Password - Send reset link
+// ================= FORGOT PASSWORD =================
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -263,13 +310,11 @@ export const forgotPassword = async (req, res) => {
     const { sendPasswordResetEmail } = await import('../config/email.js');
     const result = await sendPasswordResetEmail(user, resetToken);
 
-    // Always return success, even if email fails (for UX)
     res.json({
       success: true,
       message: result.messageId 
         ? 'Password reset link sent to your email' 
         : 'Password reset link generated. Please check your console for the link.',
-      // For development - include the token in response
       resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined
     });
   } catch (error) {
@@ -281,7 +326,7 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// Reset Password
+// ================= RESET PASSWORD =================
 export const resetPassword = async (req, res) => {
   try {
     const { token, password } = req.body;
@@ -300,7 +345,6 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Find user with valid token
     const user = await User.findOne({
       resetPasswordToken: token,
       resetPasswordExpires: { $gt: new Date() }
@@ -313,15 +357,23 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Hash new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Update password and clear reset token
     user.password = hashedPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
+
+    await createNotification(
+      user._id,
+      user.role,
+      "success",
+      "🔐 Password Reset Successful",
+      "Your password has been successfully reset.",
+      "/login",
+      { action: "password_reset" }
+    );
 
     res.json({
       success: true,
@@ -336,7 +388,7 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// Refresh Token
+// ================= REFRESH TOKEN =================
 export const refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -384,7 +436,7 @@ export const refreshToken = async (req, res) => {
   }
 };
 
-// Verify Token
+// ================= VERIFY TOKEN =================
 export const verifyToken = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password -refreshTokens');
@@ -409,7 +461,7 @@ export const verifyToken = async (req, res) => {
   }
 };
 
-// Logout
+// ================= LOGOUT =================
 export const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;

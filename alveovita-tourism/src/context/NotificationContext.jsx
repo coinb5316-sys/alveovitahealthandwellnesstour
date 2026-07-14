@@ -1,4 +1,4 @@
-// src/context/NotificationContext.jsx
+// src/context/NotificationContext.jsx - COMPLETE with Alveoly Pattern
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import axios from '../api/axios';
 import { useAuth } from './AuthContext';
@@ -26,7 +26,7 @@ export const NotificationProvider = ({ children }) => {
     
     try {
       setLoading(true);
-      const response = await axios.get('/api/notifications/stats');
+      const response = await axios.get('/notifications/stats');
       if (response.data.success) {
         setUnreadCount(response.data.stats.userUnread || 0);
       }
@@ -39,7 +39,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      const response = await axios.put(`/api/notifications/${notificationId}/read`);
+      const response = await axios.put(`/notifications/${notificationId}/read`);
       if (response.data.success) {
         setUnreadCount(response.data.unreadCount);
         return true;
@@ -52,7 +52,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAllAsRead = useCallback(async () => {
     try {
-      const response = await axios.put('/api/notifications/read/all');
+      const response = await axios.put('/notifications/read-all');
       if (response.data.success) {
         setUnreadCount(0);
         return true;
@@ -65,7 +65,7 @@ export const NotificationProvider = ({ children }) => {
 
   const deleteNotification = useCallback(async (notificationId) => {
     try {
-      const response = await axios.delete(`/api/notifications/${notificationId}`);
+      const response = await axios.delete(`/notifications/${notificationId}`);
       if (response.data.success) {
         setUnreadCount(response.data.unreadCount);
         return true;
@@ -76,7 +76,7 @@ export const NotificationProvider = ({ children }) => {
     return false;
   }, []);
 
-  // Socket events
+  // Socket events (Alveoly Pattern)
   useEffect(() => {
     if (!socket || !isConnected) return;
 
@@ -104,12 +104,14 @@ export const NotificationProvider = ({ children }) => {
       }
     };
 
-    socket.on('new-notification', handleNewNotification);
+    socket.on('new_notification', handleNewNotification);
+    socket.on('new-notification', handleNewNotification); // legacy support
     socket.on('notification-read', handleNotificationRead);
     socket.on('all-notifications-read', handleAllRead);
     socket.on('notification-deleted', handleNotificationDeleted);
 
     return () => {
+      socket.off('new_notification', handleNewNotification);
       socket.off('new-notification', handleNewNotification);
       socket.off('notification-read', handleNotificationRead);
       socket.off('all-notifications-read', handleAllRead);

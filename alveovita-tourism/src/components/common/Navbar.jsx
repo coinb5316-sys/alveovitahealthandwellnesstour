@@ -1,4 +1,4 @@
-// src/components/common/Navbar.jsx
+// src/components/common/Navbar.jsx - COMPLETE with Alveoly Pattern
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -58,7 +58,7 @@ const Navbar = () => {
   // ============================================
   const { isDark, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
-  const { socket, isConnected } = useSocket()
+  const { socket, isConnected, getUnreadCount } = useSocket()
   const { showToast } = useToast()
 
   // ============================================
@@ -81,7 +81,7 @@ const Navbar = () => {
     
     try {
       setLoadingNotifications(true)
-      const response = await axios.get('/api/notifications/stats')
+      const response = await axios.get('/notifications/stats')
       if (response.data.success) {
         setUnreadCount(response.data.stats.userUnread || 0)
       }
@@ -100,7 +100,7 @@ const Navbar = () => {
     
     try {
       setLoadingQuick(true)
-      const response = await axios.get('/api/notifications', {
+      const response = await axios.get('/notifications', {
         params: { page: 1, limit: 5, filter: 'unread' }
       })
       if (response.data.success) {
@@ -126,7 +126,7 @@ const Navbar = () => {
     setSearchError(null)
     
     try {
-      const response = await axios.get('/api/search/suggestions', {
+      const response = await axios.get('/search/suggestions', {
         params: { q: query.trim(), limit: 6 }
       })
       
@@ -157,7 +157,7 @@ const Navbar = () => {
     setSearchError(null)
     
     try {
-      const response = await axios.get('/api/search', {
+      const response = await axios.get('/search', {
         params: { 
           q: query.trim(), 
           limit: 20, 
@@ -238,7 +238,7 @@ const Navbar = () => {
   // ============================================
   const handleQuickMarkAsRead = useCallback(async (notificationId) => {
     try {
-      const response = await axios.put(`/api/notifications/${notificationId}/read`)
+      const response = await axios.put(`/notifications/${notificationId}/read`)
       if (response.data.success) {
         setQuickNotifications(prev => 
           prev.map(n => 
@@ -259,7 +259,7 @@ const Navbar = () => {
   // ============================================
   const handleQuickDelete = useCallback(async (notificationId) => {
     try {
-      const response = await axios.delete(`/api/notifications/${notificationId}`)
+      const response = await axios.delete(`/notifications/${notificationId}`)
       if (response.data.success) {
         setQuickNotifications(prev => prev.filter(n => n._id !== notificationId))
         setUnreadCount(response.data.unreadCount)
@@ -270,7 +270,7 @@ const Navbar = () => {
   }, [])
 
   // ============================================
-  // SOCKET EVENT LISTENERS
+  // SOCKET EVENT LISTENERS (Alveoly Pattern)
   // ============================================
   useEffect(() => {
     if (!socket || !isConnected) return
@@ -321,13 +321,16 @@ const Navbar = () => {
       setUnreadCount(0)
     }
 
-    socket.on('new-notification', handleNewNotification)
+    // Alveoly pattern events
+    socket.on('new_notification', handleNewNotification)
+    socket.on('new-notification', handleNewNotification) // legacy support
     socket.on('notification-read', handleNotificationRead)
     socket.on('all-notifications-read', handleAllNotificationsRead)
     socket.on('notification-deleted', handleNotificationDeleted)
     socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
 
     return () => {
+      socket.off('new_notification', handleNewNotification)
       socket.off('new-notification', handleNewNotification)
       socket.off('notification-read', handleNotificationRead)
       socket.off('all-notifications-read', handleAllNotificationsRead)
@@ -938,7 +941,7 @@ const Navbar = () => {
                                 <button
                                   onClick={async () => {
                                     try {
-                                      await axios.put('/api/notifications/read/all')
+                                      await axios.put('/notifications/read-all')
                                       setQuickNotifications(prev => prev.map(n => ({ ...n, read: true })))
                                       setUnreadCount(0)
                                       showToast('All notifications marked as read', 'success')

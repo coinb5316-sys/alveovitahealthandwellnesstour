@@ -1,9 +1,10 @@
-// backend/controllers/experienceController.js
+// controllers/experienceController.js - COMPLETE with Alveoly Notification Pattern
 import Experience from '../models/Experience.js';
 import { v2 as cloudinaryV2 } from 'cloudinary';
 import fs from 'fs';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
 // Helper function to populate user data in nested replies recursively
 const populateReplyUsers = async (replies) => {
@@ -174,6 +175,31 @@ export const createExperience = async (req, res) => {
 
     await experience.populate('user', 'name avatar location');
 
+    // Create notification for user
+    await createNotification(
+      req.user.id,
+      'user',
+      'success',
+      `📝 Experience Shared: ${title}`,
+      `Your experience "${title}" has been shared successfully!`,
+      `/experiences/${experience._id}`,
+      { experienceId: experience._id, action: 'experience_created' }
+    );
+
+    // Create notification for admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'admin',
+        'info',
+        `📝 New Experience: ${title}`,
+        `${req.user.name} shared a new experience: "${title}"`,
+        `/admin/experiences/${experience._id}`,
+        { experienceId: experience._id, action: 'new_experience' }
+      );
+    }
+
     // Emit socket event for new experience
     if (io) {
       io.emit('experience-created', {
@@ -285,6 +311,17 @@ export const updateExperience = async (req, res) => {
     await experience.save();
     await experience.populate('user', 'name avatar location');
 
+    // Create notification for user
+    await createNotification(
+      req.user.id,
+      'user',
+      'info',
+      `✏️ Experience Updated: ${experience.title}`,
+      `Your experience "${oldTitle}" has been updated.`,
+      `/experiences/${experience._id}`,
+      { experienceId: experience._id, action: 'experience_updated' }
+    );
+
     // Emit socket event for experience update
     if (io) {
       io.emit('experience-updated', {
@@ -351,6 +388,17 @@ export const deleteExperience = async (req, res) => {
 
     await experience.deleteOne();
 
+    // Create notification for user
+    await createNotification(
+      req.user.id,
+      'user',
+      'warning',
+      `🗑️ Experience Deleted: ${experienceTitle}`,
+      `Your experience "${experienceTitle}" has been deleted.`,
+      `/experiences`,
+      { experienceId: req.params.id, action: 'experience_deleted' }
+    );
+
     // Emit socket event for experience deletion
     if (io) {
       io.emit('experience-deleted', {
@@ -396,6 +444,19 @@ export const toggleLike = async (req, res) => {
 
     await experience.save();
 
+    // Create notification for experience owner if someone liked their post
+    if (!hasLiked && experience.user._id.toString() !== userId) {
+      await createNotification(
+        experience.user._id,
+        'user',
+        'info',
+        `❤️ ${req.user.name} liked your experience`,
+        `${req.user.name} liked your experience "${experience.title}"`,
+        `/experiences/${experience._id}`,
+        { experienceId: experience._id, action: 'experience_liked' }
+      );
+    }
+
     // Emit socket event for like toggle
     if (io) {
       io.emit('experience-like-toggled', {
@@ -439,6 +500,19 @@ export const toggleBookmark = async (req, res) => {
     }
 
     await experience.save();
+
+    // Create notification for experience owner if someone bookmarked their post
+    if (!hasBookmarked && experience.user.toString() !== userId) {
+      await createNotification(
+        experience.user,
+        'user',
+        'info',
+        `🔖 ${req.user.name} bookmarked your experience`,
+        `${req.user.name} bookmarked your experience "${experience.title}"`,
+        `/experiences/${experience._id}`,
+        { experienceId: experience._id, action: 'experience_bookmarked' }
+      );
+    }
 
     // Emit socket event for bookmark toggle
     if (io) {
@@ -503,6 +577,19 @@ export const addComment = async (req, res) => {
       savedComment.userAvatar = userData.avatar || '';
     }
 
+    // Create notification for experience owner if someone commented
+    if (experience.user.toString() !== req.user.id) {
+      await createNotification(
+        experience.user,
+        'user',
+        'info',
+        `💬 ${req.user.name} commented on your experience`,
+        `${req.user.name}: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+        `/experiences/${experience._id}`,
+        { experienceId: experience._id, action: 'experience_commented' }
+      );
+    }
+
     // Emit socket event for new comment
     if (io) {
       io.emit('experience-comment-added', {
@@ -513,18 +600,6 @@ export const addComment = async (req, res) => {
         userAvatar: req.user.avatar || '',
         totalComments: experience.comments.length
       });
-
-      // Notify the experience owner if they are not the commenter
-      if (experience.user.toString() !== req.user.id) {
-        io.to(`user-${experience.user.toString()}`).emit('notification', {
-          type: 'new-comment',
-          experienceId: experience._id,
-          experienceTitle: experience.title,
-          userName: req.user.name,
-          comment: content,
-          timestamp: new Date()
-        });
-      }
     }
 
     res.status(201).json({
@@ -583,6 +658,19 @@ export const addReply = async (req, res) => {
       savedReply.userAvatar = userData.avatar || '';
     }
 
+    // Create notification for comment owner if someone replied
+    if (comment.user && comment.user.toString() !== req.user.id) {
+      await createNotification(
+        comment.user,
+        'user',
+        'info',
+        `💬 ${req.user.name} replied to your comment`,
+        `${req.user.name}: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+        `/experiences/${experience._id}`,
+        { experienceId: experience._id, action: 'comment_replied' }
+      );
+    }
+
     // Emit socket event for new reply
     if (io) {
       io.emit('experience-reply-added', {
@@ -593,19 +681,6 @@ export const addReply = async (req, res) => {
         userName: req.user.name,
         userAvatar: req.user.avatar || ''
       });
-
-      // Notify the comment owner if they are not the replier
-      if (comment.user && comment.user.toString() !== req.user.id) {
-        io.to(`user-${comment.user.toString()}`).emit('notification', {
-          type: 'new-reply',
-          experienceId: experience._id,
-          experienceTitle: experience.title,
-          userName: req.user.name,
-          reply: content,
-          comment: comment.content,
-          timestamp: new Date()
-        });
-      }
     }
 
     res.status(201).json({
@@ -699,6 +774,19 @@ export const addNestedReply = async (req, res) => {
       newReply.userAvatar = userData.avatar || '';
     }
 
+    // Create notification for parent reply owner if someone replied
+    if (parentReply.user && parentReply.user.toString() !== req.user.id) {
+      await createNotification(
+        parentReply.user,
+        'user',
+        'info',
+        `💬 ${req.user.name} replied to your comment`,
+        `${req.user.name}: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+        `/experiences/${experience._id}`,
+        { experienceId: experience._id, action: 'nested_reply' }
+      );
+    }
+
     // Emit socket event for nested reply
     if (io) {
       io.emit('experience-nested-reply-added', {
@@ -710,18 +798,6 @@ export const addNestedReply = async (req, res) => {
         userName: req.user.name,
         userAvatar: req.user.avatar || ''
       });
-
-      // Notify the parent reply owner if they are not the replier
-      if (parentReply.user && parentReply.user.toString() !== req.user.id) {
-        io.to(`user-${parentReply.user.toString()}`).emit('notification', {
-          type: 'new-reply',
-          experienceId: experience._id,
-          experienceTitle: experience.title,
-          userName: req.user.name,
-          reply: content,
-          timestamp: new Date()
-        });
-      }
     }
 
     res.status(201).json({
