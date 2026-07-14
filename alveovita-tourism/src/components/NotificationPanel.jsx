@@ -8,7 +8,8 @@ import {
   ChevronRight, Clock, Filter, Eye, EyeOff,
   MoreVertical, Archive, Bookmark, Share2, 
   Gift, Zap, Flame, Crown, Gem, Sparkles,
-  Shield, Trophy, Circle, CircleDot, Search
+  Shield, Trophy, Circle, CircleDot, Search,
+  CheckCircle  // ← ADD THIS LINE
 } from 'lucide-react';
 import axios from '../api/axios';
 import { useAuth } from '../context/AuthContext';
