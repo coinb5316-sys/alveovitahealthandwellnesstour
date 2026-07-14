@@ -1,6 +1,6 @@
 // controllers/notificationController.js - Alveoly Pattern (COMPLETE)
 import Notification from "../models/Notification.js";
-import { io, emitNotification, emitAdminNotification } from "../../server.js";
+import { io, emitNotification, emitAdminNotification } from "../server.js";
 
 // ================= CREATE NOTIFICATION =================
 export const createNotification = async (userId, userRole, type, title, message, link = null, metadata = {}) => {
