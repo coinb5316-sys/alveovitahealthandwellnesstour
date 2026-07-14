@@ -100,16 +100,27 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   // FETCH STATS
   // ============================================
-  const fetchStats = useCallback(async () => {
-    try {
-      const response = await axios.get('/notifications/stats');
-      if (response.data.success) {
-        setStats(response.data.stats);
-      }
-    } catch (error) {
+const fetchStats = useCallback(async () => {
+  // Only fetch stats if user is admin
+  if (!user || user.role !== 'admin') {
+    console.log('ℹ️ Skipping stats fetch - user is not admin');
+    return;
+  }
+  
+  try {
+    const response = await axios.get('/notifications/stats');
+    if (response.data.success) {
+      setStats(response.data.stats);
+    }
+  } catch (error) {
+    // Silently fail for non-admin users
+    if (error.response?.status === 403) {
+      console.log('ℹ️ Stats only available for admin users');
+    } else {
       console.error('❌ Failed to fetch stats:', error);
     }
-  }, []);
+  }
+}, [user]);
 
   // ============================================
   // MARK AS READ
