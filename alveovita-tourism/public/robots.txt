@@ -1,0 +1,19 @@
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /login/
+Disallow: /register/
+Sitemap: https://alveovitahealthandwellnesstour.com/sitemap.xml
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Sitemap: https://alveovitahealthandwellnesstour.com/sitemap.xml
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Sitemap: https://alveovitahealthandwellnesstour.com/sitemap.xml
