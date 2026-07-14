@@ -1,5 +1,5 @@
-// src/pages/Home.jsx
-import { useState, useEffect } from 'react'
+// src/pages/Home.jsx - COMPLETE with Premium Search Functionality
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Autoplay, Pagination, Navigation, EffectFade } from 'swiper/modules'
@@ -15,7 +15,8 @@ import {
   Layers, Grid, Palette, Wand2, Sparkle, Stars, Phone, Mail,
   Book, BookOpen, Video, Mic, Image, Upload, X, Filter,
   Search, ThumbsUp, MessageCircle, Share2, Bookmark, Eye,
-  Loader2, Diamond, Trophy, Medal, Crown as CrownIcon
+  Loader2, Diamond, Trophy, Medal, Crown as CrownIcon,
+  Package, MapPin as MapPinIcon, Home as HomeIcon, AlertCircle
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
@@ -59,6 +60,7 @@ const Home = () => {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false)
   const [searchError, setSearchError] = useState(null)
+  const [isSearching, setIsSearching] = useState(false)
   
   // Data states
   const [hotels, setHotels] = useState([])
@@ -68,10 +70,14 @@ const Home = () => {
   const [totalTours, setTotalTours] = useState(0)
   const [totalExperiences, setTotalExperiences] = useState(0)
 
-  // Search timeout ref
-  let searchTimeout = null
+  // Refs
+  const searchTimeoutRef = useRef(null)
+  const searchInputRef = useRef(null)
+  const searchContainerRef = useRef(null)
 
-  // Socket.IO event listeners
+  // ============================================
+  // SOCKET.IO EVENT LISTENERS
+  // ============================================
   useEffect(() => {
     if (!socket) return;
 
@@ -307,16 +313,21 @@ const Home = () => {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Fetch data when region or search term changes
+  // ============================================
+  // FETCH DATA (Only when region changes, NOT on search term)
+  // ============================================
   useEffect(() => {
     fetchData()
-  }, [selectedRegion, searchTerm])
+  }, [selectedRegion])
 
-  // Fetch search suggestions with debounce
-  const fetchSearchSuggestions = async (query) => {
+  // ============================================
+  // FETCH SEARCH SUGGESTIONS WITH DEBOUNCE
+  // ============================================
+  const fetchSearchSuggestions = useCallback(async (query) => {
     if (!query || query.trim().length < 1) {
       setSearchSuggestions([])
       setShowSuggestions(false)
+      setIsSearchingSuggestions(false)
       return
     }
 
@@ -324,8 +335,8 @@ const Home = () => {
     setSearchError(null)
 
     try {
-      const response = await axios.get('/api/search/suggestions', {
-        params: { q: query.trim(), limit: 5 }
+      const response = await axios.get('/search/suggestions', {
+        params: { q: query.trim(), limit: 6 }
       })
       
       if (response.data.success) {
@@ -336,41 +347,61 @@ const Home = () => {
         setShowSuggestions(false)
       }
     } catch (error) {
-      console.error('Search suggestions error:', error)
+      console.error('❌ Search suggestions error:', error)
       setSearchError('Failed to load suggestions')
       setSearchSuggestions([])
       setShowSuggestions(false)
     } finally {
       setIsSearchingSuggestions(false)
     }
-  }
+  }, [])
 
-  // Handle search input with debounce
-  const handleSearchInput = (e) => {
+  // ============================================
+  // HANDLE SEARCH INPUT WITH DEBOUNCE (NO PAGE RELOAD)
+  // ============================================
+  const handleSearchInput = useCallback((e) => {
     const value = e.target.value
     setSearchTerm(value)
+    setSearchError(null)
     
-    clearTimeout(searchTimeout)
-    searchTimeout = setTimeout(() => {
-      fetchSearchSuggestions(value)
-    }, 300)
-  }
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    
+    if (value.trim().length >= 1) {
+      setIsSearching(true)
+      searchTimeoutRef.current = setTimeout(() => {
+        fetchSearchSuggestions(value)
+      }, 300)
+    } else {
+      setIsSearching(false)
+      setSearchSuggestions([])
+      setShowSuggestions(false)
+    }
+  }, [fetchSearchSuggestions])
 
-  // Handle search submission
-  const handleSearchSubmit = () => {
+  // ============================================
+  // HANDLE SEARCH SUBMIT (NAVIGATE TO SEARCH PAGE)
+  // ============================================
+  const handleSearchSubmit = useCallback(() => {
     if (searchTerm.trim().length >= 2) {
       navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`)
       setShowSuggestions(false)
       setSearchSuggestions([])
+      setSearchTerm('')
+      setIsSearching(false)
     } else if (searchTerm.trim().length > 0) {
       showToast('Please enter at least 2 characters', 'info')
     } else {
       navigate('/search')
     }
-  }
+  }, [searchTerm, navigate, showToast])
 
-  // Handle search on Enter key
-  const handleSearchKeyDown = (e) => {
+  // ============================================
+  // HANDLE SEARCH KEY DOWN (Enter, Escape)
+  // ============================================
+  const handleSearchKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handleSearchSubmit()
@@ -378,29 +409,41 @@ const Home = () => {
     if (e.key === 'Escape') {
       setShowSuggestions(false)
       setSearchSuggestions([])
+      setSearchTerm('')
+      setIsSearching(false)
+      if (searchInputRef.current) {
+        searchInputRef.current.blur()
+      }
     }
-  }
+  }, [handleSearchSubmit])
 
-  // Handle suggestion click
-  const handleSuggestionClick = (suggestion) => {
-    if (suggestion.id && suggestion.type) {
-      navigate(`/${suggestion.type}/${suggestion.id}`)
-    } else {
-      navigate(`/search?q=${encodeURIComponent(suggestion.text || searchTerm)}`)
-    }
+  // ============================================
+  // HANDLE SUGGESTION CLICK
+  // ============================================
+  const handleSuggestionClick = useCallback((suggestion) => {
     setShowSuggestions(false)
     setSearchSuggestions([])
     setSearchTerm('')
-  }
+    setIsSearching(false)
+    
+    if (suggestion.id && suggestion.type) {
+      navigate(`/${suggestion.type}/${suggestion.id}`)
+    } else {
+      const query = suggestion.text || suggestion.title || searchTerm
+      navigate(`/search?q=${encodeURIComponent(query)}`)
+    }
+  }, [navigate, searchTerm])
 
-  // Get icon for suggestion type
+  // ============================================
+  // GET ICON FOR SUGGESTION TYPE
+  // ============================================
   const getSuggestionIcon = (type) => {
     const icons = {
       hotel: Hotel,
       tour: Compass,
-      destination: MapPin,
+      destination: MapPinIcon,
       experience: Sparkles,
-      page: Home,
+      page: HomeIcon,
       service: Package
     }
     const Icon = icons[type] || Search
@@ -419,13 +462,40 @@ const Home = () => {
     return colors[type] || 'text-gray-500 bg-gray-500/10'
   }
 
+  // ============================================
+  // CLICK OUTSIDE TO CLOSE SUGGESTIONS
+  // ============================================
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSuggestions(false)
+        setSearchSuggestions([])
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // ============================================
+  // CLEANUP TIMEOUT ON UNMOUNT
+  // ============================================
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // ============================================
+  // FETCH DATA FUNCTION
+  // ============================================
   const fetchData = async () => {
     try {
       setLoading(true)
       
       const hotelParams = new URLSearchParams()
       if (selectedRegion !== 'all') hotelParams.append('region', selectedRegion)
-      if (searchTerm) hotelParams.append('search', searchTerm)
       hotelParams.append('limit', 6)
       
       const hotelRes = await axios.get(`/hotels?${hotelParams.toString()}`)
@@ -441,7 +511,6 @@ const Home = () => {
 
       const tourParams = new URLSearchParams()
       if (selectedRegion !== 'all') tourParams.append('region', selectedRegion)
-      if (searchTerm) tourParams.append('search', searchTerm)
       tourParams.append('limit', 6)
       
       const tourRes = await axios.get(`/tours?${tourParams.toString()}`)
@@ -457,7 +526,6 @@ const Home = () => {
 
       const expParams = new URLSearchParams()
       if (selectedRegion !== 'all') expParams.append('region', selectedRegion)
-      if (searchTerm) expParams.append('search', searchTerm)
       expParams.append('limit', 10)
       
       const expRes = await axios.get(`/experiences?${expParams.toString()}`)
@@ -854,84 +922,120 @@ const Home = () => {
                         {slide.description}
                       </p>
 
-                      {/* Enhanced Premium Search Bar with Suggestions */}
-                      <div className="mt-10 flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1 relative group">
+                      {/* ============================================ */}
+                      {/* ENHANCED PREMIUM SEARCH BAR - NO PAGE RELOAD */}
+                      {/* ============================================ */}
+                      <div className="mt-10">
+                        <div ref={searchContainerRef} className="relative group">
                           <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
-                          <div className="relative">
-                            <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-amber-400 w-5 h-5 z-10" />
-                            <input
-                              type="text"
-                              placeholder="Search luxury hotels, tours, experiences..."
-                              value={searchTerm}
-                              onChange={handleSearchInput}
-                              onKeyDown={handleSearchKeyDown}
-                              onFocus={() => searchSuggestions.length > 0 && setShowSuggestions(true)}
-                              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                              className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-all shadow-2xl"
-                            />
-                            {isSearchingSuggestions && (
-                              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
-                              </div>
-                            )}
-                            
-                            {/* Search Suggestions Dropdown */}
-                            <AnimatePresence>
-                              {showSuggestions && searchSuggestions.length > 0 && (
-                                <motion.div
-                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a] border border-amber-500/20 z-50"
-                                >
-                                  <div className="p-2 max-h-72 overflow-y-auto">
-                                    {searchSuggestions.map((suggestion, idx) => (
-                                      <button
-                                        key={idx}
-                                        onClick={() => handleSuggestionClick(suggestion)}
-                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
-                                      >
-                                        <div className={`p-2 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
-                                          {getSuggestionIcon(suggestion.type)}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="font-medium text-sm truncate">{suggestion.text}</div>
-                                          <div className="text-xs text-gray-500 truncate">
-                                            {suggestion.typeLabel || suggestion.type}
-                                            {suggestion.location && ` • ${suggestion.location}`}
-                                            {suggestion.region && !suggestion.location && ` • ${suggestion.region}`}
-                                          </div>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                                      </button>
-                                    ))}
-                                    {searchTerm.trim().length >= 2 && (
-                                      <button
-                                        onClick={handleSearchSubmit}
-                                        className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
-                                      >
-                                        See all results for "{searchTerm}"
-                                      </button>
-                                    )}
-                                  </div>
-                                </motion.div>
+                          <div className="relative flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1 relative">
+                              <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-amber-400 w-5 h-5 z-10" />
+                              <input
+                                ref={searchInputRef}
+                                type="text"
+                                placeholder="Search luxury hotels, tours, experiences..."
+                                value={searchTerm}
+                                onChange={handleSearchInput}
+                                onKeyDown={handleSearchKeyDown}
+                                onFocus={() => {
+                                  if (searchSuggestions.length > 0) {
+                                    setShowSuggestions(true)
+                                  }
+                                }}
+                                className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-all shadow-2xl"
+                                autoComplete="off"
+                              />
+                              {isSearchingSuggestions && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                  <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                                </div>
                               )}
-                            </AnimatePresence>
+                              {searchTerm && !isSearchingSuggestions && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSearchTerm('')
+                                    setSearchSuggestions([])
+                                    setShowSuggestions(false)
+                                    setIsSearching(false)
+                                    if (searchInputRef.current) {
+                                      searchInputRef.current.focus()
+                                    }
+                                  }}
+                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                              
+                              {/* ============================================ */}
+                              {/* SEARCH SUGGESTIONS DROPDOWN - NO PAGE RELOAD */}
+                              {/* ============================================ */}
+                              <AnimatePresence>
+                                {showSuggestions && searchSuggestions.length > 0 && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a] border border-amber-500/20 z-50"
+                                  >
+                                    <div className="p-2 max-h-72 overflow-y-auto">
+                                      {searchSuggestions.map((suggestion, idx) => (
+                                        <button
+                                          key={idx}
+                                          onClick={() => handleSuggestionClick(suggestion)}
+                                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
+                                        >
+                                          <div className={`p-2 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
+                                            {getSuggestionIcon(suggestion.type)}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="font-medium text-sm truncate">{suggestion.text}</div>
+                                            <div className="text-xs text-gray-500 truncate">
+                                              {suggestion.typeLabel || suggestion.type}
+                                              {suggestion.location && ` • ${suggestion.location}`}
+                                              {suggestion.region && !suggestion.location && ` • ${suggestion.region}`}
+                                            </div>
+                                          </div>
+                                          <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                        </button>
+                                      ))}
+                                      {searchTerm.trim().length >= 2 && (
+                                        <button
+                                          onClick={handleSearchSubmit}
+                                          className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
+                                        >
+                                          See all results for "{searchTerm}"
+                                        </button>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+
+                              {searchError && (
+                                <div className="absolute top-full left-0 right-0 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                                  <AlertCircle className="w-4 h-4 inline mr-2" />
+                                  {searchError}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={handleSearchSubmit}
+                              className="relative group bg-gradient-to-r from-amber-500 to-orange-500 text-white px-10 py-5 rounded-2xl font-semibold shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 transition-all flex items-center justify-center space-x-3 overflow-hidden flex-shrink-0"
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                              <Search className="w-5 h-5 relative z-10" />
+                              <span className="relative z-10">Search</span>
+                              <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
+                            </motion.button>
                           </div>
                         </div>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={handleSearchSubmit}
-                          className="relative group bg-gradient-to-r from-amber-500 to-orange-500 text-white px-10 py-5 rounded-2xl font-semibold shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 transition-all flex items-center justify-center space-x-3 overflow-hidden"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                          <Search className="w-5 h-5 relative z-10" />
-                          <span className="relative z-10">Search</span>
-                          <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
-                        </motion.button>
                       </div>
 
                       {/* Premium Stats */}
