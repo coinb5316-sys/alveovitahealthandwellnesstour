@@ -1,4 +1,4 @@
-// controllers/notificationController.js - Alveoly Pattern (COMPLETE)
+// controllers/notificationController.js - COMPLETE with types
 import Notification from "../models/Notification.js";
 import { io, emitNotification, emitAdminNotification } from "../server.js";
 
@@ -25,16 +25,13 @@ export const createNotification = async (userId, userRole, type, title, message,
       read: notification.read
     };
     
-    // Emit real-time notification via Socket.IO
     if (typeof emitNotification === 'function') {
       emitNotification(userId, notificationData);
     } else {
-      // Fallback to direct io emit
       io.to(userId.toString()).emit("new_notification", notificationData);
       io.to(`user_${userId}`).emit("new_notification", notificationData);
     }
     
-    // Emit to admin room for admin notifications
     if (userRole === "admin") {
       const adminData = {
         id: notification._id,
@@ -78,7 +75,6 @@ export const createBulkNotifications = async (users, notificationData) => {
       
       notifications.push(notification);
       
-      // Emit to each user
       const notifData = {
         id: notification._id,
         type: notification.type,
@@ -121,7 +117,6 @@ export const getUserNotifications = async (req, res) => {
       read: false
     });
     
-    // Format notifications for frontend
     const formattedNotifications = notifications.map(notif => ({
       _id: notif._id,
       type: notif.type,
@@ -147,6 +142,38 @@ export const getUserNotifications = async (req, res) => {
   } catch (err) {
     console.error("Get notifications error:", err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= GET NOTIFICATION TYPES =================
+export const getNotificationTypes = async (req, res) => {
+  try {
+    const types = [
+      { value: 'all', label: 'All' },
+      { value: 'booking', label: 'Bookings' },
+      { value: 'payment', label: 'Payments' },
+      { value: 'review', label: 'Reviews' },
+      { value: 'message', label: 'Messages' },
+      { value: 'system', label: 'System' },
+      { value: 'tour', label: 'Tours' },
+      { value: 'hotel', label: 'Hotels' },
+      { value: 'destination', label: 'Destinations' },
+      { value: 'experience', label: 'Experiences' },
+      { value: 'reminder', label: 'Reminders' },
+      { value: 'promotion', label: 'Promotions' },
+      { value: 'alert', label: 'Alerts' },
+    ];
+    
+    res.json({
+      success: true,
+      types
+    });
+  } catch (error) {
+    console.error('❌ Get notification types error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch notification types'
+    });
   }
 };
 
@@ -249,7 +276,6 @@ export const getNotificationCount = async (req, res) => {
 // ================= GET NOTIFICATION STATS (ADMIN) =================
 export const getNotificationStats = async (req, res) => {
   try {
-    // Only admins can access this
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized" });
     }
@@ -258,12 +284,10 @@ export const getNotificationStats = async (req, res) => {
     const unread = await Notification.countDocuments({ read: false });
     const read = total - unread;
     
-    // Get notifications by type
     const byType = await Notification.aggregate([
       { $group: { _id: "$type", count: { $sum: 1 } } }
     ]);
     
-    // Get recent activity (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     

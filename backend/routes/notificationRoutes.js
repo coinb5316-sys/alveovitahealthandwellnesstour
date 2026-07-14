@@ -1,4 +1,4 @@
-// routes/notificationRoutes.js - Alveoly Pattern (COMPLETE)
+// routes/notificationRoutes.js - ADD THIS ROUTE
 import express from "express";
 import {
   getUserNotifications,
@@ -8,7 +8,8 @@ import {
   deleteAllNotifications,
   getNotificationCount,
   getNotificationStats,
-  sendTestNotification
+  sendTestNotification,
+  getNotificationTypes  // ← ADD THIS
 } from "../controllers/notificationController.js";
 import { protect } from "../middleware/auth.js";
 
@@ -16,6 +17,9 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(protect);
+
+// ================= GET NOTIFICATION TYPES =================
+router.get("/types", getNotificationTypes);  // ← ADD THIS
 
 // ================= GET NOTIFICATIONS =================
 router.get("/", getUserNotifications);

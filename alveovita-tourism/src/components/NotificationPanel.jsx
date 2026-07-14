@@ -6,7 +6,8 @@ import {
   Calendar, CreditCard, Star, MessageSquare, AlertCircle,
   Hotel, MapPin, Package, Heart, Users, Settings,
   ChevronRight, Clock, Filter, Eye, EyeOff,
-  MoreVertical, Archive, Bookmark, Share2,
+  MoreVertical, Archive, Bookmark, Share2, 
+  Gift
 } from 'lucide-react';
 import axios from '../api/axios';
 import { useAuth } from '../context/AuthContext';
