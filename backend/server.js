@@ -52,7 +52,7 @@ const server = createServer(app);
 // ==================== CORS CONFIGURATION - FIXED FOR MOBILE ====================
 const allowedOrigins = [
   'http://localhost:5173',
-  'http://localhost:3000', 
+  'http://localhost:3000',
   'http://localhost:5000',
   'https://6c78f0e0.alveovita-frontend.pages.dev',
   'https://alveovita-frontend.pages.dev',
@@ -61,7 +61,8 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 // ==================== SOCKET.IO SETUP WITH AUTHENTICATION ====================
-const io = new SocketServer(server, {
+// Changed from 'const io' to 'export const io' so it can be imported
+export const io = new SocketServer(server, {
   cors: {
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
@@ -87,21 +88,21 @@ const io = new SocketServer(server, {
 io.use(async (socket, next) => {
   try {
     // Get token from multiple possible sources
-    let token = socket.handshake.auth?.token || 
+    let token = socket.handshake.auth?.token ||
                 socket.handshake.headers?.authorization?.split(' ')[1];
-    
+
     // Also check query params for token (for mobile apps)
     if (!token && socket.handshake.query?.token) {
       token = socket.handshake.query.token;
     }
-    
+
     if (!token) {
       console.log('🔴 Socket connection rejected: No token provided');
       const err = new Error('Authentication required');
       err.data = { type: 'auth_error', message: 'No token provided' };
       return next(err);
     }
-    
+
     // Verify JWT token
     let decoded;
     try {
@@ -112,24 +113,24 @@ io.use(async (socket, next) => {
       err.data = { type: 'auth_error', message: 'Invalid token' };
       return next(err);
     }
-    
+
     // Get user from database
     const user = await User.findById(decoded.id).select('id name email role avatar');
-    
+
     if (!user) {
       console.log('🔴 Socket connection rejected: User not found');
       const err = new Error('User not found');
       err.data = { type: 'auth_error', message: 'User not found' };
       return next(err);
     }
-    
+
     // Attach user to socket
     socket.userId = user.id;
     socket.user = user;
     socket.userData = user;
-    
+
     console.log(`✅ Socket authenticated: ${user.name} (${user.id}) - Role: ${user.role}`);
-    
+
     next();
   } catch (error) {
     console.log('🔴 Socket authentication error:', error.message);
@@ -142,12 +143,12 @@ io.use(async (socket, next) => {
 // ==================== SOCKET.IO CONNECTION HANDLER ====================
 io.on('connection', (socket) => {
   console.log(`🟢 Socket connected: ${socket.id} - User: ${socket.userId}`);
-  
+
   // If userId is not set but we have user data, set it
   if (!socket.userId && socket.user) {
     socket.userId = socket.user.id;
   }
-  
+
   // ================= USER ROOM JOINING (ALVEOLY PATTERN) =================
   socket.on("join:user", (userId) => {
     if (!userId) return;
@@ -184,7 +185,7 @@ io.on('connection', (socket) => {
       socket.join(`user-${userId}`);
       socket.join(userId.toString());
       console.log(`📌 User ${userId} manually joined their room`);
-      
+
       // Send fresh unread count
       Notification.countDocuments({
         userId: userId,
@@ -220,7 +221,7 @@ io.on('connection', (socket) => {
       socket.emit('unread-count', { count: 0, error: true });
     }
   });
-  
+
   // ================= GET ADMIN UNREAD COUNT =================
   socket.on('get-admin-unread-count', async () => {
     if (socket.user?.role === 'admin') {
@@ -250,13 +251,14 @@ io.on('connection', (socket) => {
       });
     }
   });
-  
+
   socket.on('error', (error) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
   });
 });
 
 // ================= HELPER FUNCTIONS (ALVEOLY PATTERN) =================
+// These are now exported so they can be imported by notificationController
 export const emitNotification = (userId, notification) => {
   io.to(userId.toString()).emit("new_notification", notification);
   io.to(`user_${userId}`).emit("new_notification", notification);
@@ -286,8 +288,8 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       connectSrc: [
-        "'self'", 
-        "https://*.onrender.com", 
+        "'self'",
+        "https://*.onrender.com",
         "https://*.pages.dev",
         "https://api.paystack.co",
         "https://*.cloudinary.com"
@@ -303,22 +305,22 @@ app.use(helmet({
 // ==================== FIXED CORS FOR MOBILE ====================
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
+
   if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
   } else {
     res.header('Access-Control-Allow-Origin', '*');
   }
-  
+
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-auth-token');
   res.header('Access-Control-Expose-Headers', 'Authorization, x-auth-token');
-  
+
   if (req.method === 'OPTIONS') {
     return res.status(200).json({});
   }
-  
+
   next();
 });
 
@@ -502,7 +504,7 @@ app.get('/api/test/paystack', async (req, res) => {
 app.post('/api/test/email', async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({
         success: false,
@@ -568,7 +570,7 @@ app.get('/api/test/notifications', async (req, res) => {
     const sample = await Notification.findOne({ isDeleted: false })
       .populate('user', 'name email')
       .lean();
-    
+
     res.json({
       success: true,
       stats: {
@@ -689,7 +691,7 @@ app.get('/api/socket-status', (req, res) => {
       authUsers.add(socket.userId);
     }
   });
-  
+
   res.json({
     success: true,
     status: 'Socket.IO Server Running',
@@ -711,14 +713,14 @@ app.use((req, res) => {
 // ==================== GLOBAL ERROR HANDLER ====================
 app.use((err, req, res, next) => {
   console.error('❌ Global Error:', err);
-  
+
   if (err.name === 'CastError') {
     return res.status(400).json({
       success: false,
       message: 'Invalid ID format'
     });
   }
-  
+
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       success: false,
@@ -754,10 +756,10 @@ const startServer = async () => {
 
     server.listen(PORT, '0.0.0.0', () => {
       const environment = process.env.NODE_ENV || 'development';
-      const baseUrl = environment === 'production' 
-        ? 'https://alveovitahealthandwellnesstour.onrender.com' 
+      const baseUrl = environment === 'production'
+        ? 'https://alveovitahealthandwellnesstour.onrender.com'
         : `http://localhost:${PORT}`;
-      
+
       console.log('');
       console.log('🚀 =========================================');
       console.log('🚀 Alveovita Backend Server');
@@ -832,11 +834,11 @@ startServer();
 const shutdown = () => {
   console.log('');
   console.log('🛑 Shutting down gracefully...');
-  
+
   io.close(() => {
     console.log('✅ Socket.IO closed');
   });
-  
+
   server.close(() => {
     console.log('✅ Server closed');
     mongoose.connection.close(() => {
