@@ -9,11 +9,10 @@ import {
   ArrowLeft, Heart, Share2, Bookmark, AlertCircle,
   Sliders, RefreshCw, ChevronRight, Eye,
   TrendingUp, Award, Crown, Gem, Stethoscope,
-  Home, Package, MapPin as MapPinIcon, 
+  Home, Package, MapPin as MapPinIcon,
   Zap, Shield, Trophy, Flame, Diamond,
   Sun, Moon, Cloud, Music, Palette, Camera,
-  Phone, Mail, Globe, Instagram, Twitter,
-  Facebook, Youtube, Linkedin, Check,
+  Phone, Mail, Globe, Check,
   Circle, CircleDot, Sparkle, PartyPopper
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
