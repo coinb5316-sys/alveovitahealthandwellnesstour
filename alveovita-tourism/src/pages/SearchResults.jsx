@@ -1,4 +1,4 @@
-// src/pages/SearchResults.jsx - COMPLETE with Alveoly Pattern
+// src/pages/SearchResults.jsx - COMPLETE with Billion-Dollar UI
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,8 +8,13 @@ import {
   ChevronDown, ChevronUp, Grid, List,
   ArrowLeft, Heart, Share2, Bookmark, AlertCircle,
   Sliders, RefreshCw, ChevronRight, Eye,
-  TrendingUp, Award, Crown, Gem, Stethoscope,  // <-- ADD Stethoscope HERE
-  Home, Package, MapPin as MapPinIcon
+  TrendingUp, Award, Crown, Gem, Stethoscope,
+  Home, Package, MapPin as MapPinIcon, 
+  Zap, Shield, Trophy, Flame, Diamond,
+  Sun, Moon, Cloud, Music, Palette, Camera,
+  Phone, Mail, Globe, Instagram, Twitter,
+  Facebook, Youtube, Linkedin, Check,
+  Circle, CircleDot, Sparkle, PartyPopper
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../hooks/useToast';
@@ -19,7 +24,7 @@ import Navbar from '../components/common/Navbar';
 import Footer from '../components/common/Footer';
 
 const SearchResults = () => {
-  const { isDark } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
   const location = useLocation();
@@ -41,6 +46,11 @@ const SearchResults = () => {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [favorites, setFavorites] = useState([]);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [hoveredResult, setHoveredResult] = useState(null);
+  const [animatedCards, setAnimatedCards] = useState([]);
+  
   const [filters, setFilters] = useState({
     types: [],
     regions: [],
@@ -53,6 +63,7 @@ const SearchResults = () => {
   const limit = 12;
   const searchTimeoutRef = useRef(null);
   const resultsEndRef = useRef(null);
+  const mainContainerRef = useRef(null);
 
   // ============================================
   // GET SEARCH QUERY FROM URL
@@ -62,19 +73,21 @@ const SearchResults = () => {
     const q = params.get('q') || '';
     setSearchQuery(q);
     
-    // Restore filters from state if available
     if (location.state?.filters) {
       setFilters(prev => ({ ...prev, ...location.state.filters }));
     }
     
-    // Perform search if query exists
     if (q) {
       performSearch(q, 1);
     } else {
       setLoading(false);
     }
     
-    // Cleanup
+    // Animate cards on mount
+    if (results.length > 0) {
+      setAnimatedCards(results.map((_, idx) => idx));
+    }
+    
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
@@ -131,7 +144,6 @@ const SearchResults = () => {
         setTotal(response.data.pagination?.total || 0);
         setHasMore(response.data.pagination?.pages > pageNum);
         
-        // Update URL with search query if not already there
         if (reset && query !== searchQuery) {
           navigate(`/search?q=${encodeURIComponent(query)}`, { replace: true });
         }
@@ -160,7 +172,7 @@ const SearchResults = () => {
   };
 
   // ============================================
-  // FETCH SEARCH SUGGESTIONS (Autocomplete)
+  // FETCH SEARCH SUGGESTIONS
   // ============================================
   const fetchSuggestions = useCallback(async (query) => {
     if (!query || query.trim().length < 1) {
@@ -192,7 +204,7 @@ const SearchResults = () => {
   }, []);
 
   // ============================================
-  // HANDLE SEARCH INPUT WITH DEBOUNCE
+  // HANDLE SEARCH INPUT
   // ============================================
   const handleSearchInput = useCallback((e) => {
     const value = e.target.value;
@@ -242,6 +254,36 @@ const SearchResults = () => {
   }, [navigate, searchQuery]);
 
   // ============================================
+  // TOGGLE FAVORITE
+  // ============================================
+  const toggleFavorite = useCallback(async (resultId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user) {
+      showToast('Please login to add favorites', 'info');
+      navigate('/login');
+      return;
+    }
+    
+    const isFavorited = favorites.includes(resultId);
+    try {
+      if (isFavorited) {
+        await axios.delete(`/favorites/${resultId}`);
+        setFavorites(prev => prev.filter(id => id !== resultId));
+        showToast('Removed from favorites', 'info');
+      } else {
+        await axios.post('/favorites', { itemId: resultId });
+        setFavorites(prev => [...prev, resultId]);
+        showToast('Added to favorites ❤️', 'success');
+      }
+    } catch (error) {
+      console.error('❌ Favorite error:', error);
+      showToast('Failed to update favorites', 'error');
+    }
+  }, [favorites, user, navigate, showToast]);
+
+  // ============================================
   // APPLY FILTERS
   // ============================================
   const applyFilters = useCallback(async () => {
@@ -272,7 +314,7 @@ const SearchResults = () => {
         setHasMore(response.data.pagination?.pages > 1);
         setPage(1);
         setShowFilters(false);
-        showToast(`Found ${response.data.pagination?.total || 0} results`, 'success');
+        showToast(`✨ Found ${response.data.pagination?.total || 0} amazing results`, 'success');
       } else {
         setError(response.data.message || 'Filter failed');
       }
@@ -300,7 +342,9 @@ const SearchResults = () => {
     if (searchQuery) {
       performSearch(searchQuery, 1, true);
     }
-  }, [searchQuery]);
+    setShowFilters(false);
+    showToast('✨ Filters reset', 'info');
+  }, [searchQuery, showToast]);
 
   // ============================================
   // LOAD MORE RESULTS
@@ -346,7 +390,7 @@ const SearchResults = () => {
       medical: Stethoscope
     };
     const Icon = icons[type] || Search;
-    return <Icon className="w-5 h-5" />;
+    return <Icon className="w-4 h-4" />;
   };
 
   // ============================================
@@ -362,6 +406,21 @@ const SearchResults = () => {
       medical: 'text-rose-500 bg-rose-500/10 border-rose-500/20'
     };
     return colors[type] || 'text-gray-500 bg-gray-500/10 border-gray-500/20';
+  };
+
+  // ============================================
+  // GET GRADIENT FOR RESULT TYPE
+  // ============================================
+  const getTypeGradient = (type) => {
+    const gradients = {
+      hotel: 'from-blue-500 to-cyan-500',
+      tour: 'from-green-500 to-emerald-500',
+      destination: 'from-purple-500 to-indigo-500',
+      experience: 'from-amber-500 to-orange-500',
+      wellness: 'from-emerald-500 to-teal-500',
+      medical: 'from-rose-500 to-pink-500'
+    };
+    return gradients[type] || 'from-gray-500 to-gray-600';
   };
 
   // ============================================
@@ -407,9 +466,19 @@ const SearchResults = () => {
         <Navbar />
         <div className="flex items-center justify-center h-[60vh]">
           <div className="text-center">
-            <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto" />
-            <p className={`mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full border-4 border-amber-500/20 animate-spin-slow">
+                <div className="absolute inset-0 rounded-full border-t-4 border-amber-500 animate-spin" />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Search className="w-8 h-8 text-amber-500" />
+              </div>
+            </div>
+            <p className={`mt-6 text-lg font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
               Searching for "{searchQuery}"...
+            </p>
+            <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Finding the best matches for you
             </p>
           </div>
         </div>
@@ -426,27 +495,33 @@ const SearchResults = () => {
       <Navbar />
       
       {/* ============================================ */}
-      {/* SEARCH HEADER */}
+      {/* SEARCH HEADER - Premium Glass Effect */}
       {/* ============================================ */}
-      <div className={`sticky top-16 z-40 py-4 border-b transition-colors duration-300 ${
-        isDark ? 'bg-gray-900/90 border-gray-800' : 'bg-white/90 border-gray-200'
-      } backdrop-blur-xl`}>
+      <div className={`sticky top-16 z-40 py-4 border-b transition-all duration-300 ${
+        isDark 
+          ? 'bg-gray-900/80 backdrop-blur-xl border-gray-800/50' 
+          : 'bg-white/80 backdrop-blur-xl border-gray-200/50'
+      }`}>
         <div className="container-custom px-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className={`p-2 rounded-xl transition-all duration-300 hover:scale-105 ${
+              className={`p-2.5 rounded-2xl transition-all duration-300 hover:scale-105 ${
                 isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-              }`}
+              } group`}
             >
-              <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+              <ArrowLeft className={`w-5 h-5 transition-colors ${
+                isDark ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900'
+              }`} />
             </button>
             
-            {/* Search Form */}
+            {/* Search Form - Premium */}
             <form onSubmit={handleSearch} className="flex-1 relative">
-              <div className={`flex items-center gap-2 rounded-xl px-4 transition-all ${
-                isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-100 border border-gray-200'
-              } ${showSuggestions ? 'ring-2 ring-amber-500' : ''}`}>
+              <div className={`flex items-center gap-2 rounded-2xl px-5 transition-all duration-300 ${
+                isDark 
+                  ? 'bg-gray-800/70 border border-gray-700 focus-within:border-amber-500' 
+                  : 'bg-gray-100/70 border border-gray-200 focus-within:border-amber-500'
+              } ${showSuggestions ? 'ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20' : ''}`}>
                 {searching ? (
                   <Loader2 className="w-5 h-5 text-amber-400 animate-spin flex-shrink-0" />
                 ) : (
@@ -460,7 +535,7 @@ const SearchResults = () => {
                   onFocus={() => {
                     if (suggestions.length > 0) setShowSuggestions(true);
                   }}
-                  className={`w-full py-3 bg-transparent outline-none text-sm ${
+                  className={`w-full py-3.5 bg-transparent outline-none text-sm ${
                     isDark ? 'text-white placeholder-gray-400' : 'text-gray-800 placeholder-gray-400'
                   }`}
                   autoFocus
@@ -473,21 +548,27 @@ const SearchResults = () => {
                       setSuggestions([]);
                       setShowSuggestions(false);
                     }}
-                    className="p-1 rounded-full hover:bg-gray-700/50 transition-colors text-gray-400 hover:text-white flex-shrink-0"
+                    className="p-1.5 rounded-full hover:bg-gray-700/50 transition-colors text-gray-400 hover:text-white flex-shrink-0"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30 flex-shrink-0"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
               </div>
               
-              {/* Suggestions Dropdown */}
+              {/* Suggestions Dropdown - Premium */}
               <AnimatePresence>
                 {showSuggestions && suggestions.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className={`absolute left-0 right-0 mt-2 rounded-2xl shadow-2xl border overflow-hidden z-50 ${
+                    className={`absolute left-0 right-0 mt-3 rounded-2xl shadow-2xl border overflow-hidden z-50 ${
                       isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
                     }`}
                   >
@@ -495,11 +576,11 @@ const SearchResults = () => {
                       <button
                         key={idx}
                         onClick={() => handleSuggestionClick(suggestion)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 text-left ${
+                        className={`w-full flex items-center gap-3 px-5 py-4 transition-all duration-200 text-left group ${
                           isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-50 text-gray-700'
-                        }`}
+                        } ${idx !== suggestions.length - 1 ? isDark ? 'border-b border-gray-800' : 'border-b border-gray-100' : ''}`}
                       >
-                        <div className={`p-2 rounded-lg ${getTypeColor(suggestion.type)}`}>
+                        <div className={`p-2.5 rounded-xl ${getTypeColor(suggestion.type)}`}>
                           {getTypeIcon(suggestion.type)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -510,7 +591,7 @@ const SearchResults = () => {
                             {suggestion.region && !suggestion.location && ` • ${suggestion.region}`}
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
                       </button>
                     ))}
                   </motion.div>
@@ -518,15 +599,16 @@ const SearchResults = () => {
               </AnimatePresence>
             </form>
             
+            {/* Filter Button - Premium */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`
-                px-4 py-2.5 rounded-xl font-medium transition-all duration-300 flex items-center gap-2
+                px-5 py-3 rounded-2xl font-medium transition-all duration-300 flex items-center gap-2
                 ${showFilters 
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30' 
                   : isDark 
-                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:shadow-lg' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-lg'
                 }
               `}
             >
@@ -541,7 +623,7 @@ const SearchResults = () => {
       </div>
 
       {/* ============================================ */}
-      {/* FILTERS PANEL */}
+      {/* FILTERS PANEL - Premium Glass Effect */}
       {/* ============================================ */}
       <AnimatePresence>
         {showFilters && (
@@ -549,16 +631,19 @@ const SearchResults = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className={`border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}
+            className={`border-b ${
+              isDark ? 'border-gray-800/50 bg-gray-900/50 backdrop-blur-sm' : 'border-gray-200/50 bg-white/50 backdrop-blur-sm'
+            }`}
           >
-            <div className="container-custom px-4 py-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="container-custom px-4 py-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                 {/* Type Filter */}
                 <div>
-                  <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <Trophy className="w-4 h-4 text-amber-500" />
                     Content Types
                   </label>
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {['hotel', 'tour', 'destination', 'experience'].map(type => (
                       <button
                         key={type}
@@ -569,9 +654,9 @@ const SearchResults = () => {
                             : [...prev.types, type]
                         }))}
                         className={`
-                          px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 capitalize
+                          px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 capitalize
                           ${filters.types.includes(type)
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                            ? `bg-gradient-to-r ${getTypeGradient(type)} text-white shadow-lg`
                             : isDark 
                               ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -586,10 +671,11 @@ const SearchResults = () => {
 
                 {/* Price Range */}
                 <div>
-                  <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Price (₵)
+                  <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <Diamond className="w-4 h-4 text-amber-500" />
+                    Price Range (₵)
                   </label>
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-3 mt-3">
                     <input
                       type="number"
                       placeholder="Min"
@@ -597,7 +683,7 @@ const SearchResults = () => {
                       value={filters.minPrice}
                       onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value }))}
                       className={`
-                        w-1/2 px-3 py-2 rounded-xl text-sm outline-none transition-all
+                        w-1/2 px-4 py-2.5 rounded-xl text-sm outline-none transition-all
                         ${isDark 
                           ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-amber-500' 
                           : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-400 focus:border-amber-500'
@@ -611,7 +697,7 @@ const SearchResults = () => {
                       value={filters.maxPrice}
                       onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value }))}
                       className={`
-                        w-1/2 px-3 py-2 rounded-xl text-sm outline-none transition-all
+                        w-1/2 px-4 py-2.5 rounded-xl text-sm outline-none transition-all
                         ${isDark 
                           ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-amber-500' 
                           : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-400 focus:border-amber-500'
@@ -623,10 +709,11 @@ const SearchResults = () => {
 
                 {/* Min Rating */}
                 <div>
-                  <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <Star className="w-4 h-4 text-amber-500" />
                     Minimum Rating
                   </label>
-                  <div className="flex gap-1 mt-2">
+                  <div className="flex gap-2 mt-3">
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
                         key={rating}
@@ -635,7 +722,7 @@ const SearchResults = () => {
                           minRating: prev.minRating === rating.toString() ? '' : rating.toString()
                         }))}
                         className={`
-                          px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300
+                          px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300
                           ${filters.minRating === rating.toString()
                             ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
                             : isDark 
@@ -652,36 +739,37 @@ const SearchResults = () => {
 
                 {/* Sort By */}
                 <div>
-                  <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <Zap className="w-4 h-4 text-amber-500" />
                     Sort By
                   </label>
                   <select
                     value={filters.sortBy}
                     onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
                     className={`
-                      w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none transition-all
+                      w-full mt-3 px-4 py-2.5 rounded-xl text-sm outline-none transition-all
                       ${isDark 
                         ? 'bg-gray-800 border border-gray-700 text-white focus:border-amber-500' 
                         : 'bg-gray-100 border border-gray-200 text-gray-800 focus:border-amber-500'
                       }
                     `}
                   >
-                    <option value="relevance">Relevance</option>
-                    <option value="rating">Highest Rating</option>
-                    <option value="price">Price: Low to High</option>
-                    <option value="price-desc">Price: High to Low</option>
-                    <option value="newest">Newest First</option>
-                    <option value="popular">Most Popular</option>
+                    <option value="relevance">✨ Relevance</option>
+                    <option value="rating">⭐ Highest Rating</option>
+                    <option value="price">💰 Price: Low to High</option>
+                    <option value="price-desc">💎 Price: High to Low</option>
+                    <option value="newest">🆕 Newest First</option>
+                    <option value="popular">🔥 Most Popular</option>
                   </select>
                 </div>
               </div>
 
               {/* Filter Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mt-6 pt-4 border-t border-gray-200/20">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-200/20">
+                <div className="flex items-center gap-3">
                   <button
                     onClick={resetFilters}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
                       isDark 
                         ? 'text-gray-400 hover:text-white hover:bg-gray-800' 
                         : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
@@ -690,17 +778,18 @@ const SearchResults = () => {
                     Reset Filters
                   </button>
                   {(filters.types.length > 0 || filters.minPrice || filters.maxPrice || filters.minRating) && (
-                    <span className="text-xs text-amber-500">
+                    <span className="text-xs px-3 py-1 rounded-full bg-amber-500/20 text-amber-500">
                       {filters.types.length} type{filters.types.length !== 1 ? 's' : ''} filtered
                     </span>
                   )}
                 </div>
                 <button
                   onClick={applyFilters}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30 flex items-center gap-2"
+                  className="px-8 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/40 flex items-center gap-3"
                 >
                   <Filter className="w-4 h-4" />
                   Apply Filters
+                  <span className="text-xs opacity-70">✨</span>
                 </button>
               </div>
             </div>
@@ -709,56 +798,76 @@ const SearchResults = () => {
       </AnimatePresence>
 
       {/* ============================================ */}
-      {/* RESULTS HEADER */}
+      {/* RESULTS HEADER - Premium */}
       {/* ============================================ */}
-      <div className="container-custom px-4 py-6">
+      <div className="container-custom px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-              {searchQuery ? `Results for "${searchQuery}"` : 'All Results'}
-            </h1>
-            <div className="flex items-center gap-3 mt-1">
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Found {total} {total === 1 ? 'result' : 'results'}
-              </p>
+            <div className="flex items-center gap-3">
+              <h1 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {searchQuery ? (
+                  <span>
+                    Results for <span className="bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">"{searchQuery}"</span>
+                  </span>
+                ) : (
+                  'All Results'
+                )}
+              </h1>
               {total > 0 && (
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                <span className={`text-xs px-3 py-1 rounded-full ${
                   isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
                 }`}>
                   Page {page}
                 </span>
               )}
             </div>
+            <div className="flex items-center gap-4 mt-1.5">
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Found <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>{total}</span> {total === 1 ? 'result' : 'results'}
+              </p>
+              {total > 0 && (
+                <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span>Live</span>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-xl transition-all duration-300 ${
-                viewMode === 'grid' 
-                  ? 'bg-amber-500/20 text-amber-500' 
-                  : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'
-              }`}
-              aria-label="Grid view"
-            >
-              <Grid className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded-xl transition-all duration-300 ${
-                viewMode === 'list' 
-                  ? 'bg-amber-500/20 text-amber-500' 
-                  : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'
-              }`}
-              aria-label="List view"
-            >
-              <List className="w-5 h-5" />
-            </button>
+            {/* View Mode Toggle */}
+            <div className={`flex rounded-2xl p-1 ${
+              isDark ? 'bg-gray-800' : 'bg-gray-100'
+            }`}>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2.5 rounded-xl transition-all duration-300 ${
+                  viewMode === 'grid' 
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30' 
+                    : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'
+                }`}
+                aria-label="Grid view"
+              >
+                <Grid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2.5 rounded-xl transition-all duration-300 ${
+                  viewMode === 'list' 
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30' 
+                    : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'
+                }`}
+                aria-label="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
             
+            {/* Refresh */}
             {results.length > 0 && (
               <button
                 onClick={() => performSearch(searchQuery, 1, true)}
-                className={`p-2 rounded-xl transition-all duration-300 ${
+                className={`p-2.5 rounded-xl transition-all duration-300 ${
                   isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
                 }`}
                 aria-label="Refresh results"
@@ -775,15 +884,15 @@ const SearchResults = () => {
       {/* ============================================ */}
       {error && (
         <div className="container-custom px-4">
-          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <span>{error}</span>
+          <div className="p-5 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-500 text-sm flex items-center gap-4">
+            <AlertCircle className="w-6 h-6 flex-shrink-0" />
+            <span className="flex-1">{error}</span>
             <button
               onClick={() => {
                 setError(null);
                 if (searchQuery) performSearch(searchQuery, 1, true);
               }}
-              className="ml-auto text-red-400 hover:text-red-300 font-medium"
+              className="px-4 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 font-medium transition-colors"
             >
               Try again
             </button>
@@ -792,233 +901,297 @@ const SearchResults = () => {
       )}
 
       {/* ============================================ */}
-      {/* RESULTS GRID */}
+      {/* RESULTS GRID - Premium Cards */}
       {/* ============================================ */}
       <div className="container-custom px-4 py-8">
         {results.length === 0 && !loading && !error ? (
-          <div className="text-center py-16">
-            <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center ${
+          <div className="text-center py-20">
+            <div className={`w-28 h-28 mx-auto rounded-3xl flex items-center justify-center ${
               isDark ? 'bg-gray-800' : 'bg-gray-100'
             }`}>
-              <Search className="w-10 h-10 text-gray-400" />
+              <Search className="w-14 h-14 text-gray-400" />
             </div>
-            <h3 className={`mt-4 text-xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
+            <h3 className={`mt-6 text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
               No results found
             </h3>
-            <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               {searchQuery ? `No results found for "${searchQuery}"` : 'Enter a search query to get started'}
             </p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               {searchQuery && (
                 <button
                   onClick={() => {
                     setFilters({ types: [], regions: [], minPrice: '', maxPrice: '', minRating: '', sortBy: 'relevance' });
                     performSearch(searchQuery, 1, true);
                   }}
-                  className="text-amber-500 hover:text-amber-600 font-medium"
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30"
                 >
-                  Try clearing filters
+                  Clear Filters
                 </button>
               )}
               <Link
                 to="/"
-                className="text-amber-500 hover:text-amber-600 font-medium"
+                className="px-6 py-3 rounded-2xl border border-amber-500/30 text-amber-500 font-medium transition-all duration-300 hover:bg-amber-500/10"
               >
-                Browse all content →
+                Browse All Content →
               </Link>
             </div>
           </div>
         ) : (
           <>
             <div className={viewMode === 'grid' 
-              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6'
-              : 'space-y-4'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 md:gap-7'
+              : 'space-y-5'
             }>
-              {results.map((result, index) => (
-                <motion.div
-                  key={result._id || index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(index * 0.03, 0.5) }}
-                  className={`
-                    group rounded-2xl overflow-hidden transition-all duration-300
-                    ${isDark 
-                      ? 'bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700 hover:border-amber-500/30' 
-                      : 'bg-white hover:shadow-2xl border border-gray-200 hover:border-amber-200'
-                    }
-                    ${viewMode === 'list' ? 'flex flex-col md:flex-row' : ''}
-                  `}
-                >
-                  <Link to={result.url || `/${result._type}/${result._id}`} className="flex-1">
-                    {viewMode === 'grid' ? (
-                      // ===== GRID VIEW =====
-                      <>
-                        <div className="relative aspect-[4/3] overflow-hidden">
-                          <img 
-                            src={result.images?.[0] || result.image || result.thumbnail || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80'} 
-                            alt={result.name || result.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                            loading="lazy"
-                          />
-                          {/* Type Badge */}
-                          <div className="absolute top-3 left-3 flex items-center gap-2">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize border backdrop-blur-sm ${getTypeColor(result._type)}`}>
-                              {getTypeIcon(result._type)}
-                              <span className="ml-1">{result._type}</span>
-                            </span>
-                          </div>
-                          
-                          {/* Rating */}
-                          {result.rating && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              <span className="text-sm font-medium">{result.rating}</span>
+              {results.map((result, index) => {
+                const isFavorited = favorites.includes(result._id);
+                const isHovered = hoveredResult === result._id;
+                const typeColor = getTypeColor(result._type);
+                const typeGradient = getTypeGradient(result._type);
+                
+                return (
+                  <motion.div
+                    key={result._id || index}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ 
+                      delay: Math.min(index * 0.05, 0.5),
+                      type: 'spring',
+                      stiffness: 100,
+                      damping: 15
+                    }}
+                    onMouseEnter={() => setHoveredResult(result._id)}
+                    onMouseLeave={() => setHoveredResult(null)}
+                    className={`
+                      group rounded-3xl overflow-hidden transition-all duration-500
+                      ${isDark 
+                        ? `bg-gradient-to-b from-gray-800/80 to-gray-900/80 hover:from-gray-700/80 hover:to-gray-800/80 border ${isHovered ? 'border-amber-500/40 shadow-2xl shadow-amber-500/10' : 'border-gray-700'}`
+                        : `bg-white hover:shadow-2xl shadow-lg border ${isHovered ? 'border-amber-300 shadow-amber-500/20' : 'border-gray-200'}`
+                      }
+                      ${viewMode === 'list' ? 'flex flex-col md:flex-row' : ''}
+                      transform transition-all duration-500 hover:-translate-y-1
+                    `}
+                  >
+                    <Link to={result.url || `/${result._type}/${result._id}`} className="flex-1">
+                      {viewMode === 'grid' ? (
+                        // ===== GRID VIEW - Premium =====
+                        <>
+                          <div className="relative aspect-[4/3] overflow-hidden">
+                            {/* Image with zoom effect */}
+                            <div className={`w-full h-full transition-transform duration-700 ${
+                              isHovered ? 'scale-110' : 'scale-100'
+                            }`}>
+                              <img 
+                                src={result.images?.[0] || result.image || result.thumbnail || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80'} 
+                                alt={result.name || result.title}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
                             </div>
-                          )}
-                          
-                          {/* Price */}
-                          {result.price && (
-                            <div className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg shadow-amber-500/30">
-                              {formatPrice(result.price)}
+                            
+                            {/* Gradient Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                            
+                            {/* Type Badge - Premium */}
+                            <div className="absolute top-4 left-4 flex items-center gap-2">
+                              <span className={`px-3 py-1.5 rounded-xl text-xs font-medium capitalize border backdrop-blur-xl flex items-center gap-1.5 ${typeColor}`}>
+                                {getTypeIcon(result._type)}
+                                <span className="ml-1">{result._type}</span>
+                              </span>
                             </div>
-                          )}
-                          
-                          {/* Favorite Button */}
-                          {user && (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                // Add to favorites logic
-                                showToast('Added to favorites ❤️', 'success');
-                              }}
-                              className="absolute bottom-3 left-3 p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-colors"
-                            >
-                              <Heart className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="p-4">
-                          <h3 className={`font-bold text-base line-clamp-1 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                            {result.name || result.title}
-                          </h3>
-                          <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <MapPin className="w-3.5 h-3.5 mr-1 text-amber-500 flex-shrink-0" />
-                            <span className="truncate">{result.location || result.region || 'Ghana'}</span>
-                          </div>
-                          <p className={`text-sm mt-2 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {result.description || result.content || 'No description available'}
-                          </p>
-                          {result.duration && (
-                            <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-                              <Clock className="w-3 h-3" />
-                              <span>{result.duration}</span>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      // ===== LIST VIEW =====
-                      <div className="flex flex-col md:flex-row">
-                        <div className="md:w-48 h-48 md:h-auto flex-shrink-0 relative overflow-hidden">
-                          <img 
-                            src={result.images?.[0] || result.image || result.thumbnail || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80'} 
-                            alt={result.name || result.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                            loading="lazy"
-                          />
-                          <span className={`absolute top-2 left-2 px-2.5 py-1 rounded-full text-xs font-medium capitalize border backdrop-blur-sm ${getTypeColor(result._type)}`}>
-                            {getTypeIcon(result._type)}
-                            <span className="ml-1">{result._type}</span>
-                          </span>
-                          {result.rating && (
-                            <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              <span className="text-xs font-medium">{result.rating}</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                                {result.name || result.title}
-                              </h3>
-                              <div className="flex items-center text-sm text-gray-500 mt-1">
-                                <MapPin className="w-3.5 h-3.5 mr-1 text-amber-500 flex-shrink-0" />
-                                <span className="truncate">{result.location || result.region || 'Ghana'}</span>
+                            
+                            {/* Rating - Premium */}
+                            {result.rating && (
+                              <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-xl text-white border border-white/10">
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                <span className="text-sm font-bold">{result.rating}</span>
+                                <span className="text-xs text-gray-400">/ 5</span>
                               </div>
-                            </div>
+                            )}
+                            
+                            {/* Price - Premium */}
                             {result.price && (
-                              <div className="text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent ml-4 flex-shrink-0">
+                              <div className="absolute bottom-4 right-4 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-2xl shadow-amber-500/30 flex items-center gap-1">
                                 {formatPrice(result.price)}
                               </div>
                             )}
-                          </div>
-                          <p className={`text-sm mt-2 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {result.description || result.content || 'No description available'}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3 mt-3">
-                            {result.duration && (
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                <Clock className="w-3 h-3 inline mr-1" />
-                                {result.duration}
-                              </span>
+                            
+                            {/* Favorite Button - Premium */}
+                            {user && (
+                              <button
+                                onClick={(e) => toggleFavorite(result._id, e)}
+                                className={`absolute bottom-4 left-4 p-2.5 rounded-xl backdrop-blur-xl transition-all duration-300 ${
+                                  isFavorited 
+                                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
+                                    : 'bg-black/50 text-white hover:bg-amber-500 hover:shadow-lg hover:shadow-amber-500/30'
+                                }`}
+                              >
+                                <Heart className={`w-4 h-4 ${isFavorited ? 'fill-white' : ''}`} />
+                              </button>
                             )}
-                            {result.amenities?.slice(0, 3).map((amenity, i) => (
-                              <span key={i} className={`text-xs px-2 py-1 rounded-full ${
-                                isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                {amenity}
-                              </span>
-                            ))}
-                            {result.amenities?.length > 3 && (
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                +{result.amenities.length - 3} more
-                              </span>
+                            
+                            {/* Hover Glow Effect */}
+                            <div className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${
+                              isHovered ? 'opacity-100' : 'opacity-0'
+                            } bg-gradient-to-tr from-amber-500/10 via-transparent to-orange-500/10`} />
+                          </div>
+                          
+                          <div className="p-5">
+                            <h3 className={`font-bold text-base line-clamp-1 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                              {result.name || result.title}
+                            </h3>
+                            <div className="flex items-center text-sm text-gray-500 mt-1.5">
+                              <MapPin className="w-3.5 h-3.5 mr-1 text-amber-500 flex-shrink-0" />
+                              <span className="truncate">{result.location || result.region || 'Ghana'}</span>
+                            </div>
+                            <p className={`text-sm mt-2.5 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {result.description || result.content || 'No description available'}
+                            </p>
+                            {result.duration && (
+                              <div className="flex items-center gap-1 mt-3 text-xs text-gray-500">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>{result.duration}</span>
+                              </div>
+                            )}
+                            
+                            {/* Tags */}
+                            {result.amenities?.slice(0, 3).length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-3">
+                                {result.amenities.slice(0, 3).map((amenity, i) => (
+                                  <span key={i} className={`text-[10px] px-2.5 py-1 rounded-full ${
+                                    isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {amenity}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        // ===== LIST VIEW - Premium =====
+                        <div className="flex flex-col md:flex-row">
+                          <div className="md:w-56 h-56 md:h-auto flex-shrink-0 relative overflow-hidden">
+                            <div className={`w-full h-full transition-transform duration-700 ${
+                              isHovered ? 'scale-110' : 'scale-100'
+                            }`}>
+                              <img 
+                                src={result.images?.[0] || result.image || result.thumbnail || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80'} 
+                                alt={result.name || result.title}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+                            <span className={`absolute top-3 left-3 px-3 py-1.5 rounded-xl text-xs font-medium capitalize border backdrop-blur-xl flex items-center gap-1.5 ${typeColor}`}>
+                              {getTypeIcon(result._type)}
+                              <span className="ml-1">{result._type}</span>
+                            </span>
+                            {result.rating && (
+                              <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-xl text-white border border-white/10">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                <span className="text-xs font-bold">{result.rating}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 p-5 md:p-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                                  {result.name || result.title}
+                                </h3>
+                                <div className="flex items-center text-sm text-gray-500 mt-1">
+                                  <MapPin className="w-3.5 h-3.5 mr-1 text-amber-500 flex-shrink-0" />
+                                  <span className="truncate">{result.location || result.region || 'Ghana'}</span>
+                                </div>
+                              </div>
+                              {result.price && (
+                                <div className="text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent ml-4 flex-shrink-0">
+                                  {formatPrice(result.price)}
+                                </div>
+                              )}
+                            </div>
+                            <p className={`text-sm mt-2 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {result.description || result.content || 'No description available'}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3 mt-3">
+                              {result.duration && (
+                                <span className={`text-xs px-3 py-1.5 rounded-xl ${
+                                  isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  <Clock className="w-3 h-3 inline mr-1" />
+                                  {result.duration}
+                                </span>
+                              )}
+                              {result.amenities?.slice(0, 4).map((amenity, i) => (
+                                <span key={i} className={`text-xs px-3 py-1.5 rounded-xl ${
+                                  isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {amenity}
+                                </span>
+                              ))}
+                              {result.amenities?.length > 4 && (
+                                <span className={`text-xs px-3 py-1.5 rounded-xl ${
+                                  isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  +{result.amenities.length - 4} more
+                                </span>
+                              )}
+                            </div>
+                            
+                            {user && (
+                              <button
+                                onClick={(e) => toggleFavorite(result._id, e)}
+                                className={`mt-4 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                                  isFavorited 
+                                    ? 'bg-amber-500/20 text-amber-500' 
+                                    : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                              >
+                                <Heart className={`w-4 h-4 ${isFavorited ? 'fill-amber-500' : ''}`} />
+                                {isFavorited ? 'Favorited' : 'Add to Favorites'}
+                              </button>
                             )}
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </Link>
-                </motion.div>
-              ))}
+                      )}
+                    </Link>
+                  </motion.div>
+                );
+              })}
             </div>
 
             {/* ============================================ */}
-            {/* LOAD MORE */}
+            {/* LOAD MORE - Premium */}
             {/* ============================================ */}
             {hasMore && results.length > 0 && (
               <>
                 <div ref={resultsEndRef} className="h-4" />
-                <div className="text-center mt-8">
+                <div className="text-center mt-10">
                   <button
                     onClick={loadMore}
                     disabled={loadingMore}
                     className={`
-                      px-8 py-3 rounded-xl font-medium transition-all duration-300
+                      px-10 py-4 rounded-2xl font-semibold transition-all duration-300
                       bg-gradient-to-r from-amber-500 to-orange-500 text-white
-                      hover:shadow-lg hover:shadow-amber-500/30
+                      hover:shadow-2xl hover:shadow-amber-500/40 hover:scale-105
                       ${loadingMore ? 'opacity-70 cursor-not-allowed' : ''}
                     `}
                   >
                     {loadingMore ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin" />
                         Loading more...
                       </span>
                     ) : (
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-3">
                         Load More
-                        <ChevronDown className="w-4 h-4" />
+                        <ChevronDown className="w-5 h-5" />
+                        <span className="text-xs opacity-70">✨</span>
                       </span>
                     )}
                   </button>
-                  <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     Showing {results.length} of {total} results
                   </p>
                 </div>
