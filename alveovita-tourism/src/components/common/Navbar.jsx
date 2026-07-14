@@ -19,7 +19,8 @@ import {
   Headphones, Video, Mic, Image as ImageIcon,
   Plus, Minus, Circle, AlertTriangle, Info as InfoIcon,
   Loader2, Check, Trash2, CheckCheck, Filter,
-  Hotel, MapPin as MapPinIcon, Package as PackageIcon
+  Hotel, MapPin as MapPinIcon, Package as PackageIcon,
+  ChevronRight
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
@@ -73,26 +74,24 @@ const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
 
-
-// ============================================
-// FETCH UNREAD COUNT
-// ============================================
-const fetchUnreadCount = useCallback(async () => {
-  if (!user) return;
-  
-  try {
-    setLoadingNotifications(true);
-    // Use the count endpoint instead of stats (which requires admin)
-    const response = await axios.get('/notifications/count');
-    if (response.data.success) {
-      setUnreadCount(response.data.unreadCount || 0);
+  // ============================================
+  // FETCH UNREAD COUNT
+  // ============================================
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return
+    
+    try {
+      setLoadingNotifications(true)
+      const response = await axios.get('/notifications/count')
+      if (response.data.success) {
+        setUnreadCount(response.data.unreadCount || 0)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching unread count:', error)
+    } finally {
+      setLoadingNotifications(false)
     }
-  } catch (error) {
-    console.error('❌ Error fetching unread count:', error);
-  } finally {
-    setLoadingNotifications(false);
-  }
-}, [user]);
+  }, [user])
 
   // ============================================
   // FETCH QUICK NOTIFICATIONS
@@ -107,6 +106,10 @@ const fetchUnreadCount = useCallback(async () => {
       })
       if (response.data.success) {
         setQuickNotifications(response.data.notifications || [])
+        // Also update unread count from the response
+        if (response.data.unreadCount !== undefined) {
+          setUnreadCount(response.data.unreadCount)
+        }
       }
     } catch (error) {
       console.error('❌ Error fetching quick notifications:', error)
@@ -249,7 +252,7 @@ const fetchUnreadCount = useCallback(async () => {
               : n
           )
         )
-        setUnreadCount(response.data.unreadCount)
+        setUnreadCount(response.data.unreadCount || 0)
       }
     } catch (error) {
       console.error('❌ Failed to mark as read:', error)
@@ -264,7 +267,7 @@ const fetchUnreadCount = useCallback(async () => {
       const response = await axios.delete(`/notifications/${notificationId}`)
       if (response.data.success) {
         setQuickNotifications(prev => prev.filter(n => n._id !== notificationId))
-        setUnreadCount(response.data.unreadCount)
+        setUnreadCount(response.data.unreadCount || 0)
       }
     } catch (error) {
       console.error('❌ Failed to delete notification:', error)
@@ -272,7 +275,24 @@ const fetchUnreadCount = useCallback(async () => {
   }, [])
 
   // ============================================
-  // SOCKET EVENT LISTENERS (Alveoly Pattern)
+  // MARK ALL AS READ
+  // ============================================
+  const handleMarkAllAsRead = useCallback(async () => {
+    try {
+      const response = await axios.put('/notifications/read-all')
+      if (response.data.success) {
+        setQuickNotifications(prev => prev.map(n => ({ ...n, read: true })))
+        setUnreadCount(0)
+        showToast('All notifications marked as read', 'success')
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark all as read:', error)
+      showToast('Failed to mark all as read', 'error')
+    }
+  }, [showToast])
+
+  // ============================================
+  // SOCKET EVENT LISTENERS
   // ============================================
   useEffect(() => {
     if (!socket || !isConnected) return
@@ -318,26 +338,16 @@ const fetchUnreadCount = useCallback(async () => {
       fetchUnreadCount()
     }
 
-    const handleAllNotificationsDeleted = () => {
-      setQuickNotifications([])
-      setUnreadCount(0)
-    }
-
-    // Alveoly pattern events
     socket.on('new_notification', handleNewNotification)
-    socket.on('new-notification', handleNewNotification) // legacy support
     socket.on('notification-read', handleNotificationRead)
     socket.on('all-notifications-read', handleAllNotificationsRead)
     socket.on('notification-deleted', handleNotificationDeleted)
-    socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
 
     return () => {
       socket.off('new_notification', handleNewNotification)
-      socket.off('new-notification', handleNewNotification)
       socket.off('notification-read', handleNotificationRead)
       socket.off('all-notifications-read', handleAllNotificationsRead)
       socket.off('notification-deleted', handleNotificationDeleted)
-      socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
     }
   }, [socket, isConnected, showToast, fetchUnreadCount])
 
@@ -941,16 +951,7 @@ const fetchUnreadCount = useCallback(async () => {
                             <div className="flex items-center gap-1">
                               {unreadCount > 0 && (
                                 <button
-                                  onClick={async () => {
-                                    try {
-                                      await axios.put('/notifications/read-all')
-                                      setQuickNotifications(prev => prev.map(n => ({ ...n, read: true })))
-                                      setUnreadCount(0)
-                                      showToast('All notifications marked as read', 'success')
-                                    } catch (error) {
-                                      console.error('❌ Failed to mark all as read:', error)
-                                    }
-                                  }}
+                                  onClick={handleMarkAllAsRead}
                                   className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
                                   title="Mark all as read"
                                 >
