@@ -73,24 +73,26 @@ const Navbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // ============================================
-  // FETCH UNREAD COUNT
-  // ============================================
-  const fetchUnreadCount = useCallback(async () => {
-    if (!user) return
-    
-    try {
-      setLoadingNotifications(true)
-      const response = await axios.get('/notifications/stats')
-      if (response.data.success) {
-        setUnreadCount(response.data.stats.userUnread || 0)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching unread count:', error)
-    } finally {
-      setLoadingNotifications(false)
+
+// ============================================
+// FETCH UNREAD COUNT
+// ============================================
+const fetchUnreadCount = useCallback(async () => {
+  if (!user) return;
+  
+  try {
+    setLoadingNotifications(true);
+    // Use the count endpoint instead of stats (which requires admin)
+    const response = await axios.get('/notifications/count');
+    if (response.data.success) {
+      setUnreadCount(response.data.unreadCount || 0);
     }
-  }, [user])
+  } catch (error) {
+    console.error('❌ Error fetching unread count:', error);
+  } finally {
+    setLoadingNotifications(false);
+  }
+}, [user]);
 
   // ============================================
   // FETCH QUICK NOTIFICATIONS
