@@ -1,4 +1,4 @@
-// src/components/NotificationPanel.jsx - PROFESSIONAL COMPLETE
+// src/components/NotificationPanel.jsx - PROFESSIONAL COMPLETE (FIXED)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -9,7 +9,7 @@ import {
   MoreVertical, Archive, Bookmark, Share2, 
   Gift, Zap, Flame, Crown, Gem, Sparkles,
   Shield, Trophy, Circle, CircleDot, Search,
-  CheckCircle  // ← ADD THIS LINE
+  CheckCircle
 } from 'lucide-react';
 import axios from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -134,7 +134,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   // MARK AS READ
   // ============================================
-  const handleMarkAsRead = async (notificationId) => {
+  const handleMarkAsRead = useCallback(async (notificationId) => {
     try {
       const response = await axios.put(`/notifications/${notificationId}/read`);
       if (response.data.success) {
@@ -153,12 +153,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to mark as read:', error);
       showToast('Failed to mark as read', 'error');
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // MARK ALL AS READ
   // ============================================
-  const handleMarkAllAsRead = async () => {
+  const handleMarkAllAsRead = useCallback(async () => {
     try {
       const response = await axios.put('/notifications/read-all');
       if (response.data.success) {
@@ -174,12 +174,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to mark all as read:', error);
       showToast('Failed to mark all as read', 'error');
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // DELETE NOTIFICATION
   // ============================================
-  const handleDelete = async (notificationId) => {
+  const handleDelete = useCallback(async (notificationId) => {
     try {
       const response = await axios.delete(`/notifications/${notificationId}`);
       if (response.data.success) {
@@ -192,12 +192,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to delete notification:', error);
       showToast('Failed to delete notification', 'error');
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // DELETE ALL READ
   // ============================================
-  const handleDeleteAllRead = async () => {
+  const handleDeleteAllRead = useCallback(async () => {
     if (!confirm('Delete all read notifications?')) return;
     
     try {
@@ -213,7 +213,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to delete read notifications:', error);
       showToast('Failed to delete read notifications', 'error');
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // TOGGLE SELECTION
@@ -223,7 +223,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       prev.includes(notificationId) 
         ? prev.filter(id => id !== notificationId) 
         : [...prev, notificationId]
-    )
+    );
   }, []);
 
   // ============================================
@@ -406,7 +406,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   // GET ICON
   // ============================================
-  const getIcon = (type, iconName) => {
+  const getIcon = useCallback((type, iconName) => {
     const icons = {
       booking: Calendar,
       payment: CreditCard,
@@ -424,12 +424,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     
     const Icon = icons[type] || Bell;
     return <Icon className="w-5 h-5" />;
-  };
+  }, []);
 
   // ============================================
   // GET TIME AGO
   // ============================================
-  const getTimeAgo = (date) => {
+  const getTimeAgo = useCallback((date) => {
     if (!date) return 'Just now';
     const diff = Date.now() - new Date(date).getTime();
     const seconds = Math.floor(diff / 1000);
@@ -442,17 +442,17 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
     return new Date(date).toLocaleDateString();
-  };
+  }, []);
 
   // ============================================
   // GET FILTER COUNT
   // ============================================
-  const getFilterCount = (filterType) => {
+  const getFilterCount = useCallback((filterType) => {
     if (filterType === 'all') return notifications.length;
     if (filterType === 'unread') return notifications.filter(n => !n.read).length;
     if (filterType === 'read') return notifications.filter(n => n.read).length;
     return notifications.filter(n => n.type === filterType).length;
-  };
+  }, [notifications]);
 
   // ============================================
   // RENDER
