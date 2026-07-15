@@ -1,4 +1,3 @@
-// src/components/NotificationPanel.jsx - PROFESSIONAL COMPLETE (FIXED)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -33,6 +32,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [selectedNotifications, setSelectedNotifications] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
@@ -132,9 +132,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [user]);
 
   // ============================================
-  // MARK AS READ
+  // MARK AS READ - FIXED: This is the function that was missing
   // ============================================
-  const handleMarkAsRead = useCallback(async (notificationId) => {
+  const handleMarkAsRead = async (notificationId) => {
     try {
       const response = await axios.put(`/notifications/${notificationId}/read`);
       if (response.data.success) {
@@ -145,7 +145,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
               : n
           )
         );
-        setUnreadCount(response.data.unreadCount);
+        setUnreadCount(response.data.unreadCount || 0);
         setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
         showToast('Notification marked as read', 'success');
       }
@@ -153,12 +153,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to mark as read:', error);
       showToast('Failed to mark as read', 'error');
     }
-  }, [showToast]);
+  };
 
   // ============================================
   // MARK ALL AS READ
   // ============================================
-  const handleMarkAllAsRead = useCallback(async () => {
+  const handleMarkAllAsRead = async () => {
     try {
       const response = await axios.put('/notifications/read-all');
       if (response.data.success) {
@@ -174,37 +174,43 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to mark all as read:', error);
       showToast('Failed to mark all as read', 'error');
     }
-  }, [showToast]);
+  };
 
   // ============================================
   // DELETE NOTIFICATION
   // ============================================
-  const handleDelete = useCallback(async (notificationId) => {
+  const handleDelete = async (notificationId) => {
+    if (!confirm('Delete this notification?')) return;
+    
     try {
+      setIsDeleting(true);
       const response = await axios.delete(`/notifications/${notificationId}`);
       if (response.data.success) {
         setNotifications(prev => prev.filter(n => n._id !== notificationId));
-        setUnreadCount(response.data.unreadCount);
+        setUnreadCount(response.data.unreadCount || 0);
         setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
         showToast('Notification deleted', 'success');
       }
     } catch (error) {
       console.error('❌ Failed to delete notification:', error);
       showToast('Failed to delete notification', 'error');
+    } finally {
+      setIsDeleting(false);
     }
-  }, [showToast]);
+  };
 
   // ============================================
   // DELETE ALL READ
   // ============================================
-  const handleDeleteAllRead = useCallback(async () => {
+  const handleDeleteAllRead = async () => {
     if (!confirm('Delete all read notifications?')) return;
     
     try {
+      setIsDeleting(true);
       const response = await axios.delete('/notifications/read-all');
       if (response.data.success) {
         setNotifications(prev => prev.filter(n => !n.read));
-        setUnreadCount(response.data.unreadCount);
+        setUnreadCount(response.data.unreadCount || 0);
         setSelectedNotifications([]);
         setSelectMode(false);
         showToast('All read notifications deleted', 'success');
@@ -212,8 +218,10 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     } catch (error) {
       console.error('❌ Failed to delete read notifications:', error);
       showToast('Failed to delete read notifications', 'error');
+    } finally {
+      setIsDeleting(false);
     }
-  }, [showToast]);
+  };
 
   // ============================================
   // TOGGLE SELECTION
@@ -406,7 +414,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   // GET ICON
   // ============================================
-  const getIcon = useCallback((type, iconName) => {
+  const getIcon = (type, iconName) => {
     const icons = {
       booking: Calendar,
       payment: CreditCard,
@@ -424,12 +432,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     
     const Icon = icons[type] || Bell;
     return <Icon className="w-5 h-5" />;
-  }, []);
+  };
 
   // ============================================
   // GET TIME AGO
   // ============================================
-  const getTimeAgo = useCallback((date) => {
+  const getTimeAgo = (date) => {
     if (!date) return 'Just now';
     const diff = Date.now() - new Date(date).getTime();
     const seconds = Math.floor(diff / 1000);
@@ -442,17 +450,17 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
     return new Date(date).toLocaleDateString();
-  }, []);
+  };
 
   // ============================================
   // GET FILTER COUNT
   // ============================================
-  const getFilterCount = useCallback((filterType) => {
+  const getFilterCount = (filterType) => {
     if (filterType === 'all') return notifications.length;
     if (filterType === 'unread') return notifications.filter(n => !n.read).length;
     if (filterType === 'read') return notifications.filter(n => n.read).length;
     return notifications.filter(n => n.type === filterType).length;
-  }, [notifications]);
+  };
 
   // ============================================
   // RENDER
@@ -919,7 +927,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                             </div>
                           </div>
 
-                          {/* Actions - Hover */}
+                          {/* Actions - Hover - USING handleMarkAsRead (FIXED) */}
                           {!selectMode && (
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               {isUnread && (
@@ -933,6 +941,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                               )}
                               <button
                                 onClick={() => handleDelete(notification._id)}
+                                disabled={isDeleting}
                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
                                 title="Delete"
                               >
