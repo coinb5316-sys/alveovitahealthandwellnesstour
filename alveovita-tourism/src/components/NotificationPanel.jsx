@@ -1,3 +1,4 @@
+// src/components/NotificationPanel.jsx - COMPLETE FIXED
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -134,7 +135,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   // MARK AS READ - FIXED: This is the function that was missing
   // ============================================
-  const handleMarkAsRead = async (notificationId) => {
+  const markAsRead = useCallback(async (notificationId) => {
     try {
       const response = await axios.put(`/notifications/${notificationId}/read`);
       if (response.data.success) {
@@ -153,12 +154,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to mark as read:', error);
       showToast('Failed to mark as read', 'error');
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // MARK ALL AS READ
   // ============================================
-  const handleMarkAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     try {
       const response = await axios.put('/notifications/read-all');
       if (response.data.success) {
@@ -174,12 +175,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       console.error('❌ Failed to mark all as read:', error);
       showToast('Failed to mark all as read', 'error');
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // DELETE NOTIFICATION
   // ============================================
-  const handleDelete = async (notificationId) => {
+  const deleteNotification = useCallback(async (notificationId) => {
     if (!confirm('Delete this notification?')) return;
     
     try {
@@ -197,12 +198,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // DELETE ALL READ
   // ============================================
-  const handleDeleteAllRead = async () => {
+  const deleteAllRead = useCallback(async () => {
     if (!confirm('Delete all read notifications?')) return;
     
     try {
@@ -221,7 +222,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [showToast]);
 
   // ============================================
   // TOGGLE SELECTION
@@ -377,14 +378,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     };
     
     socket.on('new_notification', handleNewNotification);
-    socket.on('new-notification', handleNewNotification);
     socket.on('notification-read', handleNotificationRead);
     socket.on('all-notifications-read', handleAllRead);
     socket.on('notification-deleted', handleNotificationDeleted);
     
     return () => {
       socket.off('new_notification', handleNewNotification);
-      socket.off('new-notification', handleNewNotification);
       socket.off('notification-read', handleNotificationRead);
       socket.off('all-notifications-read', handleAllRead);
       socket.off('notification-deleted', handleNotificationDeleted);
@@ -553,7 +552,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                   
                   {/* Mark All Read */}
                   <button
-                    onClick={handleMarkAllAsRead}
+                    onClick={markAllAsRead}
                     className="p-2 rounded-xl transition-colors text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
                     title="Mark all as read"
                     disabled={unreadCount === 0}
@@ -563,7 +562,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                   
                   {/* Delete All Read */}
                   <button
-                    onClick={handleDeleteAllRead}
+                    onClick={deleteAllRead}
                     className="p-2 rounded-xl transition-colors text-gray-400 hover:text-red-400 hover:bg-red-500/10"
                     title="Delete all read"
                   >
@@ -927,12 +926,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                             </div>
                           </div>
 
-                          {/* Actions - Hover - USING handleMarkAsRead (FIXED) */}
+                          {/* Actions - Hover - USING markAsRead (FIXED) */}
                           {!selectMode && (
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               {isUnread && (
                                 <button
-                                  onClick={() => handleMarkAsRead(notification._id)}
+                                  onClick={() => markAsRead(notification._id)}
                                   className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
                                   title="Mark as read"
                                 >
@@ -940,7 +939,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                                 </button>
                               )}
                               <button
-                                onClick={() => handleDelete(notification._id)}
+                                onClick={() => deleteNotification(notification._id)}
                                 disabled={isDeleting}
                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
                                 title="Delete"
