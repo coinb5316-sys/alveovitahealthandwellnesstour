@@ -1,5 +1,5 @@
 // src/components/chat/LiveChat.jsx
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -38,86 +38,114 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const typingTimeoutRef = useRef(null)
+  // Add ref to track if component is mounted
+  const isMounted = useRef(true)
 
-  // Socket event listeners
+  // ============================================
+  // Socket event listeners - FIXED with useCallback
+  // ============================================
+  const handleNewMessage = useCallback((data) => {
+    if (!isMounted.current) return
+    
+    // Remove admin typing indicator if it exists
+    setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'))
+    
+    const message = {
+      id: Date.now() + Math.random() * 1000, // Ensure uniqueness
+      sender: data.sender === 'admin' ? 'admin' : data.sender,
+      text: data.text,
+      time: new Date(data.timestamp).toLocaleTimeString(),
+      isAutoReply: data.isAutoReply || false,
+      isTypingIndicator: false
+    }
+    setMessages(prev => [...prev, message])
+    
+    if (data.sender === 'bot' && data.isAutoReply) {
+      setIsWaitingForAdmin(false)
+    }
+    
+    if (data.sender === 'admin') {
+      setIsWaitingForAdmin(false)
+      setIsAdminTyping(false)
+    }
+  }, [])
+
+  const handleUserTyping = useCallback((data) => {
+    if (!isMounted.current) return
+    if (data.sender === 'admin') {
+      setIsAdminTyping(data.isTyping)
+    }
+  }, [])
+
+  const handleAdminTyping = useCallback((data) => {
+    if (!isMounted.current) return
+    
+    if (data.isTyping) {
+      setIsAdminTyping(true)
+      setIsWaitingForAdmin(true)
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== 'admin-typing')
+        return [...filtered, {
+          id: 'admin-typing',
+          sender: 'bot',
+          text: '👤 Admin is typing...',
+          time: new Date().toLocaleTimeString(),
+          isTypingIndicator: true
+        }]
+      })
+    } else {
+      setIsAdminTyping(false)
+      setIsWaitingForAdmin(false)
+      setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'))
+    }
+  }, [])
+
+  const handleSessionResolved = useCallback(() => {
+    if (!isMounted.current) return
+    showToast('This chat session has been resolved', 'info')
+    setIsWaitingForAdmin(false)
+  }, [showToast])
+
+  const handleChatError = useCallback((error) => {
+    if (!isMounted.current) return
+    showToast(error.message || 'Chat error occurred', 'error')
+  }, [showToast])
+
+  // ============================================
+  // Socket setup - FIXED dependencies
+  // ============================================
   useEffect(() => {
-    if (!socket) return;
+    isMounted.current = true
+    
+    if (!socket) {
+      console.log('📡 [LiveChat] No socket available')
+      return
+    }
 
-    const handleNewMessage = (data) => {
-      // Remove admin typing indicator if it exists
-      setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'));
-      
-      const message = {
-        id: Date.now(),
-        sender: data.sender === 'admin' ? 'admin' : data.sender,
-        text: data.text,
-        time: new Date(data.timestamp).toLocaleTimeString(),
-        isAutoReply: data.isAutoReply || false
-      };
-      setMessages(prev => [...prev, message]);
-      
-      if (data.sender === 'bot' && data.isAutoReply) {
-        setIsWaitingForAdmin(false);
-      }
-      
-      if (data.sender === 'admin') {
-        setIsWaitingForAdmin(false);
-        setIsAdminTyping(false);
-      }
-    };
+    console.log('📡 [LiveChat] Setting up socket listeners')
 
-    const handleUserTyping = (data) => {
-      if (data.sender === 'admin') {
-        setIsAdminTyping(data.isTyping);
-      }
-    };
+    // Register all listeners
+    socket.on('new-message', handleNewMessage)
+    socket.on('user-typing', handleUserTyping)
+    socket.on('admin-typing', handleAdminTyping)
+    socket.on('session-resolved', handleSessionResolved)
+    socket.on('chat-error', handleChatError)
 
-    const handleAdminTyping = (data) => {
-      if (data.isTyping) {
-        setIsAdminTyping(true);
-        setIsWaitingForAdmin(true);
-        setMessages(prev => {
-          const filtered = prev.filter(msg => msg.id !== 'admin-typing');
-          return [...filtered, {
-            id: 'admin-typing',
-            sender: 'bot',
-            text: '👤 Admin is typing...',
-            time: new Date().toLocaleTimeString(),
-            isTypingIndicator: true
-          }];
-        });
-      } else {
-        setIsAdminTyping(false);
-        setIsWaitingForAdmin(false);
-        setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'));
-      }
-    };
-
-    const handleSessionResolved = () => {
-      showToast('This chat session has been resolved', 'info');
-      setIsWaitingForAdmin(false);
-    };
-
-    const handleChatError = (error) => {
-      showToast(error.message || 'Chat error occurred', 'error');
-    };
-
-    socket.on('new-message', handleNewMessage);
-    socket.on('user-typing', handleUserTyping);
-    socket.on('admin-typing', handleAdminTyping);
-    socket.on('session-resolved', handleSessionResolved);
-    socket.on('chat-error', handleChatError);
-
+    // Cleanup function - removes all listeners
     return () => {
-      socket.off('new-message', handleNewMessage);
-      socket.off('user-typing', handleUserTyping);
-      socket.off('admin-typing', handleAdminTyping);
-      socket.off('session-resolved', handleSessionResolved);
-      socket.off('chat-error', handleChatError);
-    };
-  }, [socket, showToast]);
+      console.log('📡 [LiveChat] Cleaning up socket listeners')
+      socket.off('new-message', handleNewMessage)
+      socket.off('user-typing', handleUserTyping)
+      socket.off('admin-typing', handleAdminTyping)
+      socket.off('session-resolved', handleSessionResolved)
+      socket.off('chat-error', handleChatError)
+      isMounted.current = false
+    }
+  }, [socket, handleNewMessage, handleUserTyping, handleAdminTyping, handleSessionResolved, handleChatError])
 
-  // Handle form submission
+  // ============================================
+  // Handle form submission - FIXED error handling
+  // ============================================
   const handleFormSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -130,7 +158,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
 
     try {
-      console.log('📤 [LiveChat] Creating chat session...');
+      console.log('📤 [LiveChat] Creating chat session...')
       
       // Create chat session via API with timeout
       const response = await axios.post('/chat-sessions', {
@@ -142,42 +170,43 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
         timeout: 15000
       })
 
-      console.log('📥 [LiveChat] Session response:', response.data);
+      console.log('📥 [LiveChat] Session response:', response.data)
 
       if (response.data.success) {
-        const session = response.data.session;
-        setLocalSessionId(session._id);
-        setSessionId(session._id);
+        const session = response.data.session
+        setLocalSessionId(session._id)
+        setSessionId(session._id)
         
-        // Join chat via socket
+        // Join chat via socket (only if connected)
         if (joinChat && isConnected) {
           joinChat({
             sessionId: session._id,
             userId: user?.id || null,
             userName: formData.name,
             userEmail: formData.email
-          });
+          })
+        } else if (!isConnected) {
+          console.warn('⚠️ [LiveChat] Socket not connected - chat will work via API fallback')
+          showToast('Chat started (offline mode - messages via email)', 'info')
         }
 
-        // Create contact record in background
-        try {
-          await axios.post('/contact', {
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone || '',
-            subject: formData.subject || 'Live Chat Inquiry',
-            message: formData.message || 'Chat started from live chat widget'
-          }, {
-            timeout: 5000
-          });
-        } catch (contactError) {
-          console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
-        }
+        // Create contact record in background (don't await)
+        axios.post('/contact', {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || '',
+          subject: formData.subject || 'Live Chat Inquiry',
+          message: formData.message || 'Chat started from live chat widget'
+        }, {
+          timeout: 5000
+        }).catch(contactError => {
+          console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message)
+        })
 
-        const userMessageText = formData.message || 'Hello, I need assistance with your wellness services.';
+        const userMessageText = formData.message || 'Hello, I need assistance with your wellness services.'
         
         // Get messages from server response
-        const serverMessages = session.messages || [];
+        const serverMessages = session.messages || []
         const botMessages = serverMessages
           .filter(m => m.sender === 'bot' || m.sender === 'admin')
           .map((m, index) => ({
@@ -186,14 +215,14 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             text: m.text,
             time: new Date(m.timestamp || Date.now()).toLocaleTimeString(),
             isAutoReply: m.isAutoReply || false
-          }));
+          }))
 
         const userMessage = {
           id: messages.length + 1,
           sender: 'user',
           text: userMessageText,
           time: new Date().toLocaleTimeString()
-        };
+        }
 
         // Default welcome messages if no server messages
         const defaultMessages = [
@@ -209,53 +238,63 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             text: 'Feel free to ask me any questions about our services. Our team is here to help!',
             time: new Date().toLocaleTimeString()
           }
-        ];
+        ]
         
         // Combine messages
         const finalMessages = botMessages.length > 0 
           ? [...botMessages, userMessage]
-          : [...defaultMessages, userMessage];
+          : [...defaultMessages, userMessage]
         
-        setMessages(finalMessages);
-        setStep(2);
-        setChatSubmitted(true);
-        showToast('Chat started successfully!', 'success');
+        setMessages(finalMessages)
+        setStep(2)
+        setChatSubmitted(true)
+        showToast('Chat started successfully!', 'success')
         
-        // Send initial message via socket
+        // Send initial message via socket (only if connected)
         if (isConnected && sendMessage) {
           sendMessage({
             sessionId: session._id,
             text: userMessageText,
             sender: 'user'
-          });
+          })
+        } else {
+          // Fallback: Send via API
+          await axios.post(`/chat-sessions/${session._id}/messages`, {
+            text: userMessageText,
+            sender: 'user'
+          }, {
+            timeout: 5000
+          })
         }
       }
     } catch (error) {
-      console.error('❌ [LiveChat] Error:', error);
+      console.error('❌ [LiveChat] Error:', error)
       
       // Handle specific error types
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        setFormError('⏰ Connection timeout. Please check your internet and try again.');
-        showToast('Connection timeout - please retry', 'error');
+        setFormError('⏰ Connection timeout. Please check your internet and try again.')
+        showToast('Connection timeout - please retry', 'error')
       } else if (error.response?.status === 404) {
-        setFormError('🔌 Chat service unavailable. Please use the contact form.');
-        showToast('Chat service unavailable', 'error');
+        setFormError('🔌 Chat service unavailable. Please use the contact form.')
+        showToast('Chat service unavailable', 'error')
       } else if (error.response?.status === 500) {
-        setFormError('⚠️ Server error. Please try again or use the contact form.');
-        showToast('Server error - please retry', 'error');
+        setFormError('⚠️ Server error. Please try again or use the contact form.')
+        showToast('Server error - please retry', 'error')
       } else if (error.response?.data?.message) {
-        setFormError(error.response.data.message);
-        showToast(error.response.data.message, 'error');
+        setFormError(error.response.data.message)
+        showToast(error.response.data.message, 'error')
       } else {
-        setFormError('Failed to start chat. Please try again.');
-        showToast('Failed to start chat', 'error');
+        setFormError('Failed to start chat. Please try again.')
+        showToast('Failed to start chat', 'error')
       }
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  // Send message in chat
+  // ============================================
+  // Send message in chat - FIXED to work offline
+  // ============================================
   const sendMessageHandler = async () => {
     if (!message.trim() || !sessionId || isSending) return
 
@@ -263,7 +302,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     const messageText = message.trim()
     
     const userMessage = {
-      id: messages.length + 1,
+      id: Date.now() + Math.random() * 1000,
       sender: 'user',
       text: messageText,
       time: new Date().toLocaleTimeString()
@@ -272,77 +311,83 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     setMessage('')
 
     try {
-      // Send via socket
+      // Try socket first if connected
       if (isConnected && sendMessage) {
+        console.log('📤 [LiveChat] Sending via socket')
         sendMessage({
           sessionId: sessionId,
           text: messageText,
           sender: 'user'
-        });
+        })
+        showToast('Message sent', 'success')
       } else {
         // Fallback: Send via API
+        console.log('📤 [LiveChat] Sending via API fallback')
         await axios.post(`/chat-sessions/${sessionId}/messages`, {
           text: messageText,
           sender: 'user'
         }, {
-          timeout: 5000
-        });
+          timeout: 10000
+        })
+        showToast('Message sent (offline mode)', 'info')
       }
     } catch (error) {
-      console.error('❌ [LiveChat] Send message error:', error);
-      showToast('Failed to send message. Retrying...', 'warning');
+      console.error('❌ [LiveChat] Send message error:', error)
+      showToast('Failed to send message. Please try again.', 'error')
       
-      // Retry with API fallback
-      try {
-        await axios.post(`/chat-sessions/${sessionId}/messages`, {
-          text: messageText,
-          sender: 'user'
-        }, {
-          timeout: 5000
-        });
-      } catch (retryError) {
-        showToast('Failed to send message. Please try again.', 'error');
-      }
+      // Remove the failed message
+      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id))
     } finally {
       setIsSending(false)
     }
   }
 
-  // Handle typing indicator
-  const handleTyping = (isTyping) => {
-    if (sessionId) {
+  // ============================================
+  // Handle typing indicator - FIXED
+  // ============================================
+  const handleTyping = useCallback((isTyping) => {
+    if (sessionId && isConnected && sendTyping) {
       sendTyping({
         sessionId,
         isTyping,
         sender: 'user'
-      });
+      })
     }
-  }
+  }, [sessionId, isConnected, sendTyping])
 
-  // Handle enter key
+  // ============================================
+  // Handle enter key - FIXED
+  // ============================================
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !isSending) {
+    if (e.key === 'Enter' && !e.shiftKey && !isSending && message.trim()) {
       e.preventDefault()
       sendMessageHandler()
     }
   }
 
+  // ============================================
   // Scroll to bottom
+  // ============================================
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // ============================================
   // Focus input when chat opens
+  // ============================================
   useEffect(() => {
     if (step === 2 && inputRef.current) {
       setTimeout(() => inputRef.current.focus(), 300)
     }
   }, [step])
 
-  // Reset when modal closes
+  // ============================================
+  // Reset when modal closes - FIXED cleanup
+  // ============================================
   useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
+      // Reset all state after a delay
+      const timer = setTimeout(() => {
         setStep(1)
         setMessages([])
         setMessage('')
@@ -360,10 +405,14 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
         })
         setFormError(null)
       }, 300)
+      
+      return () => clearTimeout(timer)
     }
   }, [isOpen, user])
 
-  // Handle reconnect
+  // ============================================
+  // Handle reconnect - FIXED
+  // ============================================
   const handleReconnect = () => {
     if (reconnect) {
       reconnect()
@@ -371,6 +420,9 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   }
 
+  // ============================================
+  // RENDER - FIXED send button conditions
+  // ============================================
   if (!isOpen) return null
 
   return (
@@ -465,7 +517,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 } border border-yellow-500/30`}>
                   <WifiOff className="w-4 h-4 text-yellow-500 flex-shrink-0" />
                   <span className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                    Connection lost. {!isConnected && 'Messages will be sent via email.'}
+                    Connection lost. Messages will be sent via email.
                   </span>
                 </div>
               )}
@@ -677,6 +729,9 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* ============================================ */}
+              {/* SEND BUTTON - FIXED: Only disable if no message or isSending */}
+              {/* ============================================ */}
               <div className="flex items-center gap-2 mt-4">
                 <input
                   ref={inputRef}
@@ -701,7 +756,9 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 />
                 <button
                   onClick={sendMessageHandler}
-                  disabled={!message.trim() || isWaitingForAdmin || !isConnected || isSending}
+                  // FIXED: Only disable if no message or isSending
+                  // Allow sending even if disconnected (will use API fallback)
+                  disabled={!message.trim() || isSending}
                   className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[44px]"
                 >
                   {isSending ? (
