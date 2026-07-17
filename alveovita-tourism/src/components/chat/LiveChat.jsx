@@ -69,7 +69,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     if (!socket) return;
 
     const handleNewMessage = (data) => {
-      // Remove admin typing indicator if it exists
       setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'));
       
       const message = {
@@ -127,7 +126,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       showToast(error.message || 'Chat error occurred', 'error');
     };
 
-    // Handle bot auto-replies from server
     const handleBotReply = (data) => {
       console.log('🤖 [LiveChat] Bot auto-reply received:', data);
       if (data.sender === 'bot' && data.isAutoReply) {
@@ -162,14 +160,29 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     };
   }, [socket, showToast]);
 
-  // Handle form submission - FIXED: No automatic messages
+  // ✅ FIXED: Handle form submission - properly creates session with user data
   const handleFormSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setFormError(null)
 
-    if (!formData.name || !formData.email) {
-      setFormError('Please fill in your name and email')
+    // Validate required fields
+    if (!formData.name || !formData.name.trim()) {
+      setFormError('Please enter your full name')
+      setLoading(false)
+      return
+    }
+
+    if (!formData.email || !formData.email.trim()) {
+      setFormError('Please enter your email address')
+      setLoading(false)
+      return
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email.trim())) {
+      setFormError('Please enter a valid email address')
       setLoading(false)
       return
     }
@@ -177,14 +190,12 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     try {
       console.log('📤 [LiveChat] Creating chat session...');
       
-      // ✅ FIX: Don't send automatic message - only send what user typed
-      const initialMessage = formData.message ? formData.message.trim() : 'Chat started';
-      
+      // ✅ FIX: Send complete user data to backend
       const response = await axios.post('/chat-sessions', {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone || '',
-        initialMessage: initialMessage
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone?.trim() || '',
+        initialMessage: formData.message?.trim() || 'Chat started'
       }, {
         timeout: 15000
       })
@@ -193,27 +204,30 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
 
       if (response.data.success) {
         const session = response.data.session;
+        
+        // ✅ CRITICAL: Set session ID for sending messages
         setLocalSessionId(session._id);
         setSessionId(session._id);
+        console.log('✅ [LiveChat] Session ID set:', session._id);
         
         // Join chat via socket
         if (joinChat && isConnected) {
           joinChat({
             sessionId: session._id,
             userId: user?.id || null,
-            userName: formData.name,
-            userEmail: formData.email
+            userName: formData.name.trim(),
+            userEmail: formData.email.trim()
           });
         }
 
         // Create contact record in background
         try {
           await axios.post('/contact', {
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone || '',
-            subject: formData.subject || 'Live Chat Inquiry',
-            message: formData.message || 'Chat started from live chat widget'
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone?.trim() || '',
+            subject: formData.subject?.trim() || 'Live Chat Inquiry',
+            message: formData.message?.trim() || 'Chat started from live chat widget'
           }, {
             timeout: 5000
           });
@@ -221,12 +235,12 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
         }
 
-        // ✅ FIX: Start with ONLY welcome message
+        // ✅ FIX: Start with welcome message
         const initialMessages = [
           {
             id: 1,
             sender: 'bot',
-            text: '👋 Hello! Welcome to Alveovita Wellness. I\'m your wellness assistant. How can I help you today?',
+            text: `👋 Hello ${formData.name.trim()}! Welcome to Alveovita Wellness. I'm your wellness assistant. How can I help you today?`,
             time: new Date().toLocaleTimeString()
           }
         ];
@@ -292,7 +306,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           }
         }
 
-        // ✅ FIX: Set messages and move to chat
         setMessages(initialMessages);
         setStep(2);
         setChatSubmitted(true);
@@ -322,9 +335,18 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   };
 
-  // Send message handler with auto-reply fallback
+  // ✅ FIXED: Send message handler with proper session check
   const sendMessageHandler = async () => {
-    if (!message.trim() || !sessionId || isSending) return;
+    // ✅ CRITICAL: Check if sessionId exists
+    if (!sessionId) {
+      console.error('❌ [LiveChat] No session ID available');
+      showToast('Chat session not initialized. Please start a new chat.', 'error');
+      return;
+    }
+
+    if (!message.trim() || isSending) {
+      return;
+    }
 
     setIsSending(true);
     const messageText = message.trim();
@@ -389,7 +411,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           setMessages(prev => [...prev, botMessage]);
         }
       } else {
-        // Fallback when socket is disconnected - use API
+        // ✅ FIX: Fallback when socket is disconnected - use API
         console.log('📤 [LiveChat] Sending message via API (socket offline)');
         
         await axios.post(`/chat-sessions/${sessionId}/messages`, {
@@ -479,7 +501,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   }, [step])
 
-  // Reset when modal closes
+  // ✅ FIX: Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
@@ -598,7 +620,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 </div>
               )}
 
-              {/* Connection status warning */}
               {!isConnected && (
                 <div className={`p-3 rounded-xl flex items-center gap-2 mb-4 ${
                   isDark ? 'bg-yellow-900/30' : 'bg-yellow-50'
@@ -721,6 +742,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
               </form>
             </div>
           ) : (
+            // Chat Interface
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="flex items-center gap-2 text-xs">
@@ -750,7 +772,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 isDark ? 'bg-gray-800' : 'bg-gray-50'
               }`}>
                 {messages.map((msg) => {
-                  // Check if this is the admin typing indicator
                   if (msg.id === 'admin-typing') {
                     return (
                       <div key={msg.id} className="flex justify-start">
@@ -758,9 +779,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                           isDark ? 'bg-gray-700' : 'bg-white'
                         } shadow-sm`}>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm text-amber-500">
-                              {msg.text}
-                            </span>
+                            <span className="text-sm text-amber-500">{msg.text}</span>
                             <div className="flex items-center gap-1">
                               <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                               <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -772,7 +791,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                     );
                   }
 
-                  // Regular message rendering
                   return (
                     <div
                       key={msg.id}
@@ -801,7 +819,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                   );
                 })}
 
-                {/* Sending indicator */}
                 {isSending && (
                   <div className="flex justify-end">
                     <div className={`p-3 rounded-2xl rounded-tr-none ${
@@ -836,17 +853,17 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                   onKeyPress={handleKeyPress}
                   placeholder={isWaitingForAdmin ? "Waiting for admin response..." : "Type your message..."}
                   className={`flex-1 px-4 py-3 rounded-xl outline-none text-sm ${
-                    isWaitingForAdmin || isSending
+                    isWaitingForAdmin || isSending || !sessionId
                       ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                       : isDark 
                         ? 'bg-gray-800 text-white placeholder-gray-400 border border-gray-700' 
                         : 'bg-gray-50 text-gray-800 placeholder-gray-500 border border-gray-200'
                   } focus:border-amber-500 transition-colors`}
-                  disabled={isWaitingForAdmin || isSending}
+                  disabled={isWaitingForAdmin || isSending || !sessionId}
                 />
                 <button
                   onClick={sendMessageHandler}
-                  disabled={!message.trim() || isWaitingForAdmin || isSending}
+                  disabled={!message.trim() || isWaitingForAdmin || isSending || !sessionId}
                   className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[44px]"
                 >
                   {isSending ? (
