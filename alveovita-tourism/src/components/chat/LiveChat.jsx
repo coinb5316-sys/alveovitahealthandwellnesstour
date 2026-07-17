@@ -127,7 +127,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       showToast(error.message || 'Chat error occurred', 'error');
     };
 
-    // ✅ FIX: Handle bot auto-replies from server
+    // Handle bot auto-replies from server
     const handleBotReply = (data) => {
       console.log('🤖 [LiveChat] Bot auto-reply received:', data);
       if (data.sender === 'bot' && data.isAutoReply) {
@@ -149,7 +149,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     socket.on('session-resolved', handleSessionResolved);
     socket.on('chat-error', handleChatError);
     socket.on('bot-reply', handleBotReply);
-    socket.on('auto-reply', handleBotReply); // Legacy event name
+    socket.on('auto-reply', handleBotReply);
 
     return () => {
       socket.off('new-message', handleNewMessage);
@@ -162,7 +162,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     };
   }, [socket, showToast]);
 
-  // Handle form submission
+  // Handle form submission - FIXED: No automatic messages
   const handleFormSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -177,12 +177,14 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     try {
       console.log('📤 [LiveChat] Creating chat session...');
       
-      // Create chat session via API with timeout
+      // ✅ FIX: Don't send automatic message - only send what user typed
+      const initialMessage = formData.message ? formData.message.trim() : 'Chat started';
+      
       const response = await axios.post('/chat-sessions', {
         name: formData.name,
         email: formData.email,
         phone: formData.phone || '',
-        initialMessage: formData.message || 'Chat started'
+        initialMessage: initialMessage
       }, {
         timeout: 15000
       })
@@ -219,66 +221,86 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
         }
 
-        const userMessageText = formData.message || 'Hello, I need assistance with your wellness services.';
-        
-        // Get messages from server response
-        const serverMessages = session.messages || [];
-        const botMessages = serverMessages
-          .filter(m => m.sender === 'bot' || m.sender === 'admin')
-          .map((m, index) => ({
-            id: 100 + index,
-            sender: m.sender === 'admin' ? 'admin' : 'bot',
-            text: m.text,
-            time: new Date(m.timestamp || Date.now()).toLocaleTimeString(),
-            isAutoReply: m.isAutoReply || false
-          }));
-
-        const userMessage = {
-          id: messages.length + 1,
-          sender: 'user',
-          text: userMessageText,
-          time: new Date().toLocaleTimeString()
-        };
-
-        // Default welcome messages if no server messages
-        const defaultMessages = [
+        // ✅ FIX: Start with ONLY welcome message
+        const initialMessages = [
           {
             id: 1,
             sender: 'bot',
             text: '👋 Hello! Welcome to Alveovita Wellness. I\'m your wellness assistant. How can I help you today?',
             time: new Date().toLocaleTimeString()
-          },
-          {
-            id: 2,
-            sender: 'bot',
-            text: 'Feel free to ask me any questions about our services. Our team is here to help!',
-            time: new Date().toLocaleTimeString()
           }
         ];
-        
-        // Combine messages
-        const finalMessages = botMessages.length > 0 
-          ? [...botMessages, userMessage]
-          : [...defaultMessages, userMessage];
-        
-        setMessages(finalMessages);
+
+        // ✅ FIX: Only add user message if they actually typed something
+        if (formData.message && formData.message.trim()) {
+          const userMessage = {
+            id: 2,
+            sender: 'user',
+            text: formData.message.trim(),
+            time: new Date().toLocaleTimeString()
+          };
+          initialMessages.push(userMessage);
+
+          // Get bot response for the user's message
+          try {
+            const botResponse = await axios.post('/auto-reply/respond', {
+              message: formData.message.trim()
+            }, {
+              timeout: 3000
+            });
+            
+            if (botResponse.data.success && botResponse.data.hasMatch) {
+              const botMessage = {
+                id: 3,
+                sender: 'bot',
+                text: botResponse.data.response,
+                time: new Date().toLocaleTimeString(),
+                isAutoReply: true
+              };
+              initialMessages.push(botMessage);
+            } else {
+              const fallbackResponse = getFallbackResponse(formData.message.trim());
+              const botMessage = {
+                id: 3,
+                sender: 'bot',
+                text: fallbackResponse,
+                time: new Date().toLocaleTimeString(),
+                isAutoReply: true
+              };
+              initialMessages.push(botMessage);
+            }
+          } catch (botError) {
+            console.warn('⚠️ [LiveChat] Auto-reply failed:', botError.message);
+            const fallbackResponse = getFallbackResponse(formData.message.trim());
+            const botMessage = {
+              id: 3,
+              sender: 'bot',
+              text: fallbackResponse,
+              time: new Date().toLocaleTimeString(),
+              isAutoReply: true
+            };
+            initialMessages.push(botMessage);
+          }
+
+          // Send initial message via socket
+          if (isConnected && sendMessage) {
+            sendMessage({
+              sessionId: session._id,
+              text: formData.message.trim(),
+              sender: 'user'
+            });
+          }
+        }
+
+        // ✅ FIX: Set messages and move to chat
+        setMessages(initialMessages);
         setStep(2);
         setChatSubmitted(true);
         showToast('Chat started successfully!', 'success');
-        
-        // Send initial message via socket
-        if (isConnected && sendMessage) {
-          sendMessage({
-            sessionId: session._id,
-            text: userMessageText,
-            sender: 'user'
-          });
-        }
       }
     } catch (error) {
       console.error('❌ [LiveChat] Error:', error);
       
-      // Handle specific error types
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         setFormError('⏰ Connection timeout. Please check your internet and try again.');
         showToast('Connection timeout - please retry', 'error');
@@ -300,7 +322,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   };
 
-  // ✅ FIXED: Send message handler with auto-reply fallback
+  // Send message handler with auto-reply fallback
   const sendMessageHandler = async () => {
     if (!message.trim() || !sessionId || isSending) return;
 
@@ -326,7 +348,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           sender: 'user'
         });
         
-        // ✅ FIX: Try to get auto-reply from server via API
+        // Try to get auto-reply from server via API
         try {
           const botResponse = await axios.post('/auto-reply/respond', {
             message: messageText
@@ -335,7 +357,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           });
           
           if (botResponse.data.success && botResponse.data.hasMatch) {
-            // Add bot's auto-reply to messages
             const botMessage = {
               id: Date.now() + 1,
               sender: 'bot',
@@ -345,7 +366,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             };
             setMessages(prev => [...prev, botMessage]);
           } else {
-            // ✅ FIX: Use fallback if no match found
             const fallbackResponse = getFallbackResponse(messageText);
             const botMessage = {
               id: Date.now() + 1,
@@ -358,7 +378,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           }
         } catch (botError) {
           console.warn('⚠️ [LiveChat] Auto-reply API failed, using fallback:', botError.message);
-          // Use fallback response
           const fallbackResponse = getFallbackResponse(messageText);
           const botMessage = {
             id: Date.now() + 1,
@@ -370,10 +389,9 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           setMessages(prev => [...prev, botMessage]);
         }
       } else {
-        // ✅ FIX: Fallback when socket is disconnected - use API
+        // Fallback when socket is disconnected - use API
         console.log('📤 [LiveChat] Sending message via API (socket offline)');
         
-        // Send message via API
         await axios.post(`/chat-sessions/${sessionId}/messages`, {
           text: messageText,
           sender: 'user'
@@ -381,7 +399,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           timeout: 5000
         });
         
-        // Get auto-reply from API
         try {
           const botResponse = await axios.post('/auto-reply/respond', {
             message: messageText
@@ -399,7 +416,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             };
             setMessages(prev => [...prev, botMessage]);
           } else {
-            // Use fallback
             const fallbackResponse = getFallbackResponse(messageText);
             const botMessage = {
               id: Date.now() + 1,
@@ -426,8 +442,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     } catch (error) {
       console.error('❌ [LiveChat] Send message error:', error);
       showToast('Failed to send message. Please try again.', 'error');
-      
-      // ✅ FIX: Remove the failed user message if API fails
       setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
     } finally {
       setIsSending(false);
@@ -591,7 +605,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 } border border-yellow-500/30`}>
                   <WifiOff className="w-4 h-4 text-yellow-500 flex-shrink-0" />
                   <span className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                    Connection lost. {!isConnected && 'Messages will be sent via email.'}
+                    Connection lost. Messages will be sent via email.
                   </span>
                 </div>
               )}
@@ -661,7 +675,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Your Message
+                    Your Message <span className="text-xs text-gray-400">(optional)</span>
                   </label>
                   <div className="relative">
                     <MessageSquare className={`absolute left-3 top-4 w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
@@ -674,9 +688,12 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                           ? 'bg-gray-800 text-white border-gray-700' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
                       } border focus:border-amber-500 transition-colors resize-none`}
-                      placeholder="Tell us how we can help you..."
+                      placeholder="Tell us how we can help you... (optional)"
                     />
                   </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    You can start typing your question here, or just start the chat and type later.
+                  </p>
                 </div>
 
                 <button
