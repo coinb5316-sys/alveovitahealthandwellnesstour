@@ -17,7 +17,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
   const { showToast } = useToast()
   const { socket, isConnected, joinChat, sendMessage, sendTyping, sessionId: socketSessionId, setSessionId, reconnect } = useSocket()
   
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(1) // ✅ STEP 1 = FORM, STEP 2 = CHAT
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState([])
@@ -160,7 +160,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     };
   }, [socket, showToast]);
 
-  // ✅ FIXED: Handle form submission - properly creates session with user data
+  // ✅ Handle form submission - creates session with user data
   const handleFormSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -190,7 +190,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     try {
       console.log('📤 [LiveChat] Creating chat session...');
       
-      // ✅ FIX: Send complete user data to backend
       const response = await axios.post('/chat-sessions', {
         name: formData.name.trim(),
         email: formData.email.trim(),
@@ -205,7 +204,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       if (response.data.success) {
         const session = response.data.session;
         
-        // ✅ CRITICAL: Set session ID for sending messages
+        // ✅ Set session ID for sending messages
         setLocalSessionId(session._id);
         setSessionId(session._id);
         console.log('✅ [LiveChat] Session ID set:', session._id);
@@ -235,7 +234,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
         }
 
-        // ✅ FIX: Start with welcome message
+        // ✅ Start with welcome message
         const initialMessages = [
           {
             id: 1,
@@ -245,7 +244,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           }
         ];
 
-        // ✅ FIX: Only add user message if they actually typed something
+        // ✅ Only add user message if they actually typed something
         if (formData.message && formData.message.trim()) {
           const userMessage = {
             id: 2,
@@ -306,6 +305,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           }
         }
 
+        // ✅ CRITICAL: Move to chat interface (step 2) ONLY after successful form submission
         setMessages(initialMessages);
         setStep(2);
         setChatSubmitted(true);
@@ -335,9 +335,8 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   };
 
-  // ✅ FIXED: Send message handler with proper session check
+  // ✅ Send message handler with proper session check
   const sendMessageHandler = async () => {
-    // ✅ CRITICAL: Check if sessionId exists
     if (!sessionId) {
       console.error('❌ [LiveChat] No session ID available');
       showToast('Chat session not initialized. Please start a new chat.', 'error');
@@ -361,7 +360,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     setMessage('');
 
     try {
-      // Send via socket if connected
       if (isConnected && sendMessage) {
         console.log('📤 [LiveChat] Sending message via socket:', messageText);
         sendMessage({
@@ -370,7 +368,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           sender: 'user'
         });
         
-        // Try to get auto-reply from server via API
         try {
           const botResponse = await axios.post('/auto-reply/respond', {
             message: messageText
@@ -411,7 +408,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           setMessages(prev => [...prev, botMessage]);
         }
       } else {
-        // ✅ FIX: Fallback when socket is disconnected - use API
         console.log('📤 [LiveChat] Sending message via API (socket offline)');
         
         await axios.post(`/chat-sessions/${sessionId}/messages`, {
@@ -501,11 +497,11 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   }, [step])
 
-  // ✅ FIX: Reset when modal closes
+  // ✅ Reset when modal closes - ALWAYS go back to step 1 (form)
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
-        setStep(1)
+        setStep(1) // ✅ Reset to form view
         setMessages([])
         setMessage('')
         setChatSubmitted(false)
@@ -578,9 +574,10 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           </div>
         </div>
 
-        {/* Body */}
+        {/* Body - Conditional rendering based on step */}
         <div className="p-6 max-h-[70vh] overflow-y-auto">
           {step === 1 ? (
+            // ✅ STEP 1: FORM - Users must fill this out first
             <div>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -742,7 +739,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
               </form>
             </div>
           ) : (
-            // Chat Interface
+            // ✅ STEP 2: CHAT INTERFACE - Only shown after form submission
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="flex items-center gap-2 text-xs">
