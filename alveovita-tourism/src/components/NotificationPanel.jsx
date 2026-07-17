@@ -1,4 +1,4 @@
-// src/components/NotificationPanel.jsx - COMPLETE FIXED
+// src/components/NotificationPanel.jsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,16 +11,18 @@ import {
   Shield, Trophy, Circle, CircleDot, Search,
   CheckCircle
 } from 'lucide-react';
-import axios from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useToast } from '../hooks/useToast';
+import { notificationService } from '../services/notificationService';
+import useNotifications from '../hooks/useNotifications';
 
 const NotificationPanel = ({ isOpen, onClose }) => {
-  const [notifications, setNotifications] = useState([]);
+  // ============================================
+  // STATE
+  // ============================================
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [filter, setFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -34,75 +36,44 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   const [selectedNotifications, setSelectedNotifications] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
   const { showToast } = useToast();
+  
+  // Use the unified notification hook
+  const {
+    notifications,
+    unreadCount,
+    total,
+    loading: hookLoading,
+    hasMore: hookHasMore,
+    markAsRead: hookMarkAsRead,
+    markAllAsRead: hookMarkAllAsRead,
+    deleteNotification: hookDeleteNotification,
+    deleteAllRead: hookDeleteAllRead,
+    markMultipleAsRead: hookMarkMultipleAsRead,
+    deleteMultiple: hookDeleteMultiple,
+    refresh: hookRefresh,
+    loadMore: hookLoadMore,
+    setNotifications,
+    setUnreadCount
+  } = useNotifications();
+
+  // Refs
   const panelRef = useRef(null);
   const loadMoreRef = useRef(null);
   const searchInputRef = useRef(null);
-
-  // ============================================
-  // FETCH NOTIFICATIONS
-  // ============================================
-  const fetchNotifications = useCallback(async (pageNum = 1, reset = true) => {
-    if (loading || loadingMore) return;
-    
-    const isLoadMore = pageNum > 1;
-    if (isLoadMore) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
-    
-    try {
-      const params = new URLSearchParams({
-        page: pageNum,
-        limit: 20,
-        filter: filter,
-      });
-      
-      if (selectedType && selectedType !== 'all') {
-        params.append('type', selectedType);
-      }
-      
-      if (searchQuery.trim()) {
-        params.append('search', searchQuery.trim());
-      }
-      
-      const response = await axios.get(`/notifications?${params}`);
-      
-      if (response.data.success) {
-        const { notifications: newNotifications, pagination, unreadCount: count } = response.data;
-        
-        if (reset) {
-          setNotifications(newNotifications);
-        } else {
-          setNotifications(prev => [...prev, ...newNotifications]);
-        }
-        
-        setUnreadCount(count || 0);
-        setPage(pagination.currentPage);
-        setTotalPages(pagination.totalPages);
-        setHasMore(pagination.currentPage < pagination.totalPages);
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch notifications:', error);
-      showToast('Failed to load notifications', 'error');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [filter, selectedType, searchQuery, showToast]);
 
   // ============================================
   // FETCH TYPES
   // ============================================
   const fetchTypes = useCallback(async () => {
     try {
-      const response = await axios.get('/notifications/types');
-      if (response.data.success) {
-        setTypes(response.data.types);
+      const result = await notificationService.fetchTypes();
+      if (result.success) {
+        setTypes(result.types);
       }
     } catch (error) {
       console.error('❌ Failed to fetch types:', error);
@@ -114,14 +85,13 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   const fetchStats = useCallback(async () => {
     if (!user || user.role !== 'admin') {
-      console.log('ℹ️ Skipping stats fetch - user is not admin');
       return;
     }
     
     try {
-      const response = await axios.get('/notifications/stats');
-      if (response.data.success) {
-        setStats(response.data.stats);
+      const result = await notificationService.fetchStats();
+      if (result.success) {
+        setStats(result.stats);
       }
     } catch (error) {
       if (error.response?.status === 403) {
@@ -133,64 +103,142 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, [user]);
 
   // ============================================
-  // MARK AS READ - FIXED: This is the function that was missing
+  // REFRESH NOTIFICATIONS
   // ============================================
-  const markAsRead = useCallback(async (notificationId) => {
+  const refreshNotifications = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    setLoading(true);
     try {
-      const response = await axios.put(`/notifications/${notificationId}/read`);
-      if (response.data.success) {
-        setNotifications(prev => 
-          prev.map(n => 
-            n._id === notificationId 
-              ? { ...n, read: true, readAt: new Date() }
-              : n
-          )
-        );
-        setUnreadCount(response.data.unreadCount || 0);
+      await hookRefresh();
+      await fetchStats();
+    } catch (error) {
+      console.error('❌ Failed to refresh:', error);
+      showToast('Failed to refresh notifications', 'error');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [hookRefresh, fetchStats, showToast, isRefreshing]);
+
+  // ============================================
+  // GET ICON
+  // ============================================
+  const getIcon = (type, iconName) => {
+    const icons = {
+      booking: Calendar,
+      payment: CreditCard,
+      review: Star,
+      message: MessageSquare,
+      system: Bell,
+      tour: Package,
+      hotel: Hotel,
+      destination: MapPin,
+      experience: Heart,
+      reminder: Clock,
+      promotion: Gift,
+      alert: AlertCircle,
+    };
+    
+    const Icon = icons[type] || Bell;
+    return <Icon className="w-5 h-5" />;
+  };
+
+  // ============================================
+  // GET TIME AGO
+  // ============================================
+  const getTimeAgo = (date) => {
+    if (!date) return 'Just now';
+    const diff = Date.now() - new Date(date).getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (seconds < 5) return 'Just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(date).toLocaleDateString();
+  };
+
+  // ============================================
+  // GET FILTER COUNT
+  // ============================================
+  const getFilterCount = (filterType) => {
+    if (filterType === 'all') return notifications.length;
+    if (filterType === 'unread') return notifications.filter(n => !n.read).length;
+    if (filterType === 'read') return notifications.filter(n => n.read).length;
+    return notifications.filter(n => n.type === filterType).length;
+  };
+
+  // ============================================
+  // LOAD MORE
+  // ============================================
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hookHasMore) return;
+    setLoadingMore(true);
+    try {
+      await hookLoadMore();
+    } catch (error) {
+      console.error('❌ Failed to load more:', error);
+      showToast('Failed to load more notifications', 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hookLoadMore, hookHasMore, showToast, loadingMore]);
+
+  // ============================================
+  // HANDLE MARK AS READ (wrapper)
+  // ============================================
+  const handleMarkAsRead = useCallback(async (notificationId) => {
+    try {
+      const result = await hookMarkAsRead(notificationId);
+      if (result.success) {
         setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
         showToast('Notification marked as read', 'success');
+      } else {
+        showToast(result.error || 'Failed to mark as read', 'error');
       }
     } catch (error) {
       console.error('❌ Failed to mark as read:', error);
       showToast('Failed to mark as read', 'error');
     }
-  }, [showToast]);
+  }, [hookMarkAsRead, showToast]);
 
   // ============================================
-  // MARK ALL AS READ
+  // HANDLE MARK ALL AS READ
   // ============================================
-  const markAllAsRead = useCallback(async () => {
+  const handleMarkAllAsRead = useCallback(async () => {
     try {
-      const response = await axios.put('/notifications/read-all');
-      if (response.data.success) {
-        setNotifications(prev => 
-          prev.map(n => ({ ...n, read: true, readAt: new Date() }))
-        );
-        setUnreadCount(0);
+      const result = await hookMarkAllAsRead();
+      if (result.success) {
         setSelectedNotifications([]);
         setSelectMode(false);
         showToast('All notifications marked as read ✨', 'success');
+      } else {
+        showToast(result.error || 'Failed to mark all as read', 'error');
       }
     } catch (error) {
       console.error('❌ Failed to mark all as read:', error);
       showToast('Failed to mark all as read', 'error');
     }
-  }, [showToast]);
+  }, [hookMarkAllAsRead, showToast]);
 
   // ============================================
-  // DELETE NOTIFICATION
+  // HANDLE DELETE NOTIFICATION
   // ============================================
-  const deleteNotification = useCallback(async (notificationId) => {
+  const handleDeleteNotification = useCallback(async (notificationId) => {
     if (!confirm('Delete this notification?')) return;
     
     try {
       setIsDeleting(true);
-      const response = await axios.delete(`/notifications/${notificationId}`);
-      if (response.data.success) {
-        setNotifications(prev => prev.filter(n => n._id !== notificationId));
-        setUnreadCount(response.data.unreadCount || 0);
+      const result = await hookDeleteNotification(notificationId);
+      if (result.success) {
         setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
         showToast('Notification deleted', 'success');
+      } else {
+        showToast(result.error || 'Failed to delete notification', 'error');
       }
     } catch (error) {
       console.error('❌ Failed to delete notification:', error);
@@ -198,23 +246,23 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     } finally {
       setIsDeleting(false);
     }
-  }, [showToast]);
+  }, [hookDeleteNotification, showToast]);
 
   // ============================================
-  // DELETE ALL READ
+  // HANDLE DELETE ALL READ
   // ============================================
-  const deleteAllRead = useCallback(async () => {
+  const handleDeleteAllRead = useCallback(async () => {
     if (!confirm('Delete all read notifications?')) return;
     
     try {
       setIsDeleting(true);
-      const response = await axios.delete('/notifications/read-all');
-      if (response.data.success) {
-        setNotifications(prev => prev.filter(n => !n.read));
-        setUnreadCount(response.data.unreadCount || 0);
+      const result = await hookDeleteAllRead();
+      if (result.success) {
         setSelectedNotifications([]);
         setSelectMode(false);
         showToast('All read notifications deleted', 'success');
+      } else {
+        showToast(result.error || 'Failed to delete read notifications', 'error');
       }
     } catch (error) {
       console.error('❌ Failed to delete read notifications:', error);
@@ -222,7 +270,60 @@ const NotificationPanel = ({ isOpen, onClose }) => {
     } finally {
       setIsDeleting(false);
     }
-  }, [showToast]);
+  }, [hookDeleteAllRead, showToast]);
+
+  // ============================================
+  // HANDLE MARK MULTIPLE AS READ
+  // ============================================
+  const handleMarkMultipleAsRead = useCallback(async () => {
+    if (selectedNotifications.length === 0) {
+      showToast('No notifications selected', 'info');
+      return;
+    }
+    
+    try {
+      const result = await hookMarkMultipleAsRead(selectedNotifications);
+      if (result.success) {
+        setSelectedNotifications([]);
+        setSelectMode(false);
+        showToast(`${selectedNotifications.length} notifications marked as read`, 'success');
+      } else {
+        showToast(result.error || 'Failed to mark notifications as read', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark multiple as read:', error);
+      showToast('Failed to mark notifications as read', 'error');
+    }
+  }, [selectedNotifications, hookMarkMultipleAsRead, showToast]);
+
+  // ============================================
+  // HANDLE DELETE MULTIPLE
+  // ============================================
+  const handleDeleteMultiple = useCallback(async () => {
+    if (selectedNotifications.length === 0) {
+      showToast('No notifications selected', 'info');
+      return;
+    }
+    
+    if (!confirm(`Delete ${selectedNotifications.length} selected notifications?`)) return;
+    
+    try {
+      setIsDeleting(true);
+      const result = await hookDeleteMultiple(selectedNotifications);
+      if (result.success) {
+        setSelectedNotifications([]);
+        setSelectMode(false);
+        showToast(`${selectedNotifications.length} notifications deleted`, 'success');
+      } else {
+        showToast(result.error || 'Failed to delete notifications', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete multiple notifications:', error);
+      showToast('Failed to delete notifications', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [selectedNotifications, hookDeleteMultiple, showToast]);
 
   // ============================================
   // TOGGLE SELECTION
@@ -236,85 +337,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   }, []);
 
   // ============================================
-  // MARK MULTIPLE AS READ
-  // ============================================
-  const markMultipleAsRead = useCallback(async () => {
-    if (selectedNotifications.length === 0) {
-      showToast('No notifications selected', 'info');
-      return;
-    }
-    
-    try {
-      const promises = selectedNotifications.map(id => 
-        axios.put(`/notifications/${id}/read`)
-      );
-      await Promise.all(promises);
-      
-      setNotifications(prev => prev.map(n => 
-        selectedNotifications.includes(n._id) 
-          ? { ...n, read: true, readAt: new Date() } 
-          : n
-      ));
-      const readCount = selectedNotifications.filter(id => 
-        notifications.find(n => n._id === id && !n.read)
-      ).length;
-      setUnreadCount(prev => Math.max(0, prev - readCount));
-      setSelectedNotifications([]);
-      setSelectMode(false);
-      showToast(`${selectedNotifications.length} notifications marked as read`, 'success');
-    } catch (error) {
-      console.error('❌ Failed to mark multiple as read:', error);
-      showToast('Failed to mark notifications as read', 'error');
-    }
-  }, [selectedNotifications, notifications, showToast]);
-
-  // ============================================
-  // DELETE MULTIPLE
-  // ============================================
-  const deleteMultiple = useCallback(async () => {
-    if (selectedNotifications.length === 0) {
-      showToast('No notifications selected', 'info');
-      return;
-    }
-    
-    if (!confirm(`Delete ${selectedNotifications.length} selected notifications?`)) return;
-    
-    try {
-      const promises = selectedNotifications.map(id => 
-        axios.delete(`/notifications/${id}`)
-      );
-      await Promise.all(promises);
-      
-      const deletedRead = selectedNotifications.filter(id => 
-        notifications.find(n => n._id === id && !n.read)
-      ).length;
-      
-      setNotifications(prev => prev.filter(n => !selectedNotifications.includes(n._id)));
-      setUnreadCount(prev => Math.max(0, prev - deletedRead));
-      setSelectedNotifications([]);
-      setSelectMode(false);
-      showToast(`${selectedNotifications.length} notifications deleted`, 'success');
-    } catch (error) {
-      console.error('❌ Failed to delete multiple notifications:', error);
-      showToast('Failed to delete notifications', 'error');
-    }
-  }, [selectedNotifications, notifications, showToast]);
-
-  // ============================================
-  // LOAD MORE
-  // ============================================
-  const loadMore = useCallback(() => {
-    if (!hasMore || loadingMore) return;
-    fetchNotifications(page + 1, false);
-  }, [hasMore, loadingMore, page, fetchNotifications]);
-
-  // ============================================
   // INTERSECTION OBSERVER
   // ============================================
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+        if (entries[0].isIntersecting && hookHasMore && !loadingMore) {
           loadMore();
         }
       },
@@ -330,7 +358,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
         observer.unobserve(loadMoreRef.current);
       }
     };
-  }, [hasMore, loadingMore, loadMore]);
+  }, [hookHasMore, loadingMore, loadMore]);
 
   // ============================================
   // SOCKET EVENTS
@@ -388,14 +416,14 @@ const NotificationPanel = ({ isOpen, onClose }) => {
       socket.off('all-notifications-read', handleAllRead);
       socket.off('notification-deleted', handleNotificationDeleted);
     };
-  }, [socket, isConnected, showToast]);
+  }, [socket, isConnected, showToast, setNotifications, setUnreadCount]);
 
   // ============================================
   // INITIAL FETCH
   // ============================================
   useEffect(() => {
     if (isOpen && user) {
-      fetchNotifications(1, true);
+      refreshNotifications();
       fetchTypes();
       fetchStats();
     }
@@ -406,60 +434,9 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   // ============================================
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications(1, true);
+      refreshNotifications();
     }
   }, [filter, selectedType, searchQuery, isOpen]);
-
-  // ============================================
-  // GET ICON
-  // ============================================
-  const getIcon = (type, iconName) => {
-    const icons = {
-      booking: Calendar,
-      payment: CreditCard,
-      review: Star,
-      message: MessageSquare,
-      system: Bell,
-      tour: Package,
-      hotel: Hotel,
-      destination: MapPin,
-      experience: Heart,
-      reminder: Clock,
-      promotion: Gift,
-      alert: AlertCircle,
-    };
-    
-    const Icon = icons[type] || Bell;
-    return <Icon className="w-5 h-5" />;
-  };
-
-  // ============================================
-  // GET TIME AGO
-  // ============================================
-  const getTimeAgo = (date) => {
-    if (!date) return 'Just now';
-    const diff = Date.now() - new Date(date).getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    if (seconds < 5) return 'Just now';
-    if (seconds < 60) return `${seconds}s ago`;
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    return new Date(date).toLocaleDateString();
-  };
-
-  // ============================================
-  // GET FILTER COUNT
-  // ============================================
-  const getFilterCount = (filterType) => {
-    if (filterType === 'all') return notifications.length;
-    if (filterType === 'unread') return notifications.filter(n => !n.read).length;
-    if (filterType === 'read') return notifications.filter(n => n.read).length;
-    return notifications.filter(n => n.type === filterType).length;
-  };
 
   // ============================================
   // RENDER
@@ -516,6 +493,20 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Refresh Button */}
+                  <button
+                    onClick={refreshNotifications}
+                    disabled={isRefreshing}
+                    className={`p-2 rounded-xl transition-colors ${
+                      isRefreshing 
+                        ? 'bg-amber-500/20 text-amber-400' 
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    }`}
+                    title="Refresh notifications"
+                  >
+                    <Loader2 className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                  
                   {/* Search Toggle */}
                   <button
                     onClick={() => {
@@ -552,7 +543,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                   
                   {/* Mark All Read */}
                   <button
-                    onClick={markAllAsRead}
+                    onClick={handleMarkAllAsRead}
                     className="p-2 rounded-xl transition-colors text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
                     title="Mark all as read"
                     disabled={unreadCount === 0}
@@ -562,7 +553,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                   
                   {/* Delete All Read */}
                   <button
-                    onClick={deleteAllRead}
+                    onClick={handleDeleteAllRead}
                     className="p-2 rounded-xl transition-colors text-gray-400 hover:text-red-400 hover:bg-red-500/10"
                     title="Delete all read"
                   >
@@ -773,7 +764,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={markMultipleAsRead}
+                    onClick={handleMarkMultipleAsRead}
                     disabled={selectedNotifications.length === 0}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       selectedNotifications.length > 0
@@ -784,7 +775,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                     Mark read
                   </button>
                   <button
-                    onClick={deleteMultiple}
+                    onClick={handleDeleteMultiple}
                     disabled={selectedNotifications.length === 0}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       selectedNotifications.length > 0
@@ -926,12 +917,12 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                             </div>
                           </div>
 
-                          {/* Actions - Hover - USING markAsRead (FIXED) */}
+                          {/* Actions - Hover */}
                           {!selectMode && (
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               {isUnread && (
                                 <button
-                                  onClick={() => markAsRead(notification._id)}
+                                  onClick={() => handleMarkAsRead(notification._id)}
                                   className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
                                   title="Mark as read"
                                 >
@@ -939,7 +930,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                                 </button>
                               )}
                               <button
-                                onClick={() => deleteNotification(notification._id)}
+                                onClick={() => handleDeleteNotification(notification._id)}
                                 disabled={isDeleting}
                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
                                 title="Delete"
@@ -954,7 +945,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                   })}
 
                   {/* Load more trigger */}
-                  {hasMore && (
+                  {hookHasMore && (
                     <div ref={loadMoreRef} className="py-4 flex justify-center">
                       {loadingMore ? (
                         <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
@@ -997,7 +988,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                     onClick={() => {
                       if (navigator.share) {
                         navigator.share({
-                          title: 'Alveovita Notifications',
+                          title: 'Notifications',
                           text: `You have ${unreadCount} unread notifications`,
                           url: window.location.href,
                         });

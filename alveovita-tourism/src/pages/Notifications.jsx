@@ -15,7 +15,7 @@ import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { useSocket } from '../context/SocketContext'
 import { useToast } from '../hooks/useToast'
-import axios from '../api/axios'
+import { notificationService } from '../services/notificationService'
 import Navbar from '../components/common/Navbar'
 import Footer from '../components/common/Footer'
 
@@ -53,25 +53,18 @@ const Notifications = () => {
   const initialLoadDone = useRef(false)
 
   // ============================================
-  // GET API ENDPOINT
-  // ============================================
-  const getApiEndpoint = useCallback(() => {
-    return '/notifications'
-  }, [])
-
-  // ============================================
   // FETCH NOTIFICATION TYPES
   // ============================================
   const fetchNotificationTypes = useCallback(async () => {
     try {
-      const response = await axios.get('/notifications/types')
-      if (response.data.success) {
-        setNotificationTypes(response.data.types)
+      const result = await notificationService.fetchTypes();
+      if (result.success) {
+        setNotificationTypes(result.types);
       }
     } catch (error) {
-      console.error('❌ Failed to fetch notification types:', error)
+      console.error('❌ Failed to fetch notification types:', error);
     }
-  }, [])
+  }, []);
 
   // ============================================
   // FETCH NOTIFICATIONS
@@ -88,47 +81,29 @@ const Notifications = () => {
       setApiError(null)
       
       const currentPage = reset ? 1 : page
-      const endpoint = getApiEndpoint()
       
       const params = {
         page: currentPage,
         limit: 20,
         sort: sortOrder,
-      }
-      
-      // Apply filters
-      if (filter === 'unread') {
-        params.read = 'false'
-      } else if (filter === 'read') {
-        params.read = 'true'
-      } else if (filter !== 'all' && filter !== 'unread' && filter !== 'read') {
-        params.type = filter
-      }
-      
-      // Apply type filter
-      if (activeTypeFilter && activeTypeFilter !== 'all') {
-        params.type = activeTypeFilter
-      }
-      
-      // Apply search
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
-      }
+        filter: filter,
+        type: activeTypeFilter,
+        search: searchQuery
+      };
 
-      console.log(`📡 [Notifications] Fetching from ${endpoint}`, params)
+      console.log(`📡 [Notifications] Fetching notifications`, params)
       
-      const response = await axios.get(endpoint, { params })
+      const result = await notificationService.fetchNotifications(params);
 
       console.log(`📡 [Notifications] Response:`, {
-        status: response.status,
-        success: response.data?.success,
-        count: response.data?.notifications?.length || 0,
-        total: response.data?.total || 0
-      })
+        success: result.success,
+        count: result.notifications?.length || 0,
+        total: result.total || 0,
+        unread: result.unreadCount || 0
+      });
 
-      if (response.data?.success && isMounted.current) {
-        const data = response.data
-        const newNotifications = data.notifications || []
+      if (result.success && isMounted.current) {
+        const newNotifications = result.notifications || []
         
         if (reset) {
           setNotifications(newNotifications)
@@ -137,14 +112,14 @@ const Notifications = () => {
           setNotifications(prev => [...prev, ...newNotifications])
         }
         
-        const count = data.unreadCount || 0
+        const count = result.unreadCount || 0
         setUnreadCount(count)
-        setHasMore(data.pagination?.hasMore || false)
-        setTotal(data.total || 0)
+        setHasMore(result.hasMore || false)
+        setTotal(result.total || 0)
         
-        console.log(`✅ [Notifications] Loaded ${newNotifications.length} notifications, total: ${data.total}, unread: ${count}`)
+        console.log(`✅ [Notifications] Loaded ${newNotifications.length} notifications, total: ${result.total}, unread: ${count}`)
       } else {
-        console.warn('⚠️ [Notifications] Unexpected response:', response.data)
+        console.warn('⚠️ [Notifications] Unexpected response:', result)
         if (reset) {
           setNotifications([])
           setTotal(0)
@@ -153,7 +128,6 @@ const Notifications = () => {
       }
     } catch (error) {
       console.error('❌ [Notifications] Fetch error:', error)
-      console.error('❌ [Notifications] Error details:', error.response?.data)
       
       setApiError(error.response?.data?.message || 'Failed to load notifications')
       
@@ -171,7 +145,7 @@ const Notifications = () => {
         setLoading(false)
       }
     }
-  }, [user, page, filter, activeTypeFilter, searchQuery, sortOrder, getApiEndpoint, showToast])
+  }, [user, page, filter, activeTypeFilter, searchQuery, sortOrder, showToast]);
 
   // ============================================
   // LOAD MORE NOTIFICATIONS
@@ -184,209 +158,206 @@ const Notifications = () => {
   }, [loading, hasMore, fetchNotifications])
 
   // ============================================
-  // MARK AS READ
+  // MARK AS READ - Uses notificationService
   // ============================================
   const markAsRead = useCallback(async (notificationId) => {
+    if (!notificationId) {
+      showToast('Invalid notification ID', 'error');
+      return;
+    }
+
     try {
-      await axios.put(`/notifications/${notificationId}/read`)
+      const result = await notificationService.markAsRead(notificationId);
       
-      if (isMounted.current) {
+      if (result.success && isMounted.current) {
         setNotifications(prev => prev.map(n => 
           n._id === notificationId ? { ...n, read: true, readAt: new Date() } : n
-        ))
-        setUnreadCount(prev => Math.max(0, prev - 1))
+        ));
+        setUnreadCount(result.unreadCount);
+        setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
         
+        // Update via socket
         if (getUnreadCount) {
-          getUnreadCount()
+          getUnreadCount();
         }
         
-        // Remove from selected if in select mode
-        setSelectedNotifications(prev => prev.filter(id => id !== notificationId))
+        showToast('Notification marked as read', 'success');
+      } else {
+        showToast(result.error || 'Failed to mark as read', 'error');
       }
     } catch (error) {
-      console.error('❌ [Notifications] Mark as read error:', error)
-      showToast('Failed to mark as read', 'error')
+      console.error('❌ [Notifications] Mark as read error:', error);
+      showToast('Failed to mark as read', 'error');
     }
-  }, [getUnreadCount, showToast])
+  }, [getUnreadCount, showToast]);
 
   // ============================================
   // MARK MULTIPLE AS READ
   // ============================================
   const markMultipleAsRead = useCallback(async () => {
     if (selectedNotifications.length === 0) {
-      showToast('No notifications selected', 'info')
-      return
+      showToast('No notifications selected', 'info');
+      return;
     }
     
     try {
-      const promises = selectedNotifications.map(id => 
-        axios.put(`/notifications/${id}/read`)
-      )
-      await Promise.all(promises)
+      const result = await notificationService.markMultipleAsRead(selectedNotifications);
       
-      if (isMounted.current) {
+      if (result.success && isMounted.current) {
         setNotifications(prev => prev.map(n => 
           selectedNotifications.includes(n._id) 
             ? { ...n, read: true, readAt: new Date() } 
             : n
-        ))
-        const readCount = selectedNotifications.filter(id => 
-          notifications.find(n => n._id === id && !n.read)
-        ).length
-        setUnreadCount(prev => Math.max(0, prev - readCount))
-        setSelectedNotifications([])
-        setSelectMode(false)
-        showToast(`${selectedNotifications.length} notifications marked as read`, 'success')
+        ));
+        setUnreadCount(result.unreadCount);
+        setSelectedNotifications([]);
+        setSelectMode(false);
+        showToast(`${selectedNotifications.length} notifications marked as read`, 'success');
         
         if (getUnreadCount) {
-          getUnreadCount()
+          getUnreadCount();
         }
+      } else {
+        showToast(result.error || 'Failed to mark notifications as read', 'error');
       }
     } catch (error) {
-      console.error('❌ [Notifications] Mark multiple as read error:', error)
-      showToast('Failed to mark notifications as read', 'error')
+      console.error('❌ [Notifications] Mark multiple as read error:', error);
+      showToast('Failed to mark notifications as read', 'error');
     }
-  }, [selectedNotifications, notifications, getUnreadCount, showToast])
+  }, [selectedNotifications, getUnreadCount, showToast]);
 
   // ============================================
   // MARK ALL AS READ
   // ============================================
   const markAllAsRead = useCallback(async () => {
     try {
-      const endpoint = '/notifications/read-all'
+      const result = await notificationService.markAllAsRead();
       
-      await axios.put(endpoint)
-      
-      if (isMounted.current) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true, readAt: new Date() })))
-        setUnreadCount(0)
-        setSelectedNotifications([])
-        setSelectMode(false)
-        showToast('All notifications marked as read ✨', 'success')
+      if (result.success && isMounted.current) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true, readAt: new Date() })));
+        setUnreadCount(0);
+        setSelectedNotifications([]);
+        setSelectMode(false);
+        showToast('All notifications marked as read ✨', 'success');
         
         if (getUnreadCount) {
-          getUnreadCount()
+          getUnreadCount();
         }
+      } else {
+        showToast(result.error || 'Failed to mark all as read', 'error');
       }
     } catch (error) {
-      console.error('❌ [Notifications] Mark all as read error:', error)
-      showToast('Failed to mark all as read', 'error')
+      console.error('❌ [Notifications] Mark all as read error:', error);
+      showToast('Failed to mark all as read', 'error');
     }
-  }, [showToast, getUnreadCount])
+  }, [showToast, getUnreadCount]);
 
   // ============================================
   // DELETE NOTIFICATION
   // ============================================
   const deleteNotification = useCallback(async (notificationId) => {
-    if (!confirm('Delete this notification?')) return
+    if (!confirm('Delete this notification?')) return;
     
     try {
-      setIsDeleting(true)
-      await axios.delete(`/notifications/${notificationId}`)
+      setIsDeleting(true);
+      const result = await notificationService.deleteNotification(notificationId);
       
-      if (isMounted.current) {
-        const deleted = notifications.find(n => n._id === notificationId)
-        setNotifications(prev => prev.filter(n => n._id !== notificationId))
-        setTotal(prev => prev - 1)
-        
-        if (!deleted?.read) {
-          setUnreadCount(prev => Math.max(0, prev - 1))
-        }
-        
-        setSelectedNotifications(prev => prev.filter(id => id !== notificationId))
-        showToast('Notification deleted', 'success')
+      if (result.success && isMounted.current) {
+        const deleted = notifications.find(n => n._id === notificationId);
+        setNotifications(prev => prev.filter(n => n._id !== notificationId));
+        setTotal(prev => prev - 1);
+        setUnreadCount(result.unreadCount);
+        setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
+        showToast('Notification deleted', 'success');
         
         if (getUnreadCount) {
-          getUnreadCount()
+          getUnreadCount();
         }
+      } else {
+        showToast(result.error || 'Failed to delete notification', 'error');
       }
     } catch (error) {
-      console.error('❌ [Notifications] Delete error:', error)
-      showToast('Failed to delete notification', 'error')
+      console.error('❌ [Notifications] Delete error:', error);
+      showToast('Failed to delete notification', 'error');
     } finally {
       if (isMounted.current) {
-        setIsDeleting(false)
+        setIsDeleting(false);
       }
     }
-  }, [notifications, showToast, getUnreadCount])
+  }, [notifications, getUnreadCount, showToast]);
 
   // ============================================
   // DELETE MULTIPLE NOTIFICATIONS
   // ============================================
   const deleteMultiple = useCallback(async () => {
     if (selectedNotifications.length === 0) {
-      showToast('No notifications selected', 'info')
-      return
+      showToast('No notifications selected', 'info');
+      return;
     }
     
-    if (!confirm(`Delete ${selectedNotifications.length} selected notifications?`)) return
+    if (!confirm(`Delete ${selectedNotifications.length} selected notifications?`)) return;
     
     try {
-      setIsDeleting(true)
-      const promises = selectedNotifications.map(id => 
-        axios.delete(`/notifications/${id}`)
-      )
-      await Promise.all(promises)
+      setIsDeleting(true);
+      const result = await notificationService.deleteMultiple(selectedNotifications);
       
-      if (isMounted.current) {
-        const deletedRead = selectedNotifications.filter(id => 
-          notifications.find(n => n._id === id && !n.read)
-        ).length
-        
-        setNotifications(prev => prev.filter(n => !selectedNotifications.includes(n._id)))
-        setTotal(prev => prev - selectedNotifications.length)
-        setUnreadCount(prev => Math.max(0, prev - deletedRead))
-        setSelectedNotifications([])
-        setSelectMode(false)
-        showToast(`${selectedNotifications.length} notifications deleted`, 'success')
+      if (result.success && isMounted.current) {
+        setNotifications(prev => prev.filter(n => !selectedNotifications.includes(n._id)));
+        setTotal(prev => prev - selectedNotifications.length);
+        setUnreadCount(result.unreadCount);
+        setSelectedNotifications([]);
+        setSelectMode(false);
+        showToast(`${selectedNotifications.length} notifications deleted`, 'success');
         
         if (getUnreadCount) {
-          getUnreadCount()
+          getUnreadCount();
         }
+      } else {
+        showToast(result.error || 'Failed to delete notifications', 'error');
       }
     } catch (error) {
-      console.error('❌ [Notifications] Delete multiple error:', error)
-      showToast('Failed to delete notifications', 'error')
+      console.error('❌ [Notifications] Delete multiple error:', error);
+      showToast('Failed to delete notifications', 'error');
     } finally {
       if (isMounted.current) {
-        setIsDeleting(false)
+        setIsDeleting(false);
       }
     }
-  }, [selectedNotifications, notifications, getUnreadCount, showToast])
+  }, [selectedNotifications, getUnreadCount, showToast]);
 
   // ============================================
   // DELETE ALL NOTIFICATIONS
   // ============================================
   const deleteAllNotifications = useCallback(async () => {
-    if (!confirm('Delete all notifications?')) return
+    if (!confirm('Delete all notifications?')) return;
     
     try {
-      setIsDeleting(true)
-      const endpoint = '/notifications/delete-all'
+      setIsDeleting(true);
+      const result = await notificationService.deleteAllNotifications();
       
-      await axios.delete(endpoint)
-      
-      if (isMounted.current) {
-        setNotifications([])
-        setTotal(0)
-        setUnreadCount(0)
-        setSelectedNotifications([])
-        setSelectMode(false)
-        showToast('All notifications deleted', 'success')
+      if (result.success && isMounted.current) {
+        setNotifications([]);
+        setTotal(0);
+        setUnreadCount(0);
+        setSelectedNotifications([]);
+        setSelectMode(false);
+        showToast('All notifications deleted', 'success');
         
         if (getUnreadCount) {
-          getUnreadCount()
+          getUnreadCount();
         }
+      } else {
+        showToast(result.error || 'Failed to delete all notifications', 'error');
       }
     } catch (error) {
-      console.error('❌ [Notifications] Delete all error:', error)
-      showToast('Failed to delete all notifications', 'error')
+      console.error('❌ [Notifications] Delete all error:', error);
+      showToast('Failed to delete all notifications', 'error');
     } finally {
       if (isMounted.current) {
-        setIsDeleting(false)
+        setIsDeleting(false);
       }
     }
-  }, [showToast, getUnreadCount])
+  }, [showToast, getUnreadCount]);
 
   // ============================================
   // TOGGLE SELECTION
@@ -403,12 +374,12 @@ const Notifications = () => {
   // TOGGLE SELECT ALL
   // ============================================
   const toggleSelectAll = useCallback(() => {
-    if (selectedNotifications.length === filteredNotifications.length) {
+    if (selectedNotifications.length === displayedNotifications.length) {
       setSelectedNotifications([])
     } else {
-      setSelectedNotifications(filteredNotifications.map(n => n._id))
+      setSelectedNotifications(displayedNotifications.map(n => n._id))
     }
-  }, [selectedNotifications, filteredNotifications])
+  }, [selectedNotifications, displayedNotifications])
 
   // ============================================
   // HANDLE REFRESH
@@ -506,7 +477,7 @@ const Notifications = () => {
   // ============================================
   // FILTERED NOTIFICATIONS
   // ============================================
-  const filteredNotifications = useCallback(() => {
+  const displayedNotifications = useCallback(() => {
     let filtered = [...notifications]
     
     // Apply search
@@ -532,118 +503,144 @@ const Notifications = () => {
   }, [notifications, total, unreadCount])
 
   // ============================================
+  // SERVICE LISTENER FOR COUNT UPDATES
+  // ============================================
+  useEffect(() => {
+    const unsubscribe = notificationService.addListener((event, data) => {
+      if (event === 'count-updated' && data.unreadCount !== undefined) {
+        setUnreadCount(data.unreadCount);
+      }
+      if (event === 'new-notification' && data.notification) {
+        setNotifications(prev => [data.notification, ...prev]);
+        setTotal(prev => prev + 1);
+        if (!data.notification.read) {
+          setUnreadCount(prev => prev + 1);
+        }
+        showToast('🔔 ' + data.notification.title, 'info');
+      }
+    });
+
+    return unsubscribe;
+  }, [showToast]);
+
+  // ============================================
   // SOCKET LISTENERS
   // ============================================
   useEffect(() => {
-    if (!socket) return
+    if (!socket) return;
 
     const handleNewNotification = (data) => {
       if (data?.notification && isMounted.current) {
-        console.log('🔔 [Notifications] New notification:', data.notification)
-        setNotifications(prev => [data.notification, ...prev])
-        setTotal(prev => prev + 1)
+        console.log('🔔 [Notifications] New notification:', data.notification);
+        setNotifications(prev => [data.notification, ...prev]);
+        setTotal(prev => prev + 1);
         if (!data.notification.read) {
-          setUnreadCount(prev => prev + 1)
+          setUnreadCount(prev => prev + 1);
         }
-        showToast('🔔 ' + data.notification.title, 'info')
+        showToast('🔔 ' + data.notification.title, 'info');
       }
-    }
+    };
 
     const handleNotificationRead = (data) => {
       if (isMounted.current) {
         setNotifications(prev => prev.map(n => 
-          n._id === data.notificationId ? { ...n, read: true } : n
-        ))
+          n._id === data.notificationId ? { ...n, read: true, readAt: new Date() } : n
+        ));
         if (data.unreadCount !== undefined) {
-          setUnreadCount(data.unreadCount)
+          setUnreadCount(data.unreadCount);
         }
       }
-    }
+    };
 
     const handleAllNotificationsRead = () => {
       if (isMounted.current) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-        setUnreadCount(0)
+        setNotifications(prev => prev.map(n => ({ ...n, read: true, readAt: new Date() })));
+        setUnreadCount(0);
+        showToast('All notifications marked as read ✨', 'success');
       }
-    }
+    };
 
     const handleNotificationDeleted = (data) => {
       if (isMounted.current) {
-        setNotifications(prev => prev.filter(n => n._id !== data.notificationId))
-        setTotal(prev => prev - 1)
-        setSelectedNotifications(prev => prev.filter(id => id !== data.notificationId))
+        setNotifications(prev => prev.filter(n => n._id !== data.notificationId));
+        setTotal(prev => prev - 1);
+        setSelectedNotifications(prev => prev.filter(id => id !== data.notificationId));
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount);
+        }
       }
-    }
+    };
 
     const handleAllNotificationsDeleted = () => {
       if (isMounted.current) {
-        setNotifications([])
-        setTotal(0)
-        setUnreadCount(0)
-        setSelectedNotifications([])
+        setNotifications([]);
+        setTotal(0);
+        setUnreadCount(0);
+        setSelectedNotifications([]);
+        showToast('All notifications deleted', 'success');
       }
-    }
+    };
 
-    socket.on('new-notification', handleNewNotification)
-    socket.on('notification-read', handleNotificationRead)
-    socket.on('all-notifications-read', handleAllNotificationsRead)
-    socket.on('notification-deleted', handleNotificationDeleted)
-    socket.on('all-notifications-deleted', handleAllNotificationsDeleted)
+    socket.on('new-notification', handleNewNotification);
+    socket.on('notification-read', handleNotificationRead);
+    socket.on('all-notifications-read', handleAllNotificationsRead);
+    socket.on('notification-deleted', handleNotificationDeleted);
+    socket.on('all-notifications-deleted', handleAllNotificationsDeleted);
     
     return () => {
-      socket.off('new-notification', handleNewNotification)
-      socket.off('notification-read', handleNotificationRead)
-      socket.off('all-notifications-read', handleAllNotificationsRead)
-      socket.off('notification-deleted', handleNotificationDeleted)
-      socket.off('all-notifications-deleted', handleAllNotificationsDeleted)
-    }
-  }, [socket, showToast])
+      socket.off('new-notification', handleNewNotification);
+      socket.off('notification-read', handleNotificationRead);
+      socket.off('all-notifications-read', handleAllNotificationsRead);
+      socket.off('notification-deleted', handleNotificationDeleted);
+      socket.off('all-notifications-deleted', handleAllNotificationsDeleted);
+    };
+  }, [socket, showToast]);
 
   // ============================================
   // INTERSECTION OBSERVER FOR INFINITE SCROLL
   // ============================================
   useEffect(() => {
-    if (!endRef.current || !hasMore || loading) return
+    if (!endRef.current || !hasMore || loading) return;
     
     observerRef.current = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !loading && isMounted.current) {
-          loadMore()
+          loadMore();
         }
       },
       { threshold: 0.1, rootMargin: '100px' }
-    )
+    );
     
-    observerRef.current.observe(endRef.current)
+    observerRef.current.observe(endRef.current);
     
     return () => {
       if (observerRef.current) {
-        observerRef.current.disconnect()
+        observerRef.current.disconnect();
       }
-    }
-  }, [hasMore, loading, loadMore])
+    };
+  }, [hasMore, loading, loadMore]);
 
   // ============================================
   // INITIAL LOAD AND FILTER CHANGES
   // ============================================
   useEffect(() => {
-    isMounted.current = true
+    isMounted.current = true;
     
     if (!user) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
     
-    setPage(1)
-    setNotifications([])
-    fetchNotificationTypes()
-    fetchNotifications(true)
-    initialLoadDone.current = true
+    setPage(1);
+    setNotifications([]);
+    fetchNotificationTypes();
+    fetchNotifications(true);
+    initialLoadDone.current = true;
     
     return () => {
-      isMounted.current = false
-    }
-  }, [filter, activeTypeFilter, user])
+      isMounted.current = false;
+    };
+  }, [filter, activeTypeFilter, user]);
 
   // ============================================
   // RENDER
@@ -663,10 +660,10 @@ const Notifications = () => {
         </div>
         <Footer />
       </div>
-    )
+    );
   }
 
-  const displayedNotifications = filteredNotifications()
+  const filteredNotifications = displayedNotifications();
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
@@ -738,8 +735,8 @@ const Notifications = () => {
             {notifications.length > 0 && (
               <button
                 onClick={() => {
-                  setSelectMode(!selectMode)
-                  setSelectedNotifications([])
+                  setSelectMode(!selectMode);
+                  setSelectedNotifications([]);
                 }}
                 className={`p-2 rounded-xl transition-colors ${
                   selectMode 
@@ -897,10 +894,10 @@ const Notifications = () => {
                     key={type.value}
                     onClick={() => {
                       if (activeTypeFilter === type.value) {
-                        setActiveTypeFilter(null)
+                        setActiveTypeFilter(null);
                       } else {
-                        setActiveTypeFilter(type.value)
-                        setFilter('all')
+                        setActiveTypeFilter(type.value);
+                        setFilter('all');
                       }
                     }}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
@@ -940,8 +937,8 @@ const Notifications = () => {
                   )}
                   <button
                     onClick={() => {
-                      setFilter('all')
-                      setActiveTypeFilter(null)
+                      setFilter('all');
+                      setActiveTypeFilter(null);
                     }}
                     className="text-xs text-amber-500 hover:text-amber-400 ml-auto"
                   >
@@ -964,7 +961,7 @@ const Notifications = () => {
               <button
                 onClick={toggleSelectAll}
                 className={`p-1.5 rounded-lg transition-colors ${
-                  selectedNotifications.length === displayedNotifications.length && displayedNotifications.length > 0
+                  selectedNotifications.length === filteredNotifications.length && filteredNotifications.length > 0
                     ? 'bg-amber-500 text-white'
                     : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
                 }`}
@@ -1000,8 +997,8 @@ const Notifications = () => {
               </button>
               <button
                 onClick={() => {
-                  setSelectMode(false)
-                  setSelectedNotifications([])
+                  setSelectMode(false);
+                  setSelectedNotifications([]);
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
                   isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
@@ -1022,8 +1019,8 @@ const Notifications = () => {
             <span>{apiError}</span>
             <button
               onClick={() => {
-                setApiError(null)
-                fetchNotifications(true)
+                setApiError(null);
+                fetchNotifications(true);
               }}
               className="ml-auto text-red-400 hover:text-red-300 font-medium"
             >
@@ -1047,7 +1044,7 @@ const Notifications = () => {
               </p>
             </div>
           </div>
-        ) : displayedNotifications.length === 0 ? (
+        ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-20">
             <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center ${
               isDark ? 'bg-gray-800' : 'bg-gray-100'
@@ -1065,9 +1062,9 @@ const Notifications = () => {
             {(filter !== 'all' || activeTypeFilter || searchQuery) && (
               <button
                 onClick={() => {
-                  setFilter('all')
-                  setActiveTypeFilter(null)
-                  setSearchQuery('')
+                  setFilter('all');
+                  setActiveTypeFilter(null);
+                  setSearchQuery('');
                 }}
                 className="mt-4 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30"
               >
@@ -1077,10 +1074,10 @@ const Notifications = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {displayedNotifications.map((notification, index) => {
-              const Icon = getIcon(notification)
-              const isUnread = !notification.read
-              const isSelected = selectedNotifications.includes(notification._id)
+            {filteredNotifications.map((notification, index) => {
+              const Icon = getIcon(notification);
+              const isUnread = !notification.read;
+              const isSelected = selectedNotifications.includes(notification._id);
               
               return (
                 <motion.div
@@ -1199,7 +1196,7 @@ const Notifications = () => {
                     </div>
                   </div>
                 </motion.div>
-              )
+              );
             })}
           </div>
         )}
@@ -1207,7 +1204,7 @@ const Notifications = () => {
         {/* ============================================ */}
         {/* LOAD MORE */}
         {/* ============================================ */}
-        {hasMore && displayedNotifications.length > 0 && (
+        {hasMore && filteredNotifications.length > 0 && (
           <div ref={endRef} className="py-6 text-center">
             {loading ? (
               <Loader2 className="w-6 h-6 text-amber-500 animate-spin mx-auto" />
@@ -1226,7 +1223,7 @@ const Notifications = () => {
         {notifications.length > 0 && (
           <div className={`mt-6 pt-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} flex items-center justify-between text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
             <span>
-              Showing {displayedNotifications.length} of {total} notifications
+              Showing {filteredNotifications.length} of {total} notifications
             </span>
             <span>
               {unreadCount} unread · {total - unreadCount} read
@@ -1237,7 +1234,7 @@ const Notifications = () => {
       
       <Footer />
     </div>
-  )
-}
+  );
+};
 
-export default Notifications
+export default Notifications;

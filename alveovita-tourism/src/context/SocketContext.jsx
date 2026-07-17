@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { notificationService } from '../services/notificationService';
 
 const SocketContext = createContext();
 
@@ -24,6 +25,32 @@ export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 10;
+  const isMounted = useRef(true);
+
+  // ============================================
+  // INITIALIZE NOTIFICATION SERVICE
+  // ============================================
+  useEffect(() => {
+    notificationService.initialize();
+  }, []);
+
+  // ============================================
+  // SERVICE LISTENER FOR COUNT UPDATES
+  // ============================================
+  useEffect(() => {
+    const unsubscribe = notificationService.addListener((event, data) => {
+      if (event === 'count-updated') {
+        if (data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount);
+        }
+        if (data.adminUnreadCount !== undefined) {
+          setAdminUnreadCount(data.adminUnreadCount);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   // ============================================
   // Get socket URL
@@ -90,12 +117,17 @@ export const SocketProvider = ({ children }) => {
   const setupSocketListeners = useCallback((newSocket) => {
     if (!newSocket) return;
 
-    // Connection events
+    // ============================================
+    // CONNECTION EVENTS
+    // ============================================
     newSocket.on('connect', () => {
       console.log('🟢 [Socket] Connected! ID:', newSocket.id);
       setIsConnected(true);
       setConnectionError(null);
       reconnectAttempts.current = 0;
+      
+      // Store socket globally for other services
+      window.socket = newSocket;
       
       if (user?.id) {
         console.log('🔐 [Socket] Joining user room (Alveoly pattern):', user.id);
@@ -121,7 +153,7 @@ export const SocketProvider = ({ children }) => {
       
       if (reason === 'io server disconnect') {
         setTimeout(() => {
-          if (newSocket) {
+          if (newSocket && isMounted.current) {
             newSocket.connect();
           }
         }, 1000);
@@ -144,7 +176,7 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(true);
       setConnectionError(null);
       
-      if (user?.id) {
+      if (user?.id && isMounted.current) {
         newSocket.emit('join:user', user.id);
         newSocket.emit('join-user-room', user.id);
         newSocket.emit('join:notifications', user.id);
@@ -164,80 +196,62 @@ export const SocketProvider = ({ children }) => {
 
     // ============================================
     // NOTIFICATION EVENTS (Alveoly Pattern)
+    // - All events are forwarded to notificationService
     // ============================================
     
     // Alveoly pattern: new_notification
     newSocket.on('new_notification', (data) => {
-      console.log('🔔 [Socket] New notification:', data);
-      if (data.unreadCount !== undefined) {
-        setUnreadCount(data.unreadCount);
-      } else {
-        setUnreadCount(prev => prev + 1);
-      }
+      console.log('🔔 [Socket] New notification (Alveoly):', data);
+      notificationService.handleSocketEvent('new_notification', data);
     });
 
     // Also support legacy new-notification
     newSocket.on('new-notification', (data) => {
       console.log('🔔 [Socket] New notification (legacy):', data);
-      if (data.unreadCount !== undefined) {
-        setUnreadCount(data.unreadCount);
-      } else {
-        setUnreadCount(prev => prev + 1);
-      }
+      notificationService.handleSocketEvent('new-notification', data);
     });
 
     // Notification read events
     newSocket.on('notification-read', (data) => {
       console.log('📖 [Socket] Notification read:', data);
-      if (data.unreadCount !== undefined) {
-        setUnreadCount(data.unreadCount);
-      }
+      notificationService.handleSocketEvent('notification-read', data);
     });
 
     newSocket.on('all-notifications-read', () => {
       console.log('✅ [Socket] All notifications read');
-      setUnreadCount(0);
+      notificationService.handleSocketEvent('all-notifications-read', {});
     });
 
-    newSocket.on('all-notifications-read', () => {
-      console.log('✅ [Socket] All notifications read');
-      setUnreadCount(0);
-    });
-
-    newSocket.on('notification-deleted', () => {
-      console.log('🗑️ [Socket] Notification deleted');
-      newSocket.emit('get-unread-count');
+    newSocket.on('notification-deleted', (data) => {
+      console.log('🗑️ [Socket] Notification deleted:', data);
+      notificationService.handleSocketEvent('notification-deleted', data);
     });
 
     newSocket.on('all-notifications-deleted', () => {
       console.log('🗑️ [Socket] All notifications deleted');
-      setUnreadCount(0);
+      notificationService.handleSocketEvent('all-notifications-deleted', {});
     });
 
     // Unread count updates
     newSocket.on('unread-count', (data) => {
       console.log('📊 [Socket] Unread count:', data);
-      if (data.count !== undefined) {
-        setUnreadCount(data.count);
-      }
+      notificationService.handleSocketEvent('unread-count', data);
     });
 
     // Admin notification events
     newSocket.on('admin-unread-count', (data) => {
       console.log('📊 [Socket] Admin unread count:', data);
-      if (data.count !== undefined) {
-        setAdminUnreadCount(data.count);
-      }
+      notificationService.handleSocketEvent('admin-unread-count', data);
     });
 
     newSocket.on('new_admin_notification', (data) => {
       console.log('👑 [Socket] Admin notification:', data);
-      newSocket.emit('get-admin-unread-count');
+      notificationService.handleSocketEvent('new_admin_notification', data);
     });
 
     newSocket.on('admin-notification', (data) => {
       console.log('👑 [Socket] Admin notification (legacy):', data);
-      newSocket.emit('get-admin-unread-count');
+      notificationService.handleSocketEvent('new_admin_notification', data);
     });
 
     // ============================================
@@ -301,6 +315,9 @@ export const SocketProvider = ({ children }) => {
       console.error('❌ [Socket] Chat error:', error);
     });
 
+    // ============================================
+    // CLEANUP FUNCTION
+    // ============================================
     return () => {
       newSocket.off('connect');
       newSocket.off('disconnect');
@@ -337,6 +354,8 @@ export const SocketProvider = ({ children }) => {
   // Initialize socket connection
   // ============================================
   useEffect(() => {
+    isMounted.current = true;
+
     if (socketRef.current) {
       console.log('🧹 [Socket] Cleaning up existing connection');
       socketRef.current.disconnect();
@@ -363,6 +382,7 @@ export const SocketProvider = ({ children }) => {
     const cleanupListeners = setupSocketListeners(newSocket);
 
     return () => {
+      isMounted.current = false;
       if (cleanupListeners) {
         cleanupListeners();
       }
@@ -374,6 +394,7 @@ export const SocketProvider = ({ children }) => {
       }
       setSocket(null);
       setIsConnected(false);
+      window.socket = null;
     };
   }, [token, user?.id, connectSocket, setupSocketListeners]);
 
@@ -415,6 +436,8 @@ export const SocketProvider = ({ children }) => {
     if (socketRef.current && isConnected) {
       socketRef.current.emit('get-unread-count');
     }
+    // Also fetch via service
+    notificationService.fetchUnreadCount();
   }, [isConnected]);
 
   const getAdminUnreadCount = useCallback(() => {
@@ -428,7 +451,7 @@ export const SocketProvider = ({ children }) => {
       console.log('🔄 [Socket] Manual reconnect');
       socketRef.current.disconnect();
       setTimeout(() => {
-        if (socketRef.current) {
+        if (socketRef.current && isMounted.current) {
           socketRef.current.connect();
         }
       }, 500);
