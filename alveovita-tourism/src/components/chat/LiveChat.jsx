@@ -1,5 +1,5 @@
 // src/components/chat/LiveChat.jsx
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -38,114 +38,131 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const typingTimeoutRef = useRef(null)
-  // Add ref to track if component is mounted
-  const isMounted = useRef(true)
 
-  // ============================================
-  // Socket event listeners - FIXED with useCallback
-  // ============================================
-  const handleNewMessage = useCallback((data) => {
-    if (!isMounted.current) return
-    
-    // Remove admin typing indicator if it exists
-    setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'))
-    
-    const message = {
-      id: Date.now() + Math.random() * 1000, // Ensure uniqueness
-      sender: data.sender === 'admin' ? 'admin' : data.sender,
-      text: data.text,
-      time: new Date(data.timestamp).toLocaleTimeString(),
-      isAutoReply: data.isAutoReply || false,
-      isTypingIndicator: false
-    }
-    setMessages(prev => [...prev, message])
-    
-    if (data.sender === 'bot' && data.isAutoReply) {
-      setIsWaitingForAdmin(false)
+  // FALLBACK BOT RESPONSES (used when offline or API fails)
+  const getFallbackResponse = (messageText) => {
+    const lowerMsg = messageText.toLowerCase()
+    const fallbackReplies = {
+      'wellness retreat': '🌿 Our wellness retreats include health screening, spa treatments, and personalized wellness coaching. Would you like to see our available packages?',
+      'medical tourism': '🏥 We offer comprehensive medical tourism services including executive health screening, rehabilitation, and nutritional counseling. Can you tell me more about what you\'re looking for?',
+      'corporate wellness': '💼 Our corporate wellness programs include team building retreats, stress management workshops, and health education programs. How many employees are you looking to book for?',
+      'pricing': '💰 Our pricing varies depending on the program and duration. A 5-day executive wellness retreat starts at $2,499 per person. Would you like a detailed quote?',
+      'available dates': '📅 We have availability starting from January 15, 2025. Would you like to check specific dates for your preferred program?',
+      'group bookings': '👥 Yes, we offer special rates for groups of 10 or more. Please provide your group size and preferred dates for a customized quote.',
+      'cancellation': '❌ You can cancel your booking up to 7 days before the tour start date for a full refund.',
+      'payment': '💳 We accept all major credit cards, bank transfers, mobile money (MoMo), and Paystack for secure online payments.',
+      'hello': '👋 Hello! Welcome to Alveovita Wellness. How can I help you today?',
+      'hi': '👋 Hi there! How can I assist you with your wellness journey today?',
+      'help': '🤝 I\'m here to help! You can ask me about our wellness retreats, medical tourism, corporate wellness programs, pricing, or available dates.'
     }
     
-    if (data.sender === 'admin') {
-      setIsWaitingForAdmin(false)
-      setIsAdminTyping(false)
+    for (const [key, value] of Object.entries(fallbackReplies)) {
+      if (lowerMsg.includes(key)) {
+        return value
+      }
     }
-  }, [])
+    return "Thank you for your message! Our wellness team will review your request and get back to you shortly. In the meantime, would you like to explore our available wellness packages on our website?"
+  }
 
-  const handleUserTyping = useCallback((data) => {
-    if (!isMounted.current) return
-    if (data.sender === 'admin') {
-      setIsAdminTyping(data.isTyping)
-    }
-  }, [])
-
-  const handleAdminTyping = useCallback((data) => {
-    if (!isMounted.current) return
-    
-    if (data.isTyping) {
-      setIsAdminTyping(true)
-      setIsWaitingForAdmin(true)
-      setMessages(prev => {
-        const filtered = prev.filter(msg => msg.id !== 'admin-typing')
-        return [...filtered, {
-          id: 'admin-typing',
-          sender: 'bot',
-          text: '👤 Admin is typing...',
-          time: new Date().toLocaleTimeString(),
-          isTypingIndicator: true
-        }]
-      })
-    } else {
-      setIsAdminTyping(false)
-      setIsWaitingForAdmin(false)
-      setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'))
-    }
-  }, [])
-
-  const handleSessionResolved = useCallback(() => {
-    if (!isMounted.current) return
-    showToast('This chat session has been resolved', 'info')
-    setIsWaitingForAdmin(false)
-  }, [showToast])
-
-  const handleChatError = useCallback((error) => {
-    if (!isMounted.current) return
-    showToast(error.message || 'Chat error occurred', 'error')
-  }, [showToast])
-
-  // ============================================
-  // Socket setup - FIXED dependencies
-  // ============================================
+  // Socket event listeners
   useEffect(() => {
-    isMounted.current = true
-    
-    if (!socket) {
-      console.log('📡 [LiveChat] No socket available')
-      return
-    }
+    if (!socket) return;
 
-    console.log('📡 [LiveChat] Setting up socket listeners')
+    const handleNewMessage = (data) => {
+      // Remove admin typing indicator if it exists
+      setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'));
+      
+      const message = {
+        id: Date.now(),
+        sender: data.sender === 'admin' ? 'admin' : data.sender,
+        text: data.text,
+        time: new Date(data.timestamp).toLocaleTimeString(),
+        isAutoReply: data.isAutoReply || false
+      };
+      setMessages(prev => [...prev, message]);
+      
+      if (data.sender === 'bot' && data.isAutoReply) {
+        setIsWaitingForAdmin(false);
+      }
+      
+      if (data.sender === 'admin') {
+        setIsWaitingForAdmin(false);
+        setIsAdminTyping(false);
+      }
+    };
 
-    // Register all listeners
-    socket.on('new-message', handleNewMessage)
-    socket.on('user-typing', handleUserTyping)
-    socket.on('admin-typing', handleAdminTyping)
-    socket.on('session-resolved', handleSessionResolved)
-    socket.on('chat-error', handleChatError)
+    const handleUserTyping = (data) => {
+      if (data.sender === 'admin') {
+        setIsAdminTyping(data.isTyping);
+      }
+    };
 
-    // Cleanup function - removes all listeners
+    const handleAdminTyping = (data) => {
+      if (data.isTyping) {
+        setIsAdminTyping(true);
+        setIsWaitingForAdmin(true);
+        setMessages(prev => {
+          const filtered = prev.filter(msg => msg.id !== 'admin-typing');
+          return [...filtered, {
+            id: 'admin-typing',
+            sender: 'bot',
+            text: '👤 Admin is typing...',
+            time: new Date().toLocaleTimeString(),
+            isTypingIndicator: true
+          }];
+        });
+      } else {
+        setIsAdminTyping(false);
+        setIsWaitingForAdmin(false);
+        setMessages(prev => prev.filter(msg => msg.id !== 'admin-typing'));
+      }
+    };
+
+    const handleSessionResolved = () => {
+      showToast('This chat session has been resolved', 'info');
+      setIsWaitingForAdmin(false);
+    };
+
+    const handleChatError = (error) => {
+      showToast(error.message || 'Chat error occurred', 'error');
+    };
+
+    // ✅ FIX: Handle bot auto-replies from server
+    const handleBotReply = (data) => {
+      console.log('🤖 [LiveChat] Bot auto-reply received:', data);
+      if (data.sender === 'bot' && data.isAutoReply) {
+        const botMessage = {
+          id: Date.now(),
+          sender: 'bot',
+          text: data.text,
+          time: new Date(data.timestamp).toLocaleTimeString(),
+          isAutoReply: true
+        };
+        setMessages(prev => [...prev, botMessage]);
+        setIsWaitingForAdmin(false);
+      }
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('user-typing', handleUserTyping);
+    socket.on('admin-typing', handleAdminTyping);
+    socket.on('session-resolved', handleSessionResolved);
+    socket.on('chat-error', handleChatError);
+    socket.on('bot-reply', handleBotReply);
+    socket.on('auto-reply', handleBotReply); // Legacy event name
+
     return () => {
-      console.log('📡 [LiveChat] Cleaning up socket listeners')
-      socket.off('new-message', handleNewMessage)
-      socket.off('user-typing', handleUserTyping)
-      socket.off('admin-typing', handleAdminTyping)
-      socket.off('session-resolved', handleSessionResolved)
-      socket.off('chat-error', handleChatError)
-      isMounted.current = false
-    }
-  }, [socket, handleNewMessage, handleUserTyping, handleAdminTyping, handleSessionResolved, handleChatError])
+      socket.off('new-message', handleNewMessage);
+      socket.off('user-typing', handleUserTyping);
+      socket.off('admin-typing', handleAdminTyping);
+      socket.off('session-resolved', handleSessionResolved);
+      socket.off('chat-error', handleChatError);
+      socket.off('bot-reply', handleBotReply);
+      socket.off('auto-reply', handleBotReply);
+    };
+  }, [socket, showToast]);
 
-  // ============================================
-  // Handle form submission - FIXED error handling
-  // ============================================
+  // Handle form submission
   const handleFormSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -158,7 +175,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
 
     try {
-      console.log('📤 [LiveChat] Creating chat session...')
+      console.log('📤 [LiveChat] Creating chat session...');
       
       // Create chat session via API with timeout
       const response = await axios.post('/chat-sessions', {
@@ -170,43 +187,42 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
         timeout: 15000
       })
 
-      console.log('📥 [LiveChat] Session response:', response.data)
+      console.log('📥 [LiveChat] Session response:', response.data);
 
       if (response.data.success) {
-        const session = response.data.session
-        setLocalSessionId(session._id)
-        setSessionId(session._id)
+        const session = response.data.session;
+        setLocalSessionId(session._id);
+        setSessionId(session._id);
         
-        // Join chat via socket (only if connected)
+        // Join chat via socket
         if (joinChat && isConnected) {
           joinChat({
             sessionId: session._id,
             userId: user?.id || null,
             userName: formData.name,
             userEmail: formData.email
-          })
-        } else if (!isConnected) {
-          console.warn('⚠️ [LiveChat] Socket not connected - chat will work via API fallback')
-          showToast('Chat started (offline mode - messages via email)', 'info')
+          });
         }
 
-        // Create contact record in background (don't await)
-        axios.post('/contact', {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone || '',
-          subject: formData.subject || 'Live Chat Inquiry',
-          message: formData.message || 'Chat started from live chat widget'
-        }, {
-          timeout: 5000
-        }).catch(contactError => {
-          console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message)
-        })
+        // Create contact record in background
+        try {
+          await axios.post('/contact', {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || '',
+            subject: formData.subject || 'Live Chat Inquiry',
+            message: formData.message || 'Chat started from live chat widget'
+          }, {
+            timeout: 5000
+          });
+        } catch (contactError) {
+          console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
+        }
 
-        const userMessageText = formData.message || 'Hello, I need assistance with your wellness services.'
+        const userMessageText = formData.message || 'Hello, I need assistance with your wellness services.';
         
         // Get messages from server response
-        const serverMessages = session.messages || []
+        const serverMessages = session.messages || [];
         const botMessages = serverMessages
           .filter(m => m.sender === 'bot' || m.sender === 'admin')
           .map((m, index) => ({
@@ -215,14 +231,14 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             text: m.text,
             time: new Date(m.timestamp || Date.now()).toLocaleTimeString(),
             isAutoReply: m.isAutoReply || false
-          }))
+          }));
 
         const userMessage = {
           id: messages.length + 1,
           sender: 'user',
           text: userMessageText,
           time: new Date().toLocaleTimeString()
-        }
+        };
 
         // Default welcome messages if no server messages
         const defaultMessages = [
@@ -238,156 +254,221 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             text: 'Feel free to ask me any questions about our services. Our team is here to help!',
             time: new Date().toLocaleTimeString()
           }
-        ]
+        ];
         
         // Combine messages
         const finalMessages = botMessages.length > 0 
           ? [...botMessages, userMessage]
-          : [...defaultMessages, userMessage]
+          : [...defaultMessages, userMessage];
         
-        setMessages(finalMessages)
-        setStep(2)
-        setChatSubmitted(true)
-        showToast('Chat started successfully!', 'success')
+        setMessages(finalMessages);
+        setStep(2);
+        setChatSubmitted(true);
+        showToast('Chat started successfully!', 'success');
         
-        // Send initial message via socket (only if connected)
+        // Send initial message via socket
         if (isConnected && sendMessage) {
           sendMessage({
             sessionId: session._id,
             text: userMessageText,
             sender: 'user'
-          })
-        } else {
-          // Fallback: Send via API
-          await axios.post(`/chat-sessions/${session._id}/messages`, {
-            text: userMessageText,
-            sender: 'user'
-          }, {
-            timeout: 5000
-          })
+          });
         }
       }
     } catch (error) {
-      console.error('❌ [LiveChat] Error:', error)
+      console.error('❌ [LiveChat] Error:', error);
       
       // Handle specific error types
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        setFormError('⏰ Connection timeout. Please check your internet and try again.')
-        showToast('Connection timeout - please retry', 'error')
+        setFormError('⏰ Connection timeout. Please check your internet and try again.');
+        showToast('Connection timeout - please retry', 'error');
       } else if (error.response?.status === 404) {
-        setFormError('🔌 Chat service unavailable. Please use the contact form.')
-        showToast('Chat service unavailable', 'error')
+        setFormError('🔌 Chat service unavailable. Please use the contact form.');
+        showToast('Chat service unavailable', 'error');
       } else if (error.response?.status === 500) {
-        setFormError('⚠️ Server error. Please try again or use the contact form.')
-        showToast('Server error - please retry', 'error')
+        setFormError('⚠️ Server error. Please try again or use the contact form.');
+        showToast('Server error - please retry', 'error');
       } else if (error.response?.data?.message) {
-        setFormError(error.response.data.message)
-        showToast(error.response.data.message, 'error')
+        setFormError(error.response.data.message);
+        showToast(error.response.data.message, 'error');
       } else {
-        setFormError('Failed to start chat. Please try again.')
-        showToast('Failed to start chat', 'error')
+        setFormError('Failed to start chat. Please try again.');
+        showToast('Failed to start chat', 'error');
       }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  // ============================================
-  // Send message in chat - FIXED to work offline
-  // ============================================
+  // ✅ FIXED: Send message handler with auto-reply fallback
   const sendMessageHandler = async () => {
-    if (!message.trim() || !sessionId || isSending) return
+    if (!message.trim() || !sessionId || isSending) return;
 
-    setIsSending(true)
-    const messageText = message.trim()
+    setIsSending(true);
+    const messageText = message.trim();
     
     const userMessage = {
-      id: Date.now() + Math.random() * 1000,
+      id: Date.now(),
       sender: 'user',
       text: messageText,
       time: new Date().toLocaleTimeString()
-    }
-    setMessages(prev => [...prev, userMessage])
-    setMessage('')
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setMessage('');
 
     try {
-      // Try socket first if connected
+      // Send via socket if connected
       if (isConnected && sendMessage) {
-        console.log('📤 [LiveChat] Sending via socket')
+        console.log('📤 [LiveChat] Sending message via socket:', messageText);
         sendMessage({
           sessionId: sessionId,
           text: messageText,
           sender: 'user'
-        })
-        showToast('Message sent', 'success')
+        });
+        
+        // ✅ FIX: Try to get auto-reply from server via API
+        try {
+          const botResponse = await axios.post('/auto-reply/respond', {
+            message: messageText
+          }, {
+            timeout: 3000
+          });
+          
+          if (botResponse.data.success && botResponse.data.hasMatch) {
+            // Add bot's auto-reply to messages
+            const botMessage = {
+              id: Date.now() + 1,
+              sender: 'bot',
+              text: botResponse.data.response,
+              time: new Date().toLocaleTimeString(),
+              isAutoReply: true
+            };
+            setMessages(prev => [...prev, botMessage]);
+          } else {
+            // ✅ FIX: Use fallback if no match found
+            const fallbackResponse = getFallbackResponse(messageText);
+            const botMessage = {
+              id: Date.now() + 1,
+              sender: 'bot',
+              text: fallbackResponse,
+              time: new Date().toLocaleTimeString(),
+              isAutoReply: true
+            };
+            setMessages(prev => [...prev, botMessage]);
+          }
+        } catch (botError) {
+          console.warn('⚠️ [LiveChat] Auto-reply API failed, using fallback:', botError.message);
+          // Use fallback response
+          const fallbackResponse = getFallbackResponse(messageText);
+          const botMessage = {
+            id: Date.now() + 1,
+            sender: 'bot',
+            text: fallbackResponse,
+            time: new Date().toLocaleTimeString(),
+            isAutoReply: true
+          };
+          setMessages(prev => [...prev, botMessage]);
+        }
       } else {
-        // Fallback: Send via API
-        console.log('📤 [LiveChat] Sending via API fallback')
+        // ✅ FIX: Fallback when socket is disconnected - use API
+        console.log('📤 [LiveChat] Sending message via API (socket offline)');
+        
+        // Send message via API
         await axios.post(`/chat-sessions/${sessionId}/messages`, {
           text: messageText,
           sender: 'user'
         }, {
-          timeout: 10000
-        })
-        showToast('Message sent (offline mode)', 'info')
+          timeout: 5000
+        });
+        
+        // Get auto-reply from API
+        try {
+          const botResponse = await axios.post('/auto-reply/respond', {
+            message: messageText
+          }, {
+            timeout: 3000
+          });
+          
+          if (botResponse.data.success && botResponse.data.hasMatch) {
+            const botMessage = {
+              id: Date.now() + 1,
+              sender: 'bot',
+              text: botResponse.data.response,
+              time: new Date().toLocaleTimeString(),
+              isAutoReply: true
+            };
+            setMessages(prev => [...prev, botMessage]);
+          } else {
+            // Use fallback
+            const fallbackResponse = getFallbackResponse(messageText);
+            const botMessage = {
+              id: Date.now() + 1,
+              sender: 'bot',
+              text: fallbackResponse,
+              time: new Date().toLocaleTimeString(),
+              isAutoReply: true
+            };
+            setMessages(prev => [...prev, botMessage]);
+          }
+        } catch (botError) {
+          console.warn('⚠️ [LiveChat] Auto-reply API failed, using fallback:', botError.message);
+          const fallbackResponse = getFallbackResponse(messageText);
+          const botMessage = {
+            id: Date.now() + 1,
+            sender: 'bot',
+            text: fallbackResponse,
+            time: new Date().toLocaleTimeString(),
+            isAutoReply: true
+          };
+          setMessages(prev => [...prev, botMessage]);
+        }
       }
     } catch (error) {
-      console.error('❌ [LiveChat] Send message error:', error)
-      showToast('Failed to send message. Please try again.', 'error')
+      console.error('❌ [LiveChat] Send message error:', error);
+      showToast('Failed to send message. Please try again.', 'error');
       
-      // Remove the failed message
-      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id))
+      // ✅ FIX: Remove the failed user message if API fails
+      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
     } finally {
-      setIsSending(false)
+      setIsSending(false);
     }
   }
 
-  // ============================================
-  // Handle typing indicator - FIXED
-  // ============================================
-  const handleTyping = useCallback((isTyping) => {
-    if (sessionId && isConnected && sendTyping) {
+  // Handle typing indicator
+  const handleTyping = (isTyping) => {
+    if (sessionId && isConnected) {
       sendTyping({
         sessionId,
         isTyping,
         sender: 'user'
-      })
+      });
     }
-  }, [sessionId, isConnected, sendTyping])
+  }
 
-  // ============================================
-  // Handle enter key - FIXED
-  // ============================================
+  // Handle enter key
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !isSending && message.trim()) {
+    if (e.key === 'Enter' && !e.shiftKey && !isSending) {
       e.preventDefault()
       sendMessageHandler()
     }
   }
 
-  // ============================================
   // Scroll to bottom
-  // ============================================
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // ============================================
   // Focus input when chat opens
-  // ============================================
   useEffect(() => {
     if (step === 2 && inputRef.current) {
       setTimeout(() => inputRef.current.focus(), 300)
     }
   }, [step])
 
-  // ============================================
-  // Reset when modal closes - FIXED cleanup
-  // ============================================
+  // Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
-      // Reset all state after a delay
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         setStep(1)
         setMessages([])
         setMessage('')
@@ -405,14 +486,10 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
         })
         setFormError(null)
       }, 300)
-      
-      return () => clearTimeout(timer)
     }
   }, [isOpen, user])
 
-  // ============================================
-  // Handle reconnect - FIXED
-  // ============================================
+  // Handle reconnect
   const handleReconnect = () => {
     if (reconnect) {
       reconnect()
@@ -420,9 +497,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   }
 
-  // ============================================
-  // RENDER - FIXED send button conditions
-  // ============================================
   if (!isOpen) return null
 
   return (
@@ -517,7 +591,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 } border border-yellow-500/30`}>
                   <WifiOff className="w-4 h-4 text-yellow-500 flex-shrink-0" />
                   <span className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                    Connection lost. Messages will be sent via email.
+                    Connection lost. {!isConnected && 'Messages will be sent via email.'}
                   </span>
                 </div>
               )}
@@ -729,9 +803,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* ============================================ */}
-              {/* SEND BUTTON - FIXED: Only disable if no message or isSending */}
-              {/* ============================================ */}
               <div className="flex items-center gap-2 mt-4">
                 <input
                   ref={inputRef}
@@ -739,9 +810,11 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                   value={message}
                   onChange={(e) => {
                     setMessage(e.target.value);
-                    handleTyping(true);
-                    clearTimeout(typingTimeoutRef.current);
-                    typingTimeoutRef.current = setTimeout(() => handleTyping(false), 1500);
+                    if (sessionId && isConnected) {
+                      handleTyping(true);
+                      clearTimeout(typingTimeoutRef.current);
+                      typingTimeoutRef.current = setTimeout(() => handleTyping(false), 1500);
+                    }
                   }}
                   onKeyPress={handleKeyPress}
                   placeholder={isWaitingForAdmin ? "Waiting for admin response..." : "Type your message..."}
@@ -756,9 +829,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 />
                 <button
                   onClick={sendMessageHandler}
-                  // FIXED: Only disable if no message or isSending
-                  // Allow sending even if disconnected (will use API fallback)
-                  disabled={!message.trim() || isSending}
+                  disabled={!message.trim() || isWaitingForAdmin || isSending}
                   className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[44px]"
                 >
                   {isSending ? (
