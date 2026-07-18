@@ -39,6 +39,7 @@ const PaystackPayment = ({
   const initializedRef = useRef(false);
   const pollIntervalRef = useRef(null);
   const windowCheckIntervalRef = useRef(null);
+  const paymentCompletedRef = useRef(false); // Add this ref for tracking
 
   // Cleanup on unmount
   useEffect(() => {
@@ -66,11 +67,12 @@ const PaystackPayment = ({
         clearInterval(windowCheckIntervalRef.current);
         windowCheckIntervalRef.current = null;
         
-        if (!paymentCompleted) {
+        // Use ref to check payment completion status
+        if (!paymentCompletedRef.current) {
           checkPaymentStatus(ref);
         }
         
-        if (!pollIntervalRef.current && !paymentCompleted) {
+        if (!pollIntervalRef.current && !paymentCompletedRef.current) {
           startPolling(ref);
         }
       }
@@ -79,7 +81,8 @@ const PaystackPayment = ({
 
   // Check payment status once
   const checkPaymentStatus = async (ref) => {
-    if (paymentCompleted) return;
+    // Use ref to check if already completed
+    if (paymentCompletedRef.current) return;
     
     try {
       console.log('🔍 Checking payment status for:', ref);
@@ -103,8 +106,12 @@ const PaystackPayment = ({
 
   // Handle payment success
   const handlePaymentSuccess = (data, ref) => {
-    if (paymentCompleted) return;
-    paymentCompleted = true;
+    // Use ref to check if already completed
+    if (paymentCompletedRef.current) return;
+    
+    // Set both state and ref
+    setPaymentCompleted(true);
+    paymentCompletedRef.current = true;
     
     // Clear all intervals
     if (pollIntervalRef.current) {
@@ -133,7 +140,8 @@ const PaystackPayment = ({
   };
 
   const startPolling = (ref) => {
-    if (paymentCompleted) return;
+    // Use ref to check if already completed
+    if (paymentCompletedRef.current) return;
     
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
@@ -144,7 +152,8 @@ const PaystackPayment = ({
     const maxAttempts = 60;
 
     pollIntervalRef.current = setInterval(async () => {
-      if (paymentCompleted) {
+      // Use ref to check if already completed
+      if (paymentCompletedRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
         return;
@@ -174,7 +183,7 @@ const PaystackPayment = ({
           pollIntervalRef.current = null;
           setPollingActive(false);
           
-          if (!paymentCompleted) {
+          if (!paymentCompletedRef.current) {
             const finalCheck = await checkPaymentStatus(ref);
             if (!finalCheck) {
               setPaymentStatus('failed');
@@ -194,7 +203,7 @@ const PaystackPayment = ({
           
           if (!isMountedRef.current) return;
           
-          if (!paymentCompleted) {
+          if (!paymentCompletedRef.current) {
             setPaymentStatus('failed');
             setPaymentMessage('Payment verification failed. Please contact support.');
             showToast('Payment verification failed', 'error');
@@ -261,7 +270,7 @@ const PaystackPayment = ({
 
         const handleFocus = () => {
           console.log('👁️ Page focused, checking payment status...');
-          if (ref && !pollingActive && !paymentCompleted) {
+          if (ref && !pollingActive && !paymentCompletedRef.current) {
             checkPaymentStatus(ref);
           }
         };
@@ -399,6 +408,7 @@ const PaystackPayment = ({
                 setPaymentStatus('idle');
                 setPaymentMessage('');
                 setPaymentCompleted(false);
+                paymentCompletedRef.current = false;
                 initializedRef.current = false;
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current);
