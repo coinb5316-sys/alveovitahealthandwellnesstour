@@ -1,4 +1,4 @@
-// src/pages/Destinations.jsx
+// src/pages/Destinations.jsx - Updated with Blue-Black Theme
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -346,7 +346,7 @@ const Destinations = () => {
       'city': 'bg-purple-500/20 text-purple-500 border-purple-500/30',
       'desert': 'bg-amber-500/20 text-amber-500 border-amber-500/30',
       'lake': 'bg-cyan-500/20 text-cyan-500 border-cyan-500/30',
-      'cultural': 'bg-orange-500/20 text-orange-500 border-orange-500/30',
+      'cultural': 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
       'historical': 'bg-red-500/20 text-red-500 border-red-500/30'
     }
     return colorMap[category] || 'bg-gray-500/20 text-gray-500 border-gray-500/30'
@@ -357,7 +357,7 @@ const Destinations = () => {
       'Very Popular': 'bg-red-500/20 text-red-500 border-red-500/30',
       'Popular': 'bg-blue-500/20 text-blue-500 border-blue-500/30',
       'Trending': 'bg-green-500/20 text-green-500 border-green-500/30',
-      'Hidden Gem': 'bg-amber-500/20 text-amber-500 border-amber-500/30',
+      'Hidden Gem': 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
       'Must Visit': 'bg-purple-500/20 text-purple-500 border-purple-500/30'
     }
     return badgeMap[popularity] || 'bg-gray-500/20 text-gray-500 border-gray-500/30'
@@ -376,21 +376,21 @@ const Destinations = () => {
           <div className="text-center">
             <div className="relative w-24 h-24 mx-auto">
               <motion.div
-                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                className="absolute inset-0 rounded-full border-4 border-blue-500/20"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                className="absolute inset-2 rounded-full border-4 border-blue-500/40"
                 animate={{ rotate: -360 }}
                 transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                className="absolute inset-4 rounded-full border-4 border-blue-500/60"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
               />
-              <Loader2 className="absolute inset-0 w-16 h-16 text-amber-500 animate-spin mx-auto my-auto" />
+              <Loader2 className="absolute inset-0 w-16 h-16 text-blue-500 animate-spin mx-auto my-auto" />
             </div>
             <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading destinations...</p>
             {isConnected && (
@@ -416,7 +416,7 @@ const Destinations = () => {
         </div>
       )}
 
-      {/* Notification Toast */}
+      {/* Notification Toast - Blue Theme */}
       <AnimatePresence>
         {notification && (
           <motion.div
@@ -425,9 +425,9 @@ const Destinations = () => {
             exit={{ opacity: 0, y: -50 }}
             className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-2xl ${
               notification.type === 'created' 
-                ? 'bg-green-500 text-white' 
+                ? 'bg-blue-500 text-white' 
                 : notification.type === 'updated'
-                ? 'bg-blue-500 text-white'
+                ? 'bg-indigo-500 text-white'
                 : 'bg-red-500 text-white'
             }`}
           >
@@ -441,7 +441,7 @@ const Destinations = () => {
         )}
       </AnimatePresence>
 
-      {/* Hero Section */}
+      {/* Hero Section - Blue Theme */}
       <section className="relative py-20 overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center"
@@ -458,27 +458,27 @@ const Destinations = () => {
             transition={{ duration: 0.8 }}
             className="max-w-3xl"
           >
-            <span className="text-amber-400 font-semibold text-sm uppercase tracking-wider flex items-center gap-2">
+            <span className="text-blue-400 font-semibold text-sm uppercase tracking-wider flex items-center gap-2">
               <Globe className="w-4 h-4" />
               Explore Destinations
             </span>
             <h1 className={`text-4xl md:text-5xl font-display font-bold text-white mt-4 leading-tight`}>
-              Discover Amazing <span className="text-amber-400">Destinations</span>
+              Discover Amazing <span className="text-blue-400">Destinations</span>
             </h1>
             <p className="text-lg text-gray-300 mt-4 max-w-2xl">
               Explore the best destinations across all regions of Ghana. From cultural sites to natural wonders, find your perfect escape.
             </p>
             <div className="flex flex-wrap gap-3 mt-6">
               <div className="flex items-center gap-2 text-white/80">
-                <Sparkles className="w-4 h-4 text-amber-400" />
+                <Sparkles className="w-4 h-4 text-blue-400" />
                 <span className="text-sm">{totalDestinations} Destinations</span>
               </div>
               <div className="flex items-center gap-2 text-white/80">
-                <Users className="w-4 h-4 text-amber-400" />
+                <Users className="w-4 h-4 text-blue-400" />
                 <span className="text-sm">{regions.length} Regions</span>
               </div>
               <div className="flex items-center gap-2 text-white/80">
-                <Award className="w-4 h-4 text-amber-400" />
+                <Award className="w-4 h-4 text-blue-400" />
                 <span className="text-sm">Top Rated</span>
               </div>
               {isConnected && (
@@ -492,7 +492,7 @@ const Destinations = () => {
         </div>
       </section>
 
-      {/* Filters Section */}
+      {/* Filters Section - Blue Theme */}
       <section className={`py-6 border-b ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
         <div className="container-custom">
           <div className="flex flex-wrap items-center gap-4">
@@ -508,16 +508,16 @@ const Destinations = () => {
                   isDark 
                     ? 'bg-gray-800 text-white border-gray-700' 
                     : 'bg-white text-gray-800 border-gray-200'
-                } border focus:border-amber-500 transition-colors`}
+                } border focus:border-blue-500 transition-colors`}
               />
             </div>
 
-            {/* Filter Toggle */}
+            {/* Filter Toggle - Blue Theme */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 text-sm ${
                 showFilters
-                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                   : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-100'
               }`}
             >
@@ -526,7 +526,7 @@ const Destinations = () => {
               <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* Sort */}
+            {/* Sort - Blue Theme */}
             <div className="relative">
               <select
                 value={sortBy}
@@ -535,7 +535,7 @@ const Destinations = () => {
                   isDark 
                     ? 'bg-gray-800 text-white border-gray-700' 
                     : 'bg-white text-gray-800 border-gray-200'
-                } border focus:border-amber-500 transition-colors pr-10`}
+                } border focus:border-blue-500 transition-colors pr-10`}
               >
                 <option value="popular">Most Popular</option>
                 <option value="rating">Highest Rated</option>
@@ -546,13 +546,13 @@ const Destinations = () => {
               <ArrowUpDown className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-400'} pointer-events-none`} />
             </div>
 
-            {/* View Toggle */}
+            {/* View Toggle - Blue Theme */}
             <div className="flex border rounded-xl overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2.5 transition-all ${
                   viewMode === 'grid'
-                    ? 'bg-amber-500 text-white'
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
                     : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-100'
                 }`}
               >
@@ -562,7 +562,7 @@ const Destinations = () => {
                 onClick={() => setViewMode('list')}
                 className={`p-2.5 transition-all ${
                   viewMode === 'list'
-                    ? 'bg-amber-500 text-white'
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
                     : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-100'
                 }`}
               >
@@ -571,7 +571,7 @@ const Destinations = () => {
             </div>
           </div>
 
-          {/* Expanded Filters */}
+          {/* Expanded Filters - Blue Theme */}
           <AnimatePresence>
             {showFilters && (
               <motion.div
@@ -582,7 +582,7 @@ const Destinations = () => {
               >
                 <div className="pt-4 mt-4 border-t border-gray-200/20">
                   <div className="grid md:grid-cols-3 gap-4">
-                    {/* Region Filter */}
+                    {/* Region Filter - Blue Theme */}
                     <div>
                       <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Region
@@ -594,7 +594,7 @@ const Destinations = () => {
                           isDark 
                             ? 'bg-gray-800 text-white border-gray-700' 
                             : 'bg-white text-gray-800 border-gray-200'
-                        } border focus:border-amber-500 transition-colors`}
+                        } border focus:border-blue-500 transition-colors`}
                       >
                         <option value="all">All Regions</option>
                         {regions.map(region => (
@@ -603,7 +603,7 @@ const Destinations = () => {
                       </select>
                     </div>
 
-                    {/* Category Filter */}
+                    {/* Category Filter - Blue Theme */}
                     <div>
                       <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Category
@@ -615,7 +615,7 @@ const Destinations = () => {
                           isDark 
                             ? 'bg-gray-800 text-white border-gray-700' 
                             : 'bg-white text-gray-800 border-gray-200'
-                        } border focus:border-amber-500 transition-colors`}
+                        } border focus:border-blue-500 transition-colors`}
                       >
                         <option value="all">All Categories</option>
                         {categories.map(category => (
@@ -649,13 +649,13 @@ const Destinations = () => {
         </div>
       </section>
 
-      {/* Destinations Grid */}
+      {/* Destinations Grid - Blue Theme */}
       <section className={`py-12 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
         <div className="container-custom">
           {destinations.length === 0 ? (
             <div className="text-center py-16">
-              <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Search className="w-12 h-12 text-amber-400" />
+              <div className="w-24 h-24 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Search className="w-12 h-12 text-blue-400" />
               </div>
               <h3 className={`text-2xl font-display font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                 No Destinations Found
@@ -665,7 +665,7 @@ const Destinations = () => {
               </p>
               <button
                 onClick={clearFilters}
-                className="mt-6 px-6 py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-all"
+                className="mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/30 transition-all"
               >
                 Clear All Filters
               </button>
@@ -710,7 +710,7 @@ const Destinations = () => {
                             e.stopPropagation()
                             handleShare(dest)
                           }}
-                          className="p-2 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-amber-500 transition-all hover:scale-110"
+                          className="p-2 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-blue-500 transition-all hover:scale-110"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                         </button>
@@ -722,19 +722,19 @@ const Destinations = () => {
                           }}
                           disabled={isLoading}
                           className={`p-2 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:scale-110 ${
-                            isFavorited ? 'text-amber-400' : 'text-white hover:text-amber-400'
+                            isFavorited ? 'text-blue-400' : 'text-white hover:text-blue-400'
                           } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {isLoading ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <Heart className={`w-3.5 h-3.5 ${isFavorited ? 'fill-amber-400' : ''}`} />
+                            <Heart className={`w-3.5 h-3.5 ${isFavorited ? 'fill-blue-400' : ''}`} />
                           )}
                         </button>
                       </div>
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                         <div className="flex items-center space-x-1 text-white bg-black/50 px-3 py-1 rounded-full">
-                          <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                          <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                           <span className="text-sm font-medium">{dest.rating || 0}</span>
                           <span className="text-xs text-gray-300">({dest.reviews || 0})</span>
                         </div>
@@ -751,10 +751,10 @@ const Destinations = () => {
                             {dest.name}
                           </h3>
                           <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                            <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-blue-400" />
                             <span>{getRegionName(dest.region)}</span>
                             <span className="mx-2">•</span>
-                            <Flag className="w-4 h-4 mr-1 flex-shrink-0" />
+                            <Flag className="w-4 h-4 mr-1 flex-shrink-0 text-blue-400" />
                             <span>{dest.country}</span>
                           </div>
                         </div>
@@ -783,12 +783,12 @@ const Destinations = () => {
                       </div>
                       <div className="mt-3 pt-3 border-t border-gray-200/20 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Calendar className="w-4 h-4" />
+                          <Calendar className="w-4 h-4 text-blue-400" />
                           <span className="text-xs">Best: {dest.bestTimeToVisit || 'Year-round'}</span>
                         </div>
                         <button
                           onClick={() => navigate(`/tours?region=${dest.region}`)}
-                          className="text-sm text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1"
+                          className="text-sm text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1"
                         >
                           View Tours <ChevronRightIcon className="w-4 h-4" />
                         </button>
@@ -835,7 +835,7 @@ const Destinations = () => {
                             e.stopPropagation()
                             handleShare(dest)
                           }}
-                          className="p-2 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-amber-500 transition-all hover:scale-110"
+                          className="p-2 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-blue-500 transition-all hover:scale-110"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                         </button>
@@ -847,13 +847,13 @@ const Destinations = () => {
                           }}
                           disabled={isLoading}
                           className={`p-2 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:scale-110 ${
-                            isFavorited ? 'text-amber-400' : 'text-white hover:text-amber-400'
+                            isFavorited ? 'text-blue-400' : 'text-white hover:text-blue-400'
                           } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {isLoading ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <Heart className={`w-3.5 h-3.5 ${isFavorited ? 'fill-amber-400' : ''}`} />
+                            <Heart className={`w-3.5 h-3.5 ${isFavorited ? 'fill-blue-400' : ''}`} />
                           )}
                         </button>
                       </div>
@@ -866,15 +866,15 @@ const Destinations = () => {
                               {dest.name}
                             </h3>
                             <div className="flex items-center text-sm text-gray-500 mt-1 flex-wrap">
-                              <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                              <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-blue-400" />
                               <span>{getRegionName(dest.region)}</span>
                               <span className="mx-2">•</span>
-                              <Flag className="w-4 h-4 mr-1 flex-shrink-0" />
+                              <Flag className="w-4 h-4 mr-1 flex-shrink-0 text-blue-400" />
                               <span>{dest.country}</span>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="flex items-center gap-1 text-amber-400">
+                            <div className="flex items-center gap-1 text-blue-400">
                               <Star className="w-4 h-4 fill-current" />
                               <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                                 {dest.rating || 0}
@@ -911,17 +911,17 @@ const Destinations = () => {
                       <div className="mt-3 pt-3 border-t border-gray-200/20 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Users className="w-4 h-4" />
+                            <Users className="w-4 h-4 text-blue-400" />
                             <span>{dest.tourCount || 0} tours</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Calendar className="w-4 h-4" />
+                            <Calendar className="w-4 h-4 text-blue-400" />
                             <span className="text-xs">Best: {dest.bestTimeToVisit || 'Year-round'}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => navigate(`/tours?region=${dest.region}`)}
-                          className="text-sm text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1"
+                          className="text-sm text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1"
                         >
                           View Tours <ChevronRightIcon className="w-4 h-4" />
                         </button>
@@ -933,7 +933,7 @@ const Destinations = () => {
             </div>
           )}
 
-          {/* Pagination */}
+          {/* Pagination - Blue Theme */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-12">
               <button
@@ -964,7 +964,7 @@ const Destinations = () => {
                     onClick={() => setCurrentPage(pageNum)}
                     className={`w-10 h-10 rounded-xl font-medium transition-all ${
                       currentPage === pageNum
-                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                         : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -988,7 +988,7 @@ const Destinations = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* CTA Section - Blue Theme */}
       <section className="relative py-20 overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center"
@@ -996,7 +996,7 @@ const Destinations = () => {
             backgroundImage: 'url(https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1920&q=80)',
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-amber-900/95 to-orange-800/95" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/95 to-indigo-800/95" />
         </div>
         <div className="container-custom relative z-10">
           <motion.div
@@ -1006,14 +1006,14 @@ const Destinations = () => {
             className="max-w-3xl mx-auto text-center text-white"
           >
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
-              Ready to Explore <span className="text-amber-300">Ghana</span>?
+              Ready to Explore <span className="text-blue-300">Ghana</span>?
             </h2>
             <p className="text-xl text-gray-200 mb-8">
               Discover the beauty and culture of Ghana's most amazing destinations.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Link to="/tours">
-                <button className="px-8 py-3 bg-white text-amber-700 rounded-full font-medium hover:bg-amber-50 transition-all shadow-xl hover:scale-105">
+                <button className="px-8 py-3 bg-white text-blue-700 rounded-full font-medium hover:bg-blue-50 transition-all shadow-xl hover:scale-105">
                   Explore Tours
                 </button>
               </Link>

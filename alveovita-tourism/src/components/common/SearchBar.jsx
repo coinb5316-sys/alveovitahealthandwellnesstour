@@ -1,16 +1,15 @@
-// src/components/common/SearchBar.jsx
+// src/components/common/SearchBar.jsx - Updated with Blue-Black Theme
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, X, Loader2, MapPin, Star, 
   Hotel, Compass, Map, Sparkles, Filter,
-  ChevronRight, Clock, Users, Heart, Stethoscope  // <-- ADD Stethoscope HERE
+  ChevronRight, Clock, Users, Heart, Stethoscope
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../hooks/useToast';
 import axios from '../../api/axios';
-
 
 const SearchBar = ({ 
   placeholder = 'Search hotels, tours, destinations...',
@@ -194,13 +193,13 @@ const SearchBar = ({
     return <Icon className="w-4 h-4" />;
   };
 
-  // Get color for suggestion type
+  // Get color for suggestion type - Blue Theme
   const getTypeColor = (type) => {
     const colors = {
       hotel: 'text-blue-500 bg-blue-500/10',
-      tour: 'text-green-500 bg-green-500/10',
-      destination: 'text-purple-500 bg-purple-500/10',
-      experience: 'text-amber-500 bg-amber-500/10'
+      tour: 'text-cyan-500 bg-cyan-500/10',
+      destination: 'text-indigo-500 bg-indigo-500/10',
+      experience: 'text-blue-400 bg-blue-400/10'
     };
     return colors[type] || 'text-gray-500 bg-gray-500/10';
   };
@@ -208,16 +207,16 @@ const SearchBar = ({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <form onSubmit={handleSearch} className="relative">
-        {/* Search Input Container */}
+        {/* Search Input Container - Blue Theme */}
         <div className={`
           relative flex items-center rounded-2xl transition-all duration-300
-          ${isFocused ? 'ring-2 ring-amber-400/50 shadow-2xl shadow-amber-500/20' : ''}
+          ${isFocused ? 'ring-2 ring-blue-400/50 shadow-2xl shadow-blue-500/20' : ''}
           ${isDark ? 'bg-gray-800/80 border border-gray-700' : 'bg-white border border-gray-200'}
         `}>
           {/* Search Icon */}
           <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
             {isLoading ? (
-              <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+              <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
             ) : (
               <Search className="w-5 h-5 text-gray-400" />
             )}
@@ -248,10 +247,10 @@ const SearchBar = ({
                 className={`
                   p-2 rounded-xl transition-all duration-300
                   ${showFiltersPanel 
-                    ? 'bg-amber-500/20 text-amber-500' 
+                    ? 'bg-blue-500/20 text-blue-500' 
                     : isDark 
-                      ? 'text-gray-400 hover:text-amber-400 hover:bg-amber-500/10' 
-                      : 'text-gray-400 hover:text-amber-500 hover:bg-amber-500/10'
+                      ? 'text-gray-400 hover:text-blue-400 hover:bg-blue-500/10' 
+                      : 'text-gray-400 hover:text-blue-500 hover:bg-blue-500/10'
                   }
                 `}
                 title="Filters"
@@ -281,8 +280,8 @@ const SearchBar = ({
               type="submit"
               className={`
                 px-4 py-2 rounded-xl font-medium transition-all duration-300
-                bg-gradient-to-r from-amber-500 to-orange-500 text-white
-                hover:shadow-lg hover:shadow-amber-500/30
+                bg-gradient-to-r from-blue-500 to-indigo-500 text-white
+                hover:shadow-lg hover:shadow-blue-500/30
                 flex items-center gap-2
               `}
             >
@@ -292,7 +291,7 @@ const SearchBar = ({
           </div>
         </div>
 
-        {/* Suggestions Dropdown */}
+        {/* Suggestions Dropdown - Blue Theme */}
         <AnimatePresence>
           {(suggestions.length > 0 || isLoading) && isFocused && (
             <motion.div
@@ -302,7 +301,7 @@ const SearchBar = ({
               transition={{ duration: 0.2 }}
               className={`
                 absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl overflow-hidden
-                ${isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}
+                ${isDark ? 'bg-gray-900 border border-blue-900/30' : 'bg-white border border-gray-200'}
               `}
             >
               <div className="p-2 max-h-80 overflow-y-auto">
@@ -316,8 +315,8 @@ const SearchBar = ({
                     className={`
                       w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                       ${isDark 
-                        ? 'hover:bg-gray-800 text-gray-300 hover:text-white' 
-                        : 'hover:bg-gray-100 text-gray-700 hover:text-gray-900'
+                        ? 'hover:bg-blue-500/10 text-gray-300 hover:text-white' 
+                        : 'hover:bg-blue-50 text-gray-700 hover:text-gray-900'
                       }
                     `}
                   >
@@ -352,8 +351,8 @@ const SearchBar = ({
                     className={`
                       w-full mt-1 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300
                       ${isDark 
-                        ? 'text-amber-400 hover:bg-gray-800' 
-                        : 'text-amber-600 hover:bg-gray-100'
+                        ? 'text-blue-400 hover:bg-blue-500/10' 
+                        : 'text-blue-600 hover:bg-blue-50'
                       }
                     `}
                   >
@@ -363,7 +362,7 @@ const SearchBar = ({
 
                 {isLoading && suggestions.length === 0 && (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                     <span className={`ml-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       Searching...
                     </span>
@@ -375,7 +374,7 @@ const SearchBar = ({
         </AnimatePresence>
       </form>
 
-      {/* Filters Panel */}
+      {/* Filters Panel - Blue Theme */}
       <AnimatePresence>
         {showFiltersPanel && (
           <motion.div
@@ -384,7 +383,7 @@ const SearchBar = ({
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             className={`
               absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl p-4 z-50
-              ${isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}
+              ${isDark ? 'bg-gray-900 border border-blue-900/30' : 'bg-white border border-gray-200'}
             `}
           >
             <div className="flex items-center justify-between mb-4">
@@ -399,7 +398,7 @@ const SearchBar = ({
               </button>
             </div>
 
-            {/* Type Filters */}
+            {/* Type Filters - Blue Theme */}
             <div className="mb-4">
               <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Types
@@ -412,7 +411,7 @@ const SearchBar = ({
                     className={`
                       px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 capitalize
                       ${filters.types.includes(type)
-                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                         : isDark 
                           ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -425,7 +424,7 @@ const SearchBar = ({
               </div>
             </div>
 
-            {/* Price Range */}
+            {/* Price Range - Blue Theme */}
             <div className="mb-4">
               <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Price Range (₵)
@@ -439,8 +438,8 @@ const SearchBar = ({
                   className={`
                     w-1/2 px-3 py-2 rounded-xl text-sm outline-none transition-all
                     ${isDark 
-                      ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-amber-500' 
-                      : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-400 focus:border-amber-500'
+                      ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-blue-500' 
+                      : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-400 focus:border-blue-500'
                     }
                   `}
                 />
@@ -452,15 +451,15 @@ const SearchBar = ({
                   className={`
                     w-1/2 px-3 py-2 rounded-xl text-sm outline-none transition-all
                     ${isDark 
-                      ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-amber-500' 
-                      : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-400 focus:border-amber-500'
+                      ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-blue-500' 
+                      : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-400 focus:border-blue-500'
                     }
                   `}
                 />
               </div>
             </div>
 
-            {/* Min Rating */}
+            {/* Min Rating - Blue Theme */}
             <div className="mb-4">
               <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Minimum Rating
@@ -476,7 +475,7 @@ const SearchBar = ({
                     className={`
                       px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300
                       ${filters.minRating === rating.toString()
-                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                         : isDark 
                           ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -489,10 +488,10 @@ const SearchBar = ({
               </div>
             </div>
 
-            {/* Apply Filters Button */}
+            {/* Apply Filters Button - Blue Theme */}
             <button
               onClick={applyFilters}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/30"
             >
               Apply Filters
             </button>

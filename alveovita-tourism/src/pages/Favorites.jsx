@@ -1,4 +1,4 @@
-// src/pages/Favorites.jsx
+// src/pages/Favorites.jsx - Updated with Blue-Black Theme
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -46,7 +46,6 @@ const Favorites = () => {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    // Check if user is authenticated
     if (!user) {
       showToast('Please login to view your favorites', 'info')
       navigate('/login')
@@ -84,14 +83,12 @@ const Favorites = () => {
     showToast('Refreshing favorites...', 'info')
   }
 
-  // Remove from favorites
   const removeFromFavorites = async (favoriteId, itemName) => {
     try {
       await axios.delete(`/favorites/${favoriteId}`)
       setFavorites(favorites.filter(f => f._id !== favoriteId))
       showToast(`Removed "${itemName}" from favorites`, 'success')
       
-      // If in selection mode, remove from selected items
       if (isSelectionMode) {
         setSelectedItems(selectedItems.filter(id => id !== favoriteId))
       }
@@ -101,7 +98,6 @@ const Favorites = () => {
     }
   }
 
-  // Remove multiple favorites
   const removeSelected = async () => {
     try {
       const idsToRemove = selectedItems
@@ -134,7 +130,6 @@ const Favorites = () => {
     }
   }
 
-  // Get item details from favorite
   const getItemDetails = (favorite) => {
     const item = favorite.item
     if (!item) return null
@@ -159,18 +154,15 @@ const Favorites = () => {
     }
   }
 
-  // Filter favorites based on active tab and search
   const filteredFavorites = favorites
     .filter(favorite => {
       const item = favorite.item
       if (!item) return false
       
-      // Tab filter
       if (activeTab !== 'all' && favorite.itemType !== activeTab) {
         return false
       }
       
-      // Search filter
       if (searchTerm) {
         const name = (item.name || item.title || '').toLowerCase()
         const location = (item.location || item.region || '').toLowerCase()
@@ -223,8 +215,8 @@ const Favorites = () => {
   const getBadgeColor = (type) => {
     switch(type) {
       case 'hotel': return 'bg-blue-500/20 text-blue-400'
-      case 'tour': return 'bg-green-500/20 text-green-400'
-      case 'destination': return 'bg-purple-500/20 text-purple-400'
+      case 'tour': return 'bg-cyan-500/20 text-cyan-400'
+      case 'destination': return 'bg-indigo-500/20 text-indigo-400'
       default: return 'bg-gray-500/20 text-gray-400'
     }
   }
@@ -246,21 +238,21 @@ const Favorites = () => {
           <div className="text-center">
             <div className="relative w-24 h-24 mx-auto">
               <motion.div
-                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                className="absolute inset-0 rounded-full border-4 border-blue-500/20"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                className="absolute inset-2 rounded-full border-4 border-blue-500/40"
                 animate={{ rotate: -360 }}
                 transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                className="absolute inset-4 rounded-full border-4 border-blue-500/60"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
               />
-              <HeartIcon className="absolute inset-0 w-16 h-16 text-amber-500 animate-pulse mx-auto my-auto" />
+              <HeartIcon className="absolute inset-0 w-16 h-16 text-blue-500 animate-pulse mx-auto my-auto" />
             </div>
             <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Loading your favorites...
@@ -286,7 +278,7 @@ const Favorites = () => {
             </p>
             <button
               onClick={fetchFavorites}
-              className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all"
+              className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all"
             >
               <RefreshCw className="h-5 w-5" />
               Try Again
@@ -303,7 +295,7 @@ const Favorites = () => {
 
       <div className="pt-20 pb-16">
         <div className="container-custom">
-          {/* Header */}
+          {/* Header - Blue Theme */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
             <div>
               <h1 className={`text-3xl md:text-4xl font-display font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -345,7 +337,7 @@ const Favorites = () => {
                 }}
                 className={`px-4 py-2 rounded-xl font-medium transition-all ${
                   isSelectionMode
-                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                     : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -354,9 +346,8 @@ const Favorites = () => {
             </div>
           </div>
 
-          {/* Filters & Controls */}
+          {/* Filters & Controls - Blue Theme */}
           <div className="flex flex-col md:flex-row gap-4 mb-8">
-            {/* Search */}
             <div className="flex-1 relative">
               <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-400'}`} />
               <input
@@ -366,9 +357,9 @@ const Favorites = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={`w-full pl-12 pr-4 py-3 rounded-xl outline-none transition-all ${
                   isDark 
-                    ? 'bg-gray-800 text-white border-gray-700 focus:border-amber-400' 
-                    : 'bg-gray-50 text-gray-800 border-gray-200 focus:border-amber-400'
-                } border focus:ring-2 focus:ring-amber-400/50`}
+                    ? 'bg-gray-800 text-white border-gray-700 focus:border-blue-400' 
+                    : 'bg-gray-50 text-gray-800 border-gray-200 focus:border-blue-400'
+                } border focus:ring-2 focus:ring-blue-400/50`}
               />
               {searchTerm && (
                 <button
@@ -380,7 +371,6 @@ const Favorites = () => {
               )}
             </div>
 
-            {/* Tabs */}
             <div className="flex items-center gap-2 flex-wrap">
               {['all', 'hotel', 'tour', 'destination'].map((tab) => (
                 <button
@@ -388,7 +378,7 @@ const Favorites = () => {
                   onClick={() => setActiveTab(tab)}
                   className={`px-4 py-2 rounded-xl font-medium transition-all capitalize flex items-center gap-1.5 ${
                     activeTab === tab
-                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                       : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -411,7 +401,6 @@ const Favorites = () => {
               ))}
             </div>
 
-            {/* Sort & View */}
             <div className="flex items-center gap-2">
               <select
                 value={sortBy}
@@ -420,7 +409,7 @@ const Favorites = () => {
                   isDark 
                     ? 'bg-gray-800 text-white border-gray-700' 
                     : 'bg-gray-50 text-gray-800 border-gray-200'
-                } border focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50`}
+                } border focus:border-blue-400 focus:ring-2 focus:ring-blue-400/50`}
               >
                 <option value="recent">Most Recent</option>
                 <option value="oldest">Oldest First</option>
@@ -434,7 +423,7 @@ const Favorites = () => {
                   onClick={() => setViewMode('grid')}
                   className={`p-2 transition-all ${
                     viewMode === 'grid'
-                      ? 'bg-amber-500 text-white'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
                       : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -444,7 +433,7 @@ const Favorites = () => {
                   onClick={() => setViewMode('list')}
                   className={`p-2 transition-all ${
                     viewMode === 'list'
-                      ? 'bg-amber-500 text-white'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
                       : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -454,9 +443,9 @@ const Favorites = () => {
             </div>
           </div>
 
-          {/* Select All */}
+          {/* Select All - Blue Theme */}
           {isSelectionMode && filteredFavorites.length > 0 && (
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
               <button
                 onClick={toggleSelectAll}
                 className={`flex items-center gap-2 text-sm font-medium ${
@@ -465,7 +454,7 @@ const Favorites = () => {
               >
                 <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
                   selectedItems.length === filteredFavorites.length
-                    ? 'bg-amber-500 border-amber-500'
+                    ? 'bg-blue-500 border-blue-500'
                     : isDark ? 'border-gray-500' : 'border-gray-300'
                 }`}>
                   {selectedItems.length === filteredFavorites.length && (
@@ -488,7 +477,7 @@ const Favorites = () => {
             </div>
           )}
 
-          {/* Favorites Grid */}
+          {/* Favorites Grid - Blue Theme */}
           {filteredFavorites.length > 0 ? (
             viewMode === 'grid' ? (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -521,12 +510,11 @@ const Favorites = () => {
                           </div>
                         )}
                         
-                        {/* Selection checkbox */}
                         {isSelectionMode && (
                           <div className="absolute top-3 left-3 z-10">
                             <div className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all backdrop-blur-sm ${
                               selectedItems.includes(favorite._id)
-                                ? 'bg-amber-500 border-amber-500'
+                                ? 'bg-blue-500 border-blue-500'
                                 : 'bg-black/50 border-white/50'
                             }`}>
                               {selectedItems.includes(favorite._id) && (
@@ -536,7 +524,6 @@ const Favorites = () => {
                           </div>
                         )}
 
-                        {/* Item Type Badge */}
                         <div className="absolute top-3 right-3 flex gap-2">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getBadgeColor(favorite.itemType)}`}>
                             {favorite.itemType}
@@ -554,10 +541,9 @@ const Favorites = () => {
                           )}
                         </div>
 
-                        {/* Rating & Price */}
                         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                           <div className="flex items-center gap-1 text-white bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full">
-                            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                            <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                             <span className="text-sm font-medium">{item.rating}</span>
                             <span className="text-xs text-gray-300">({item.reviews})</span>
                           </div>
@@ -568,7 +554,7 @@ const Favorites = () => {
 
                         {item.badge && (
                           <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+                            <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
                               {item.badge}
                             </span>
                           </div>
@@ -582,7 +568,7 @@ const Favorites = () => {
                               {item.name}
                             </h3>
                             <div className="flex items-center text-sm text-gray-500 mt-1">
-                              <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                              <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-blue-400" />
                               <span className="truncate">{item.location}</span>
                             </div>
                           </div>
@@ -622,12 +608,12 @@ const Favorites = () => {
                             {!isSelectionMode && (
                               <>
                                 <Link to={getItemLink(favorite)}>
-                                  <button className="p-2 rounded-lg hover:bg-amber-500/10 transition-colors" title="View Details">
-                                    <Eye className="w-4 h-4 text-gray-400 hover:text-amber-500 transition-colors" />
+                                  <button className="p-2 rounded-lg hover:bg-blue-500/10 transition-colors" title="View Details">
+                                    <Eye className="w-4 h-4 text-gray-400 hover:text-blue-500 transition-colors" />
                                   </button>
                                 </Link>
                                 <button 
-                                  className="p-2 rounded-lg hover:bg-amber-500/10 transition-colors"
+                                  className="p-2 rounded-lg hover:bg-blue-500/10 transition-colors"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     const url = `${window.location.origin}${getItemLink(favorite)}`
@@ -636,7 +622,7 @@ const Favorites = () => {
                                   }}
                                   title="Share"
                                 >
-                                  <Share2 className="w-4 h-4 text-gray-400 hover:text-amber-500 transition-colors" />
+                                  <Share2 className="w-4 h-4 text-gray-400 hover:text-blue-500 transition-colors" />
                                 </button>
                               </>
                             )}
@@ -648,7 +634,6 @@ const Favorites = () => {
                 })}
               </div>
             ) : (
-              // List View
               <div className="space-y-4">
                 {filteredFavorites.map((favorite, index) => {
                   const item = getItemDetails(favorite)
@@ -682,7 +667,7 @@ const Favorites = () => {
                           <div className="absolute top-2 left-2">
                             <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center backdrop-blur-sm ${
                               selectedItems.includes(favorite._id)
-                                ? 'bg-amber-500 border-amber-500'
+                                ? 'bg-blue-500 border-blue-500'
                                 : 'bg-black/50 border-white/50'
                             }`}>
                               {selectedItems.includes(favorite._id) && (
@@ -703,7 +688,7 @@ const Favorites = () => {
                               {item.name}
                             </h3>
                             <div className="flex items-center text-sm text-gray-500 mt-1 flex-wrap">
-                              <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                              <MapPin className="w-4 h-4 mr-1 flex-shrink-0 text-blue-400" />
                               <span className="truncate">{item.location}</span>
                               {item.region && (
                                 <>
@@ -714,15 +699,15 @@ const Favorites = () => {
                               {item.duration && (
                                 <>
                                   <span className="mx-2">•</span>
-                                  <Clock className="w-4 h-4 mr-1" />
+                                  <Clock className="w-4 h-4 mr-1 text-blue-400" />
                                   <span>{item.duration}</span>
                                 </>
                               )}
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <div className="text-lg font-bold text-amber-500">{getItemPrice(item)}</div>
-                            <div className="flex items-center justify-end gap-1 text-amber-400">
+                            <div className="text-lg font-bold text-blue-500">{getItemPrice(item)}</div>
+                            <div className="flex items-center justify-end gap-1 text-blue-400">
                               <Star className="w-4 h-4 fill-current" />
                               <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                                 {item.rating}
@@ -752,7 +737,7 @@ const Favorites = () => {
                             {!isSelectionMode && (
                               <>
                                 <Link to={getItemLink(favorite)}>
-                                  <button className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-sm font-medium hover:scale-105 transition-all">
+                                  <button className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl text-sm font-medium hover:scale-105 transition-all shadow-lg shadow-blue-500/30">
                                     View Details
                                   </button>
                                 </Link>
@@ -777,10 +762,9 @@ const Favorites = () => {
               </div>
             )
           ) : (
-            // Empty State
             <div className={`text-center py-16 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Heart className="w-12 h-12 text-amber-400" />
+              <div className="w-24 h-24 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Heart className="w-12 h-12 text-blue-400" />
               </div>
               <h3 className={`text-2xl font-display font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                 {searchTerm ? 'No matching favorites' : 'No Favorites Yet'}
@@ -801,7 +785,7 @@ const Favorites = () => {
               ) : (
                 <div className="mt-6 flex flex-wrap justify-center gap-4">
                   <Link to="/tours">
-                    <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:scale-105 transition-all shadow-lg shadow-amber-500/30">
+                    <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium hover:scale-105 transition-all shadow-lg shadow-blue-500/30">
                       <Compass className="h-5 w-5" />
                       Browse Tours
                     </button>
@@ -823,7 +807,8 @@ const Favorites = () => {
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}>
                       <MapPin className="h-5 w-5" />
-                      Explore Destinations                    </button>
+                      Explore Destinations
+                    </button>
                   </Link>
                 </div>
               )}

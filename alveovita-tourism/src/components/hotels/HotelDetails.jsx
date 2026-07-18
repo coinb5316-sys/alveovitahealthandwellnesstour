@@ -1,4 +1,4 @@
-// src/components/hotels/HotelDetails.jsx
+// src/components/hotels/HotelDetails.jsx - Updated with Blue-Black Theme
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -606,119 +606,119 @@ const HotelDetails = () => {
   }
 
   // ============================================
-// Updated handlePaymentSuccess function for HotelDetails.jsx
-// ============================================
-const handlePaymentSuccess = async (paymentData) => {
-  try {
-    console.log('💰 Payment success data received:', paymentData);
-    
-    if (!paymentData || !paymentData.success) {
-      console.warn('Payment was not successful:', paymentData);
-      showToast('Payment was not successful. Please try again.', 'error');
-      setIsProcessing(false);
-      setIsSubmitting(false);
-      return;
-    }
-    
-    const bookingInfo = paymentData?.booking || {};
-    const reference = paymentData?.reference || bookingReference;
-    
-    console.log('📋 Booking info from payment:', bookingInfo);
-    
-    if (bookingInfo.status === 'confirmed' || bookingInfo.paymentStatus === 'paid') {
-      setBookingConfirmedData({
-        id: bookingInfo.id || bookingReference,
-        reference: reference,
-        amount: hotel.price * nights * guests,
-        name: hotel.name,
-        type: 'hotel',
-        date: selectedDate,
-        nights: nights,
-        guests: guests,
-        customerName: bookingData.name,
-        customerEmail: bookingData.email,
-        paymentReference: reference,
-        status: 'confirmed',
-        destination: hotel.location
-      });
+  // Updated handlePaymentSuccess function
+  // ============================================
+  const handlePaymentSuccess = async (paymentData) => {
+    try {
+      console.log('💰 Payment success data received:', paymentData);
       
-      setBookingSuccess(true);
-      setShowPayment(false);
-      setIsProcessing(false);
-      setIsSubmitting(false);
-      
-      showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
-      setPaymentAttempted(false);
-      clearSavedBooking();
-
-      setTimeout(() => {
-        setShowBookingModal(false);
-        navigate('/dashboard');
-      }, 6000);
-    } else {
-      try {
-        const bookingId = bookingInfo.id || bookingReference;
-        if (bookingId) {
-          const fetchResponse = await axios.get(`/bookings/${bookingId}`);
-          if (fetchResponse.data.success && fetchResponse.data.booking) {
-            const updatedBooking = fetchResponse.data.booking;
-            if (updatedBooking.status === 'confirmed') {
-              setBookingConfirmedData({
-                id: updatedBooking._id,
-                reference: reference,
-                amount: hotel.price * nights * guests,
-                name: hotel.name,
-                type: 'hotel',
-                date: selectedDate,
-                nights: nights,
-                guests: guests,
-                customerName: bookingData.name,
-                customerEmail: bookingData.email,
-                paymentReference: reference,
-                status: 'confirmed',
-                destination: hotel.location
-              });
-              
-              setBookingSuccess(true);
-              setShowPayment(false);
-              setIsProcessing(false);
-              setIsSubmitting(false);
-              
-              showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
-              setPaymentAttempted(false);
-              clearSavedBooking();
-
-              setTimeout(() => {
-                setShowBookingModal(false);
-                navigate('/dashboard');
-              }, 6000);
-              return;
-            }
-          }
-        }
-      } catch (fetchError) {
-        console.warn('Could not fetch updated booking:', fetchError);
+      if (!paymentData || !paymentData.success) {
+        console.warn('Payment was not successful:', paymentData);
+        showToast('Payment was not successful. Please try again.', 'error');
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        return;
       }
       
-      setBookingSuccess(true);
-      setShowPayment(false);
+      const bookingInfo = paymentData?.booking || {};
+      const reference = paymentData?.reference || bookingReference;
+      
+      console.log('📋 Booking info from payment:', bookingInfo);
+      
+      if (bookingInfo.status === 'confirmed' || bookingInfo.paymentStatus === 'paid') {
+        setBookingConfirmedData({
+          id: bookingInfo.id || bookingReference,
+          reference: reference,
+          amount: hotel.price * nights * guests,
+          name: hotel.name,
+          type: 'hotel',
+          date: selectedDate,
+          nights: nights,
+          guests: guests,
+          customerName: bookingData.name,
+          customerEmail: bookingData.email,
+          paymentReference: reference,
+          status: 'confirmed',
+          destination: hotel.location
+        });
+        
+        setBookingSuccess(true);
+        setShowPayment(false);
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        
+        showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+        setPaymentAttempted(false);
+        clearSavedBooking();
+
+        setTimeout(() => {
+          setShowBookingModal(false);
+          navigate('/dashboard');
+        }, 6000);
+      } else {
+        try {
+          const bookingId = bookingInfo.id || bookingReference;
+          if (bookingId) {
+            const fetchResponse = await axios.get(`/bookings/${bookingId}`);
+            if (fetchResponse.data.success && fetchResponse.data.booking) {
+              const updatedBooking = fetchResponse.data.booking;
+              if (updatedBooking.status === 'confirmed') {
+                setBookingConfirmedData({
+                  id: updatedBooking._id,
+                  reference: reference,
+                  amount: hotel.price * nights * guests,
+                  name: hotel.name,
+                  type: 'hotel',
+                  date: selectedDate,
+                  nights: nights,
+                  guests: guests,
+                  customerName: bookingData.name,
+                  customerEmail: bookingData.email,
+                  paymentReference: reference,
+                  status: 'confirmed',
+                  destination: hotel.location
+                });
+                
+                setBookingSuccess(true);
+                setShowPayment(false);
+                setIsProcessing(false);
+                setIsSubmitting(false);
+                
+                showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+                setPaymentAttempted(false);
+                clearSavedBooking();
+
+                setTimeout(() => {
+                  setShowBookingModal(false);
+                  navigate('/dashboard');
+                }, 6000);
+                return;
+              }
+            }
+          }
+        } catch (fetchError) {
+          console.warn('Could not fetch updated booking:', fetchError);
+        }
+        
+        setBookingSuccess(true);
+        setShowPayment(false);
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        showToast('Payment successful! Your booking is being confirmed.', 'success');
+        clearSavedBooking();
+
+        setTimeout(() => {
+          setShowBookingModal(false);
+          navigate('/dashboard');
+        }, 6000);
+      }
+    } catch (error) {
+      console.error('Payment success handling error:', error);
+      showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
       setIsProcessing(false);
       setIsSubmitting(false);
-      showToast('Payment successful! Your booking is being confirmed.', 'success');
-      clearSavedBooking();
-
-      setTimeout(() => {
-        setShowBookingModal(false);
-        navigate('/dashboard');
-      }, 6000);
     }
-  } catch (error) {
-    console.error('Payment success handling error:', error);
-    showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
-    setIsProcessing(false);
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const handlePaymentError = (error) => {
     setBookingError(error.message || 'Payment failed. Please try again.')
@@ -775,21 +775,21 @@ const handlePaymentSuccess = async (paymentData) => {
           <div className="text-center">
             <div className="relative w-24 h-24 mx-auto">
               <motion.div
-                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                className="absolute inset-0 rounded-full border-4 border-blue-500/20"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                className="absolute inset-2 rounded-full border-4 border-blue-500/40"
                 animate={{ rotate: -360 }}
                 transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                className="absolute inset-4 rounded-full border-4 border-blue-500/60"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
               />
-              <Loader2 className="absolute inset-0 w-16 h-16 text-amber-500 animate-spin mx-auto my-auto" />
+              <Loader2 className="absolute inset-0 w-16 h-16 text-blue-500 animate-spin mx-auto my-auto" />
             </div>
             <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading hotel details...</p>
             {isConnected && (
@@ -806,14 +806,14 @@ const handlePaymentSuccess = async (paymentData) => {
       <div className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
         <Navbar />
         <div className="container-custom py-24 text-center">
-          <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+          <AlertCircle className="w-16 h-16 text-blue-500 mx-auto mb-4" />
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
             Hotel not found
           </h2>
           <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             {error || "The hotel you're looking for doesn't exist."}
           </p>
-          <Link to="/hotels" className="mt-4 inline-block px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all">
+          <Link to="/hotels" className="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30">
             Browse Hotels
           </Link>
         </div>
@@ -838,7 +838,7 @@ const handlePaymentSuccess = async (paymentData) => {
         </div>
       )}
 
-      {/* Professional Image Slider */}
+      {/* Professional Image Slider - Blue Theme */}
       <section className="relative pt-16">
         <div 
           className="relative h-[60vh] md:h-[70vh] overflow-hidden bg-black"
@@ -865,7 +865,7 @@ const handlePaymentSuccess = async (paymentData) => {
             </motion.div>
           </AnimatePresence>
 
-          {/* Image Counter */}
+          {/* Image Counter - Blue Theme */}
           {hotel.images.length > 1 && (
             <div className="absolute top-6 left-6 z-20 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm font-medium flex items-center gap-2">
               <Image className="w-4 h-4" />
@@ -873,24 +873,24 @@ const handlePaymentSuccess = async (paymentData) => {
             </div>
           )}
 
-          {/* Badge */}
+          {/* Badge - Blue Theme */}
           <div className="absolute top-6 left-24 z-20 flex flex-wrap gap-2">
             {hotel.badge && (
-              <span className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full text-sm font-semibold shadow-lg shadow-amber-500/30">
+              <span className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full text-sm font-semibold shadow-lg shadow-blue-500/30">
                 {hotel.badge}
               </span>
             )}
           </div>
 
-          {/* Controls - Top Right */}
+          {/* Controls - Top Right - Blue Theme */}
           <div className="absolute top-6 right-6 z-20 flex flex-col gap-2">
             <button
               onClick={toggleFavorite}
               disabled={favoriteLoading}
               className={`p-3 rounded-full transition-all hover:scale-110 backdrop-blur-sm ${
                 isFavorite 
-                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
-                  : 'bg-black/50 text-white hover:bg-amber-500 hover:text-white'
+                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' 
+                  : 'bg-black/50 text-white hover:bg-blue-500 hover:text-white'
               } ${favoriteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {favoriteLoading ? (
@@ -901,39 +901,39 @@ const handlePaymentSuccess = async (paymentData) => {
             </button>
             <button
               onClick={handleShare}
-              className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110"
+              className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110"
             >
               <Share2 className="w-5 h-5" />
             </button>
             {hotel.images.length > 1 && (
               <button
                 onClick={toggleFullscreen}
-                className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110"
+                className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110"
               >
                 {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
               </button>
             )}
           </div>
 
-          {/* Navigation Arrows */}
+          {/* Navigation Arrows - Blue Theme */}
           {hotel.images.length > 1 && (
             <>
               <button
                 onClick={prevImage}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110 group"
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110 group"
               >
                 <ChevronLeft className="w-6 h-6 group-hover:scale-110 transition-transform" />
               </button>
               <button
                 onClick={nextImage}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110 group"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110 group"
               >
                 <ChevronRight className="w-6 h-6 group-hover:scale-110 transition-transform" />
               </button>
             </>
           )}
 
-          {/* Bottom Controls */}
+          {/* Bottom Controls - Blue Theme */}
           {hotel.images.length > 1 && (
             <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-4">
               <div className="flex gap-2 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -943,7 +943,7 @@ const handlePaymentSuccess = async (paymentData) => {
                     onClick={() => goToSlide(index)}
                     className={`transition-all duration-300 rounded-full ${
                       index === currentImageIndex 
-                        ? 'bg-amber-400 w-8 h-2.5' 
+                        ? 'bg-blue-400 w-8 h-2.5' 
                         : 'bg-white/50 w-2.5 h-2.5 hover:bg-white/80'
                     }`}
                   />
@@ -951,7 +951,7 @@ const handlePaymentSuccess = async (paymentData) => {
               </div>
               <button
                 onClick={toggleAutoPlay}
-                className="p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110"
+                className="p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110"
               >
                 {isAutoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               </button>
@@ -967,7 +967,7 @@ const handlePaymentSuccess = async (paymentData) => {
                   onClick={() => goToSlide(index)}
                   className={`flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden transition-all duration-300 ${
                     index === currentImageIndex 
-                      ? 'ring-2 ring-amber-400 scale-105 shadow-lg shadow-amber-500/30' 
+                      ? 'ring-2 ring-blue-400 scale-105 shadow-lg shadow-blue-500/30' 
                       : 'opacity-60 hover:opacity-100'
                   }`}
                 >
@@ -988,7 +988,7 @@ const handlePaymentSuccess = async (paymentData) => {
         <div className="container-custom">
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
-              {/* Header */}
+              {/* Header - Blue Theme */}
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <h1 className={`text-3xl md:text-4xl font-display font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -996,11 +996,11 @@ const handlePaymentSuccess = async (paymentData) => {
                   </h1>
                   <div className="flex items-center gap-4 mt-2 flex-wrap">
                     <div className="flex items-center text-gray-500">
-                      <MapPin className="w-4 h-4 mr-1" />
+                      <MapPin className="w-4 h-4 mr-1 text-blue-500" />
                       {hotel.location}
                     </div>
                     <div className="flex items-center">
-                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                       <span className="ml-1 font-medium">{hotel.rating}</span>
                       <span className="text-gray-500 text-sm ml-1">({hotel.reviews} reviews)</span>
                     </div>
@@ -1010,12 +1010,12 @@ const handlePaymentSuccess = async (paymentData) => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-amber-500">₵{hotel.price}</div>
+                  <div className="text-2xl font-bold text-blue-500">₵{hotel.price}</div>
                   <div className="text-sm text-gray-500">per night</div>
                 </div>
               </div>
 
-              {/* Tabs */}
+              {/* Tabs - Blue Theme */}
               <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-6">
                 {tabs.map((tab) => (
                   <button
@@ -1023,7 +1023,7 @@ const handlePaymentSuccess = async (paymentData) => {
                     onClick={() => setActiveTab(tab)}
                     className={`px-4 py-2 rounded-lg font-medium transition-all capitalize ${
                       activeTab === tab
-                        ? 'bg-amber-500 text-white'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                         : isDark
                           ? 'hover:bg-gray-800 text-gray-400'
                           : 'hover:bg-gray-100 text-gray-600'
@@ -1044,60 +1044,60 @@ const handlePaymentSuccess = async (paymentData) => {
                       </p>
                     </div>
 
-                    {/* Highlights */}
+                    {/* Highlights - Blue Theme */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
-                        <Clock className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                        <Clock className="w-6 h-6 text-blue-500 mx-auto mb-2" />
                         <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                           Check-in: {hotel.checkIn}
                         </div>
                       </div>
                       <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
-                        <Clock className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                        <Clock className="w-6 h-6 text-blue-500 mx-auto mb-2" />
                         <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                           Check-out: {hotel.checkOut}
                         </div>
                       </div>
                       <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
-                        <Bed className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                        <Bed className="w-6 h-6 text-blue-500 mx-auto mb-2" />
                         <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                           {hotel.rooms} Rooms
                         </div>
                       </div>
                       <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
-                        <Award className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                        <Award className="w-6 h-6 text-blue-500 mx-auto mb-2" />
                         <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                           {hotel.badge || 'Premium'}
                         </div>
                       </div>
                     </div>
 
-                    {/* Contact Info */}
+                    {/* Contact Info - Blue Theme */}
                     <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
                       <h3 className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>
                         Contact Information
                       </h3>
                       <div className="space-y-3">
                         <div className="flex items-center gap-3 text-gray-600">
-                          <Phone className="w-4 h-4 text-amber-500" />
+                          <Phone className="w-4 h-4 text-blue-500" />
                           <span>{hotel.phone}</span>
-                          <a href={`tel:${hotel.phone}`} className="text-sm text-amber-500 hover:underline ml-auto">
+                          <a href={`tel:${hotel.phone}`} className="text-sm text-blue-500 hover:underline ml-auto">
                             Call Now
                           </a>
                         </div>
                         <div className="flex items-center gap-3 text-gray-600">
-                          <Mail className="w-4 h-4 text-amber-500" />
+                          <Mail className="w-4 h-4 text-blue-500" />
                           <span>{hotel.email}</span>
-                          <a href={`mailto:${hotel.email}`} className="text-sm text-amber-500 hover:underline ml-auto">
+                          <a href={`mailto:${hotel.email}`} className="text-sm text-blue-500 hover:underline ml-auto">
                             Email
                           </a>
                         </div>
                         <div className="flex items-center gap-3 text-gray-600">
-                          <Globe className="w-4 h-4 text-amber-500" />
-                          <a href={`https://${hotel.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">
+                          <Globe className="w-4 h-4 text-blue-500" />
+                          <a href={`https://${hotel.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 transition-colors">
                             {hotel.website}
                           </a>
-                          <a href={`https://${hotel.website}`} target="_blank" rel="noopener noreferrer" className="text-sm text-amber-500 hover:underline ml-auto">
+                          <a href={`https://${hotel.website}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline ml-auto">
                             Visit Website
                           </a>
                         </div>
@@ -1126,7 +1126,7 @@ const handlePaymentSuccess = async (paymentData) => {
                     {hotel.amenities.length > 8 && (
                       <button
                         onClick={() => setShowAllAmenities(!showAllAmenities)}
-                        className="mt-4 text-amber-500 hover:text-amber-600 transition-colors text-sm font-medium"
+                        className="mt-4 text-blue-500 hover:text-blue-600 transition-colors text-sm font-medium"
                       >
                         {showAllAmenities ? 'Show Less' : `Show All ${hotel.amenities.length} Amenities`}
                       </button>
@@ -1134,14 +1134,14 @@ const handlePaymentSuccess = async (paymentData) => {
                   </div>
                 )}
 
-                {/* REVIEWS TAB */}
+                {/* REVIEWS TAB - Blue Theme */}
                 {activeTab === 'reviews' && (
                   <div className="space-y-6">
-                    {/* Review Stats */}
+                    {/* Review Stats - Blue Theme */}
                     <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                       <div className="flex flex-col md:flex-row items-center gap-6">
                         <div className="text-center">
-                          <div className="text-5xl font-bold text-amber-500">
+                          <div className="text-5xl font-bold text-blue-500">
                             {reviewStats.average || 0}
                           </div>
                           <div className="flex items-center justify-center gap-1 mt-1">
@@ -1150,9 +1150,9 @@ const handlePaymentSuccess = async (paymentData) => {
                                 key={i}
                                 className={`w-5 h-5 ${
                                   i < Math.floor(reviewStats.average || 0)
-                                    ? 'fill-amber-400 text-amber-400'
+                                    ? 'fill-blue-400 text-blue-400'
                                     : i < Math.ceil(reviewStats.average || 0) && (reviewStats.average || 0) % 1 > 0
-                                    ? 'fill-amber-400 text-amber-400'
+                                    ? 'fill-blue-400 text-blue-400'
                                     : 'text-gray-300 dark:text-gray-600'
                                 }`}
                               />
@@ -1169,10 +1169,10 @@ const handlePaymentSuccess = async (paymentData) => {
                             return (
                               <div key={star} className="flex items-center gap-2 text-sm">
                                 <span className="w-6 text-right">{star}</span>
-                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                                 <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                   <div
-                                    className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                                    className="h-full bg-blue-400 rounded-full transition-all duration-500"
                                     style={{ width: `${percentage}%` }}
                                   />
                                 </div>
@@ -1184,11 +1184,11 @@ const handlePaymentSuccess = async (paymentData) => {
                       </div>
                     </div>
 
-                    {/* Write Review Button */}
+                    {/* Write Review Button - Blue Theme */}
                     {user ? (
                       <button
                         onClick={() => setShowReviewForm(!showReviewForm)}
-                        className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all flex items-center gap-2"
+                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2"
                       >
                         <Edit3 className="w-4 h-4" />
                         Write a Review
@@ -1196,14 +1196,14 @@ const handlePaymentSuccess = async (paymentData) => {
                     ) : (
                       <button
                         onClick={() => navigate('/login', { state: { from: window.location.pathname } })}
-                        className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all flex items-center gap-2"
+                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2"
                       >
                         <LogIn className="w-4 h-4" />
                         Login to Write a Review
                       </button>
                     )}
 
-                    {/* Review Form */}
+                    {/* Review Form - Blue Theme */}
                     {showReviewForm && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
@@ -1227,8 +1227,8 @@ const handlePaymentSuccess = async (paymentData) => {
                                   <Star
                                     className={`w-8 h-8 transition-all ${
                                       star <= reviewFormData.rating
-                                        ? 'fill-amber-400 text-amber-400 hover:scale-110'
-                                        : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'
+                                        ? 'fill-blue-400 text-blue-400 hover:scale-110'
+                                        : 'text-gray-300 dark:text-gray-600 hover:text-blue-400'
                                     }`}
                                   />
                                 </button>
@@ -1247,7 +1247,7 @@ const handlePaymentSuccess = async (paymentData) => {
                               onChange={(e) => setReviewFormData({ ...reviewFormData, title: e.target.value })}
                               className={`w-full px-4 py-2.5 rounded-xl outline-none ${
                                 isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-100 text-gray-800 border-gray-200'
-                              } border focus:border-amber-500 transition-colors`}
+                              } border focus:border-blue-500 transition-colors`}
                               placeholder="Summarize your experience..."
                             />
                           </div>
@@ -1263,7 +1263,7 @@ const handlePaymentSuccess = async (paymentData) => {
                               onChange={(e) => setReviewFormData({ ...reviewFormData, comment: e.target.value })}
                               className={`w-full px-4 py-2.5 rounded-xl outline-none ${
                                 isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-100 text-gray-800 border-gray-200'
-                              } border focus:border-amber-500 transition-colors resize-none`}
+                              } border focus:border-blue-500 transition-colors resize-none`}
                               placeholder="Share your experience with this hotel..."
                             />
                           </div>
@@ -1279,7 +1279,7 @@ const handlePaymentSuccess = async (paymentData) => {
                             <button
                               type="submit"
                               disabled={reviewLoading}
-                              className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:scale-105 transition-all disabled:opacity-50"
+                              className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium hover:scale-105 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/30"
                             >
                               {reviewLoading ? 'Submitting...' : 'Submit Review'}
                             </button>
@@ -1302,7 +1302,7 @@ const handlePaymentSuccess = async (paymentData) => {
                             className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
                           >
                             <div className="flex items-start gap-4">
-                              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
                                 {review.userAvatar ? (
                                   <img src={review.userAvatar} alt={review.userName} className="w-full h-full object-cover" />
                                 ) : (
@@ -1330,7 +1330,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                             key={i}
                                             className={`w-4 h-4 ${
                                               i < review.rating
-                                                ? 'fill-amber-400 text-amber-400'
+                                                ? 'fill-blue-400 text-blue-400'
                                                 : 'text-gray-300 dark:text-gray-600'
                                             }`}
                                           />
@@ -1366,7 +1366,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                   </div>
                                 )}
                                 {review.reply && review.reply.admin && (
-                                  <div className={`mt-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'} border-l-2 border-amber-500`}>
+                                  <div className={`mt-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'} border-l-2 border-blue-500`}>
                                     <div className="flex items-center gap-2 text-sm">
                                       <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                                         Admin Response
@@ -1391,15 +1391,15 @@ const handlePaymentSuccess = async (paymentData) => {
               </div>
             </div>
 
-            {/* Booking Card */}
+            {/* Booking Card - Blue Theme */}
             <div className="lg:col-span-1">
               <div className={`sticky top-24 p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <span className="text-3xl font-bold text-amber-500">₵{hotel.price}</span>
+                    <span className="text-3xl font-bold text-blue-500">₵{hotel.price}</span>
                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}> / night</span>
                   </div>
-                  <div className="flex items-center gap-1 text-amber-400">
+                  <div className="flex items-center gap-1 text-blue-400">
                     <Star className="w-4 h-4 fill-current" />
                     <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                       {hotel.rating}
@@ -1420,7 +1420,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         isDark 
                           ? 'bg-gray-700 text-white border-gray-600' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
-                      } border focus:border-amber-500 transition-colors`}
+                      } border focus:border-blue-500 transition-colors`}
                     />
                   </div>
 
@@ -1485,7 +1485,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       className={`w-full mt-4 px-6 py-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
                         isProcessing
                           ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 shadow-lg shadow-amber-500/30'
+                          : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 shadow-lg shadow-blue-500/30'
                       }`}
                     >
                       {isProcessing ? (
@@ -1513,7 +1513,7 @@ const handlePaymentSuccess = async (paymentData) => {
         </div>
       </section>
 
-      {/* Booking Modal with Paystack */}
+      {/* Booking Modal with Paystack - Blue Theme */}
       <AnimatePresence>
         {showBookingModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -1554,19 +1554,19 @@ const handlePaymentSuccess = async (paymentData) => {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-6"
                 >
-                  {/* Success Animation */}
+                  {/* Success Animation - Blue Theme */}
                   <div className="relative w-28 h-28 mx-auto mb-6">
                     <motion.div
-                      className="absolute inset-0 rounded-full bg-green-500/20"
+                      className="absolute inset-0 rounded-full bg-blue-500/20"
                       animate={{ scale: [1, 1.5, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
                     />
                     <motion.div
-                      className="absolute inset-2 rounded-full bg-green-500/40"
+                      className="absolute inset-2 rounded-full bg-blue-500/40"
                       animate={{ scale: [1, 1.3, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
                     />
-                    <div className="absolute inset-0 rounded-full bg-green-500 flex items-center justify-center shadow-2xl shadow-green-500/30">
+                    <div className="absolute inset-0 rounded-full bg-blue-500 flex items-center justify-center shadow-2xl shadow-blue-500/30">
                       <CheckCircle className="w-14 h-14 text-white" />
                     </div>
                   </div>
@@ -1578,10 +1578,10 @@ const handlePaymentSuccess = async (paymentData) => {
                     Your stay at {hotel.name} has been booked successfully. A confirmation email has been sent to your email address.
                   </p>
 
-                  {/* Booking Details Card */}
+                  {/* Booking Details Card - Blue Theme */}
                   <div className={`mt-6 p-5 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} max-w-sm mx-auto text-left`}>
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/20">
-                      <Hotel className="w-5 h-5 text-amber-500" />
+                      <Hotel className="w-5 h-5 text-blue-500" />
                       <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Booking Details</span>
                     </div>
                     <div className="space-y-2 text-sm">
@@ -1610,7 +1610,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       </div>
                       <div className="flex justify-between pt-2 border-t border-gray-200/20">
                         <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Total Paid</span>
-                        <span className="font-bold text-amber-500 text-lg">₵{totalPrice.toLocaleString()}</span>
+                        <span className="font-bold text-blue-500 text-lg">₵{totalPrice.toLocaleString()}</span>
                       </div>
                       {bookingReference && (
                         <div className="flex justify-between pt-1">
@@ -1626,7 +1626,7 @@ const handlePaymentSuccess = async (paymentData) => {
                   <div className="mt-6 flex flex-wrap justify-center gap-3">
                     <Link
                       to="/dashboard"
-                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/30"
+                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30"
                     >
                       Go to Dashboard
                     </Link>
@@ -1654,7 +1654,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       setShowBookingModal(false)
                       navigate('/dashboard')
                     }}
-                    className="mt-4 text-amber-500 hover:text-amber-600 transition-colors text-sm"
+                    className="mt-4 text-blue-500 hover:text-blue-600 transition-colors text-sm"
                   >
                     Close this window →
                   </button>
@@ -1718,7 +1718,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       </div>
                       <div className="flex justify-between pt-2 border-t border-gray-200/20">
                         <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Total</span>
-                        <span className="font-bold text-amber-500 text-lg">
+                        <span className="font-bold text-blue-500 text-lg">
                           ₵{totalPrice.toLocaleString()}
                         </span>
                       </div>
@@ -1739,7 +1739,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           isDark 
                             ? 'bg-gray-700 text-white border-gray-600' 
                             : 'bg-gray-100 text-gray-800 border-gray-200'
-                        } border focus:border-amber-500 transition-colors text-sm`}
+                        } border focus:border-blue-500 transition-colors text-sm`}
                       />
                       <input
                         type="email"
@@ -1750,7 +1750,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           isDark 
                             ? 'bg-gray-700 text-white border-gray-600' 
                             : 'bg-gray-100 text-gray-800 border-gray-200'
-                        } border focus:border-amber-500 transition-colors text-sm`}
+                        } border focus:border-blue-500 transition-colors text-sm`}
                       />
                       <input
                         type="tel"
@@ -1761,7 +1761,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           isDark 
                             ? 'bg-gray-700 text-white border-gray-600' 
                             : 'bg-gray-100 text-gray-800 border-gray-200'
-                        } border focus:border-amber-500 transition-colors text-sm`}
+                        } border focus:border-blue-500 transition-colors text-sm`}
                       />
                       <textarea
                         rows={2}
@@ -1772,7 +1772,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           isDark 
                             ? 'bg-gray-700 text-white border-gray-600' 
                             : 'bg-gray-100 text-gray-800 border-gray-200'
-                        } border focus:border-amber-500 transition-colors resize-none text-sm`}
+                        } border focus:border-blue-500 transition-colors resize-none text-sm`}
                       />
                     </div>
                   </div>
@@ -1792,7 +1792,7 @@ const handlePaymentSuccess = async (paymentData) => {
                     className={`w-full px-6 py-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
                       isProcessing || isSubmitting || isRedirecting
                         ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 shadow-lg shadow-amber-500/30'
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 shadow-lg shadow-blue-500/30'
                     }`}
                   >
                     {isProcessing || isSubmitting || isRedirecting ? (

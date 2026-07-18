@@ -1,4 +1,4 @@
-// src/components/common/EditExperienceModal.jsx
+// src/components/common/EditExperienceModal.jsx - Updated with Blue-Black Theme
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -168,16 +168,16 @@ const EditExperienceModal = ({
           isDark ? 'bg-gray-900' : 'bg-white'
         } shadow-2xl flex flex-col`}
       >
-        {/* Connection Status */}
+        {/* Connection Status - Blue Theme */}
         {isConnected && (
           <div className={`px-4 py-1 text-center text-xs ${
-            isDark ? 'bg-green-500/10 text-green-400' : 'bg-green-100 text-green-600'
+            isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-100 text-blue-600'
           }`}>
             🔴 Live • Your changes will be updated in real-time
           </div>
         )}
 
-        {/* Header */}
+        {/* Header - Blue Theme */}
         <div className={`flex items-center justify-between p-4 border-b ${
           isDark ? 'border-gray-800' : 'border-gray-200'
         }`}>
@@ -197,7 +197,7 @@ const EditExperienceModal = ({
           </button>
         </div>
 
-        {/* Form - Rest remains the same */}
+        {/* Form - Blue Theme */}
         <div className="flex-1 overflow-y-auto p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Title */}
@@ -214,7 +214,7 @@ const EditExperienceModal = ({
                   isDark 
                     ? 'bg-gray-800 text-white placeholder-gray-400 border-gray-700' 
                     : 'bg-gray-100 text-gray-800 placeholder-gray-400 border-gray-200'
-                } border focus:border-amber-500 transition-colors`}
+                } border focus:border-blue-500 transition-colors`}
                 disabled={submitting}
               />
             </div>
@@ -233,12 +233,12 @@ const EditExperienceModal = ({
                   isDark 
                     ? 'bg-gray-800 text-white placeholder-gray-400 border-gray-700' 
                     : 'bg-gray-100 text-gray-800 placeholder-gray-400 border-gray-200'
-                } border focus:border-amber-500 transition-colors resize-none`}
+                } border focus:border-blue-500 transition-colors resize-none`}
                 disabled={submitting}
               />
             </div>
 
-            {/* Post Type */}
+            {/* Post Type - Blue Theme */}
             <div>
               <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Post Type
@@ -256,7 +256,7 @@ const EditExperienceModal = ({
                     }}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                       formData.type === type
-                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                         : isDark
                           ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -272,7 +272,7 @@ const EditExperienceModal = ({
               </div>
             </div>
 
-            {/* Media Upload */}
+            {/* Media Upload - Blue Theme */}
             {formData.type !== 'text' && (
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -317,8 +317,8 @@ const EditExperienceModal = ({
                     onClick={() => fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
                       isDark 
-                        ? 'border-gray-700 hover:border-amber-500/50' 
-                        : 'border-gray-300 hover:border-amber-500/50'
+                        ? 'border-gray-700 hover:border-blue-500/50' 
+                        : 'border-gray-300 hover:border-blue-500/50'
                     }`}
                   >
                     <Upload className="w-12 h-12 mx-auto text-gray-400 mb-2" />
@@ -340,7 +340,7 @@ const EditExperienceModal = ({
               </div>
             )}
 
-            {/* Region */}
+            {/* Region - Blue Theme */}
             <div>
               <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Region *
@@ -352,7 +352,7 @@ const EditExperienceModal = ({
                   isDark 
                     ? 'bg-gray-800 text-white border-gray-700' 
                     : 'bg-gray-100 text-gray-800 border-gray-200'
-                } border focus:border-amber-500 transition-colors`}
+                } border focus:border-blue-500 transition-colors`}
                 disabled={submitting}
               >
                 {regions.map((region) => (
@@ -377,7 +377,7 @@ const EditExperienceModal = ({
                   isDark 
                     ? 'bg-gray-800 text-white placeholder-gray-400 border-gray-700' 
                     : 'bg-gray-100 text-gray-800 placeholder-gray-400 border-gray-200'
-                } border focus:border-amber-500 transition-colors`}
+                } border focus:border-blue-500 transition-colors`}
                 disabled={submitting}
               />
             </div>
@@ -392,7 +392,7 @@ const EditExperienceModal = ({
               </div>
             )}
 
-            {/* Submit */}
+            {/* Submit - Blue Theme */}
             <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
@@ -407,7 +407,7 @@ const EditExperienceModal = ({
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30"
               >
                 {submitting ? (
                   <>

@@ -1,4 +1,4 @@
-// src/components/tours/TourDetails.jsx
+// src/components/tours/TourDetails.jsx - Updated with Blue-Black Theme
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -28,7 +28,7 @@ import {
   Play, Pause, Maximize2, Minimize2,
   LogIn, Edit3, ThumbsUp as ThumbsUpIcon, Flag,
   Reply, Verified, StarHalf, Star as StarIcon,
-  Heart as HeartIcon, Sparkle, Ticket, ReceiptText
+  Heart as HeartIcon, Sparkle, Ticket, ReceiptText, Printer
 } from 'lucide-react'
 
 const TOUR_BOOKING_KEY = 'alveovita_tour_booking_data'
@@ -613,128 +613,120 @@ const TourDetails = () => {
     }
   }
 
-  // Updated handlePaymentSuccess with professional confirmation
-  // ============================================
-// Updated handlePaymentSuccess function for TourDetails.jsx
-// ============================================
-const handlePaymentSuccess = async (paymentData) => {
-  try {
-    console.log('💰 Payment success data received:', paymentData);
-    
-    // Check if payment was successful
-    if (!paymentData || !paymentData.success) {
-      console.warn('Payment was not successful:', paymentData);
-      showToast('Payment was not successful. Please try again.', 'error');
-      setIsProcessing(false);
-      setIsSubmitting(false);
-      return;
-    }
-    
-    // Get booking info from the payment response
-    const bookingInfo = paymentData?.booking || {};
-    const reference = paymentData?.reference || bookingReference;
-    
-    console.log('📋 Booking info from payment:', bookingInfo);
-    
-    // Check if booking is confirmed
-    if (bookingInfo.status === 'confirmed' || bookingInfo.paymentStatus === 'paid') {
-      // Booking is already confirmed - show success
-      setBookingConfirmedData({
-        id: bookingInfo.id || bookingReference,
-        reference: reference,
-        amount: tour.price * guests,
-        name: tour.title,
-        type: 'tour',
-        date: selectedDate,
-        guests: guests,
-        customerName: bookingData.name,
-        customerEmail: bookingData.email,
-        paymentReference: reference,
-        status: 'confirmed',
-        destination: tour.location
-      });
+  // Updated handlePaymentSuccess function for TourDetails.jsx
+  const handlePaymentSuccess = async (paymentData) => {
+    try {
+      console.log('💰 Payment success data received:', paymentData);
       
-      setBookingSuccess(true);
-      setBookingStep(3);
-      setShowPayment(false);
-      setIsProcessing(false);
-      setIsSubmitting(false);
-      
-      showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
-      setPaymentAttempted(false);
-      clearSavedBooking();
-
-      setTimeout(() => {
-        setShowBookingModal(false);
-        navigate('/dashboard');
-      }, 6000);
-    } else {
-      // Try to fetch the latest booking status
-      try {
-        const bookingId = bookingInfo.id || bookingReference;
-        if (bookingId) {
-          const fetchResponse = await axios.get(`/bookings/${bookingId}`);
-          if (fetchResponse.data.success && fetchResponse.data.booking) {
-            const updatedBooking = fetchResponse.data.booking;
-            if (updatedBooking.status === 'confirmed') {
-              setBookingConfirmedData({
-                id: updatedBooking._id,
-                reference: reference,
-                amount: tour.price * guests,
-                name: tour.title,
-                type: 'tour',
-                date: selectedDate,
-                guests: guests,
-                customerName: bookingData.name,
-                customerEmail: bookingData.email,
-                paymentReference: reference,
-                status: 'confirmed',
-                destination: tour.location
-              });
-              
-              setBookingSuccess(true);
-              setBookingStep(3);
-              setShowPayment(false);
-              setIsProcessing(false);
-              setIsSubmitting(false);
-              
-              showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
-              setPaymentAttempted(false);
-              clearSavedBooking();
-
-              setTimeout(() => {
-                setShowBookingModal(false);
-                navigate('/dashboard');
-              }, 6000);
-              return;
-            }
-          }
-        }
-      } catch (fetchError) {
-        console.warn('Could not fetch updated booking:', fetchError);
+      if (!paymentData || !paymentData.success) {
+        console.warn('Payment was not successful:', paymentData);
+        showToast('Payment was not successful. Please try again.', 'error');
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        return;
       }
       
-      // Fallback: assume success but show warning
-      setBookingSuccess(true);
-      setBookingStep(3);
-      setShowPayment(false);
+      const bookingInfo = paymentData?.booking || {};
+      const reference = paymentData?.reference || bookingReference;
+      
+      console.log('📋 Booking info from payment:', bookingInfo);
+      
+      if (bookingInfo.status === 'confirmed' || bookingInfo.paymentStatus === 'paid') {
+        setBookingConfirmedData({
+          id: bookingInfo.id || bookingReference,
+          reference: reference,
+          amount: tour.price * guests,
+          name: tour.title,
+          type: 'tour',
+          date: selectedDate,
+          guests: guests,
+          customerName: bookingData.name,
+          customerEmail: bookingData.email,
+          paymentReference: reference,
+          status: 'confirmed',
+          destination: tour.location
+        });
+        
+        setBookingSuccess(true);
+        setBookingStep(3);
+        setShowPayment(false);
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        
+        showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+        setPaymentAttempted(false);
+        clearSavedBooking();
+
+        setTimeout(() => {
+          setShowBookingModal(false);
+          navigate('/dashboard');
+        }, 6000);
+      } else {
+        try {
+          const bookingId = bookingInfo.id || bookingReference;
+          if (bookingId) {
+            const fetchResponse = await axios.get(`/bookings/${bookingId}`);
+            if (fetchResponse.data.success && fetchResponse.data.booking) {
+              const updatedBooking = fetchResponse.data.booking;
+              if (updatedBooking.status === 'confirmed') {
+                setBookingConfirmedData({
+                  id: updatedBooking._id,
+                  reference: reference,
+                  amount: tour.price * guests,
+                  name: tour.title,
+                  type: 'tour',
+                  date: selectedDate,
+                  guests: guests,
+                  customerName: bookingData.name,
+                  customerEmail: bookingData.email,
+                  paymentReference: reference,
+                  status: 'confirmed',
+                  destination: tour.location
+                });
+                
+                setBookingSuccess(true);
+                setBookingStep(3);
+                setShowPayment(false);
+                setIsProcessing(false);
+                setIsSubmitting(false);
+                
+                showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+                setPaymentAttempted(false);
+                clearSavedBooking();
+
+                setTimeout(() => {
+                  setShowBookingModal(false);
+                  navigate('/dashboard');
+                }, 6000);
+                return;
+              }
+            }
+          }
+        } catch (fetchError) {
+          console.warn('Could not fetch updated booking:', fetchError);
+        }
+        
+        setBookingSuccess(true);
+        setBookingStep(3);
+        setShowPayment(false);
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        showToast('Payment successful! Your booking is being confirmed.', 'success');
+        clearSavedBooking();
+
+        setTimeout(() => {
+          setShowBookingModal(false);
+          navigate('/dashboard');
+        }, 6000);
+      }
+    } catch (error) {
+      console.error('Payment success handling error:', error);
+      showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
       setIsProcessing(false);
       setIsSubmitting(false);
-      showToast('Payment successful! Your booking is being confirmed.', 'success');
-      clearSavedBooking();
-
-      setTimeout(() => {
-        setShowBookingModal(false);
-        navigate('/dashboard');
-      }, 6000);
     }
-  } catch (error) {
-    console.error('Payment success handling error:', error);
-    showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
-    setIsProcessing(false);
-    setIsSubmitting(false);
-  }
-};
+  };
+
   const handlePaymentError = (error) => {
     setBookingError(error.message || 'Payment failed. Please try again.')
     setShowPayment(false)
@@ -805,21 +797,21 @@ const handlePaymentSuccess = async (paymentData) => {
           <div className="text-center">
             <div className="relative w-24 h-24 mx-auto">
               <motion.div
-                className="absolute inset-0 rounded-full border-4 border-amber-500/20"
+                className="absolute inset-0 rounded-full border-4 border-blue-500/20"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-2 rounded-full border-4 border-amber-500/40"
+                className="absolute inset-2 rounded-full border-4 border-blue-500/40"
                 animate={{ rotate: -360 }}
                 transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
               />
               <motion.div
-                className="absolute inset-4 rounded-full border-4 border-amber-500/60"
+                className="absolute inset-4 rounded-full border-4 border-blue-500/60"
                 animate={{ rotate: 360 }}
                 transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
               />
-              <Loader2 className="absolute inset-0 w-16 h-16 text-amber-500 animate-spin mx-auto my-auto" />
+              <Loader2 className="absolute inset-0 w-16 h-16 text-blue-500 animate-spin mx-auto my-auto" />
             </div>
             <p className={`mt-6 text-lg font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loading tour details...</p>
             {isConnected && (
@@ -837,14 +829,14 @@ const handlePaymentSuccess = async (paymentData) => {
         <Navbar />
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+            <AlertCircle className="w-16 h-16 text-blue-500 mx-auto mb-4" />
             <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
               Tour Not Found
             </h2>
             <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {error || "The tour you're looking for doesn't exist."}
             </p>
-            <Link to="/tours" className="mt-4 inline-block px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all">
+            <Link to="/tours" className="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30">
               Browse Tours
             </Link>
           </div>
@@ -867,7 +859,7 @@ const handlePaymentSuccess = async (paymentData) => {
         </div>
       )}
 
-      {/* Professional Image Slider */}
+      {/* Professional Image Slider - Blue Theme */}
       <section className="relative pt-16">
         <div 
           className="relative h-[60vh] md:h-[70vh] overflow-hidden bg-black"
@@ -894,7 +886,7 @@ const handlePaymentSuccess = async (paymentData) => {
             </motion.div>
           </AnimatePresence>
 
-          {/* Image Counter */}
+          {/* Image Counter - Blue Theme */}
           {tour.images.length > 1 && (
             <div className="absolute top-6 left-6 z-20 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm font-medium flex items-center gap-2">
               <Image className="w-4 h-4" />
@@ -902,10 +894,10 @@ const handlePaymentSuccess = async (paymentData) => {
             </div>
           )}
 
-          {/* Badge and Duration */}
+          {/* Badge and Duration - Blue Theme */}
           <div className="absolute top-6 left-24 z-20 flex flex-wrap gap-2">
             {tour.badge && (
-              <span className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full text-sm font-semibold shadow-lg shadow-amber-500/30">
+              <span className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full text-sm font-semibold shadow-lg shadow-blue-500/30">
                 {tour.badge}
               </span>
             )}
@@ -914,15 +906,15 @@ const handlePaymentSuccess = async (paymentData) => {
             </span>
           </div>
 
-          {/* Controls - Top Right */}
+          {/* Controls - Top Right - Blue Theme */}
           <div className="absolute top-6 right-6 z-20 flex flex-col gap-2">
             <button
               onClick={toggleFavorite}
               disabled={favoriteLoading}
               className={`p-3 rounded-full transition-all hover:scale-110 backdrop-blur-sm ${
                 isFavorite 
-                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
-                  : 'bg-black/50 text-white hover:bg-amber-500 hover:text-white'
+                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' 
+                  : 'bg-black/50 text-white hover:bg-blue-500 hover:text-white'
               } ${favoriteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {favoriteLoading ? (
@@ -933,39 +925,39 @@ const handlePaymentSuccess = async (paymentData) => {
             </button>
             <button
               onClick={handleShare}
-              className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110"
+              className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110"
             >
               <Share2 className="w-5 h-5" />
             </button>
             {tour.images.length > 1 && (
               <button
                 onClick={toggleFullscreen}
-                className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110"
+                className="p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110"
               >
                 {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
               </button>
             )}
           </div>
 
-          {/* Navigation Arrows */}
+          {/* Navigation Arrows - Blue Theme */}
           {tour.images.length > 1 && (
             <>
               <button
                 onClick={prevImage}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110 group"
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110 group"
               >
                 <ChevronLeft className="w-6 h-6 group-hover:scale-110 transition-transform" />
               </button>
               <button
                 onClick={nextImage}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110 group"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110 group"
               >
                 <ChevronRight className="w-6 h-6 group-hover:scale-110 transition-transform" />
               </button>
             </>
           )}
 
-          {/* Bottom Controls */}
+          {/* Bottom Controls - Blue Theme */}
           {tour.images.length > 1 && (
             <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-4">
               <div className="flex gap-2 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -975,7 +967,7 @@ const handlePaymentSuccess = async (paymentData) => {
                     onClick={() => goToSlide(index)}
                     className={`transition-all duration-300 rounded-full ${
                       index === currentImageIndex 
-                        ? 'bg-amber-400 w-8 h-2.5' 
+                        ? 'bg-blue-400 w-8 h-2.5' 
                         : 'bg-white/50 w-2.5 h-2.5 hover:bg-white/80'
                     }`}
                   />
@@ -983,7 +975,7 @@ const handlePaymentSuccess = async (paymentData) => {
               </div>
               <button
                 onClick={toggleAutoPlay}
-                className="p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-amber-500 transition-all hover:scale-110"
+                className="p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-blue-500 transition-all hover:scale-110"
               >
                 {isAutoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               </button>
@@ -999,7 +991,7 @@ const handlePaymentSuccess = async (paymentData) => {
                   onClick={() => goToSlide(index)}
                   className={`flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden transition-all duration-300 ${
                     index === currentImageIndex 
-                      ? 'ring-2 ring-amber-400 scale-105 shadow-lg shadow-amber-500/30' 
+                      ? 'ring-2 ring-blue-400 scale-105 shadow-lg shadow-blue-500/30' 
                       : 'opacity-60 hover:opacity-100'
                   }`}
                 >
@@ -1021,7 +1013,7 @@ const handlePaymentSuccess = async (paymentData) => {
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <div className="space-y-8">
-                {/* Title & Rating */}
+                {/* Title & Rating - Blue Theme */}
                 <div>
                   <div className="flex items-start justify-between">
                     <div>
@@ -1030,11 +1022,11 @@ const handlePaymentSuccess = async (paymentData) => {
                       </h1>
                       <div className="flex items-center gap-4 mt-2 flex-wrap">
                         <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          <MapPin className="w-4 h-4" />
+                          <MapPin className="w-4 h-4 text-blue-500" />
                           {tour.location}
                         </span>
                         <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          <ClockIcon className="w-4 h-4" />
+                          <ClockIcon className="w-4 h-4 text-blue-500" />
                           {tour.duration}
                         </span>
                         {tour.type && (
@@ -1047,7 +1039,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="flex items-center gap-1 text-amber-400">
+                      <div className="flex items-center gap-1 text-blue-400">
                         <Star className="w-5 h-5 fill-current" />
                         <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                           {tour.rating}
@@ -1060,7 +1052,7 @@ const handlePaymentSuccess = async (paymentData) => {
                   </div>
                 </div>
 
-                {/* Tabs */}
+                {/* Tabs - Blue Theme */}
                 <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
                   {tabs.map((tab) => (
                     <button
@@ -1068,7 +1060,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       onClick={() => setActiveTab(tab)}
                       className={`px-4 py-2 rounded-lg font-medium transition-all capitalize ${
                         activeTab === tab
-                          ? 'bg-amber-500 text-white'
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30'
                           : isDark
                             ? 'hover:bg-gray-800 text-gray-400'
                             : 'hover:bg-gray-100 text-gray-600'
@@ -1079,7 +1071,7 @@ const handlePaymentSuccess = async (paymentData) => {
                   ))}
                 </div>
 
-                {/* Tab Content - Overview */}
+                {/* Tab Content - Overview - Blue Theme */}
                 <div className="space-y-6">
                   {activeTab === 'overview' && (
                     <>
@@ -1135,10 +1127,10 @@ const handlePaymentSuccess = async (paymentData) => {
                         </div>
                       </div>
 
-                      {/* Group Size */}
+                      {/* Group Size - Blue Theme */}
                       <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                         <div className="flex items-center gap-3">
-                          <Users className="w-5 h-5 text-amber-500" />
+                          <Users className="w-5 h-5 text-blue-500" />
                           <div>
                             <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                               Group Size
@@ -1150,7 +1142,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         </div>
                       </div>
 
-                      {/* GUIDE SECTION */}
+                      {/* GUIDE SECTION - Blue Theme */}
                       {tour.guide && tour.guide.name && (
                         <div>
                           <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1158,7 +1150,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           </h3>
                           <div className={`mt-3 p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                             <div className="flex items-center gap-4">
-                              <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                              <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
                                 {tour.guide.avatar ? (
                                   <img src={tour.guide.avatar} alt={tour.guide.name} className="w-full h-full object-cover" />
                                 ) : (
@@ -1175,7 +1167,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                   </p>
                                 )}
                                 {tour.guide.rating > 0 && (
-                                  <div className="flex items-center gap-1 text-amber-400 text-sm">
+                                  <div className="flex items-center gap-1 text-blue-400 text-sm">
                                     <Star className="w-4 h-4 fill-current" />
                                     <span>{tour.guide.rating}</span>
                                   </div>
@@ -1200,13 +1192,13 @@ const handlePaymentSuccess = async (paymentData) => {
                               <div className="mt-2 flex flex-wrap gap-3 text-sm">
                                 {tour.guide.phone && (
                                   <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    <Phone className="w-4 h-4" />
+                                    <Phone className="w-4 h-4 text-blue-500" />
                                     {tour.guide.phone}
                                   </span>
                                 )}
                                 {tour.guide.email && (
                                   <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    <Mail className="w-4 h-4" />
+                                    <Mail className="w-4 h-4 text-blue-500" />
                                     {tour.guide.email}
                                   </span>
                                 )}
@@ -1216,7 +1208,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         </div>
                       )}
 
-                      {/* TRANSPORT SECTION */}
+                      {/* TRANSPORT SECTION - Blue Theme */}
                       {tour.transport && (
                         <div>
                           <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1225,7 +1217,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           <div className={`mt-3 p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                             <div className="flex items-center gap-3">
                               {React.createElement(getTransportIcon(tour.transport.type), {
-                                className: "w-6 h-6 text-amber-500"
+                                className: "w-6 h-6 text-blue-500"
                               })}
                               <div>
                                 <div className="flex items-center gap-2">
@@ -1252,7 +1244,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         </div>
                       )}
 
-                      {/* ENTRY FEES SECTION */}
+                      {/* ENTRY FEES SECTION - Blue Theme */}
                       {tour.entryFees && (
                         <div>
                           <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1264,7 +1256,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                 {tour.entryFees.included ? '✓ Included' : '✗ Not Included'}
                               </span>
                               {tour.entryFees.amount > 0 && (
-                                <span className={`text-sm font-bold text-amber-500`}>
+                                <span className={`text-sm font-bold text-blue-500`}>
                                   ₵{tour.entryFees.amount}
                                 </span>
                               )}
@@ -1287,7 +1279,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         </div>
                       )}
 
-                      {/* MEALS SECTION */}
+                      {/* MEALS SECTION - Blue Theme */}
                       {tour.meals && (
                         <div>
                           <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1318,7 +1310,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         </div>
                       )}
 
-                      {/* ACCOMMODATION SECTION */}
+                      {/* ACCOMMODATION SECTION - Blue Theme */}
                       {tour.accommodation && (
                         <div>
                           <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1396,13 +1388,13 @@ const handlePaymentSuccess = async (paymentData) => {
                     </div>
                   )}
 
-                  {/* Tab Content - Reviews */}
+                  {/* Tab Content - Reviews - Blue Theme */}
                   {activeTab === 'reviews' && (
                     <div className="space-y-6">
                       <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                         <div className="flex flex-col md:flex-row items-center gap-6">
                           <div className="text-center">
-                            <div className="text-5xl font-bold text-amber-500">
+                            <div className="text-5xl font-bold text-blue-500">
                               {reviewStats.average || 0}
                             </div>
                             <div className="flex items-center justify-center gap-1 mt-1">
@@ -1411,9 +1403,9 @@ const handlePaymentSuccess = async (paymentData) => {
                                   key={i}
                                   className={`w-5 h-5 ${
                                     i < Math.floor(reviewStats.average || 0)
-                                      ? 'fill-amber-400 text-amber-400'
+                                      ? 'fill-blue-400 text-blue-400'
                                       : i < Math.ceil(reviewStats.average || 0) && (reviewStats.average || 0) % 1 > 0
-                                      ? 'fill-amber-400 text-amber-400'
+                                      ? 'fill-blue-400 text-blue-400'
                                       : 'text-gray-300 dark:text-gray-600'
                                   }`}
                                 />
@@ -1430,10 +1422,10 @@ const handlePaymentSuccess = async (paymentData) => {
                               return (
                                 <div key={star} className="flex items-center gap-2 text-sm">
                                   <span className="w-6 text-right">{star}</span>
-                                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                  <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                                   <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                     <div
-                                      className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                                      className="h-full bg-blue-400 rounded-full transition-all duration-500"
                                       style={{ width: `${percentage}%` }}
                                     />
                                   </div>
@@ -1448,7 +1440,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       {user ? (
                         <button
                           onClick={() => setShowReviewForm(!showReviewForm)}
-                          className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all flex items-center gap-2"
+                          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2"
                         >
                           <Edit3 className="w-4 h-4" />
                           Write a Review
@@ -1456,7 +1448,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       ) : (
                         <button
                           onClick={() => navigate('/login', { state: { from: window.location.pathname } })}
-                          className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all flex items-center gap-2"
+                          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2"
                         >
                           <LogIn className="w-4 h-4" />
                           Login to Write a Review
@@ -1486,8 +1478,8 @@ const handlePaymentSuccess = async (paymentData) => {
                                     <Star
                                       className={`w-8 h-8 transition-all ${
                                         star <= reviewFormData.rating
-                                          ? 'fill-amber-400 text-amber-400 hover:scale-110'
-                                          : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'
+                                          ? 'fill-blue-400 text-blue-400 hover:scale-110'
+                                          : 'text-gray-300 dark:text-gray-600 hover:text-blue-400'
                                       }`}
                                     />
                                   </button>
@@ -1506,7 +1498,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                 onChange={(e) => setReviewFormData({ ...reviewFormData, title: e.target.value })}
                                 className={`w-full px-4 py-2.5 rounded-xl outline-none ${
                                   isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-100 text-gray-800 border-gray-200'
-                                } border focus:border-amber-500 transition-colors`}
+                                } border focus:border-blue-500 transition-colors`}
                                 placeholder="Summarize your experience..."
                               />
                             </div>
@@ -1522,7 +1514,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                 onChange={(e) => setReviewFormData({ ...reviewFormData, comment: e.target.value })}
                                 className={`w-full px-4 py-2.5 rounded-xl outline-none ${
                                   isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-100 text-gray-800 border-gray-200'
-                                } border focus:border-amber-500 transition-colors resize-none`}
+                                } border focus:border-blue-500 transition-colors resize-none`}
                                 placeholder="Share your experience with this tour..."
                               />
                             </div>
@@ -1538,7 +1530,7 @@ const handlePaymentSuccess = async (paymentData) => {
                               <button
                                 type="submit"
                                 disabled={reviewLoading}
-                                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:scale-105 transition-all disabled:opacity-50"
+                                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium hover:scale-105 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/30"
                               >
                                 {reviewLoading ? 'Submitting...' : 'Submit Review'}
                               </button>
@@ -1560,7 +1552,7 @@ const handlePaymentSuccess = async (paymentData) => {
                               className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
                             >
                               <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
                                   {review.userAvatar ? (
                                     <img src={review.userAvatar} alt={review.userName} className="w-full h-full object-cover" />
                                   ) : (
@@ -1588,7 +1580,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                               key={i}
                                               className={`w-4 h-4 ${
                                                 i < review.rating
-                                                  ? 'fill-amber-400 text-amber-400'
+                                                  ? 'fill-blue-400 text-blue-400'
                                                   : 'text-gray-300 dark:text-gray-600'
                                               }`}
                                             />
@@ -1604,7 +1596,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                         onClick={() => {
                                           showToast('Thank you for your feedback!', 'success')
                                         }}
-                                        className={`flex items-center gap-1 text-xs ${isDark ? 'text-gray-400 hover:text-amber-400' : 'text-gray-500 hover:text-amber-500'} transition-colors`}
+                                        className={`flex items-center gap-1 text-xs ${isDark ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'} transition-colors`}
                                       >
                                         <ThumbsUpIcon className="w-3 h-3" />
                                         Helpful ({review.helpful || 0})
@@ -1635,7 +1627,7 @@ const handlePaymentSuccess = async (paymentData) => {
                                     </div>
                                   )}
                                   {review.reply && review.reply.admin && (
-                                    <div className={`mt-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'} border-l-2 border-amber-500`}>
+                                    <div className={`mt-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'} border-l-2 border-blue-500`}>
                                       <div className="flex items-center gap-2 text-sm">
                                         <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                                           Admin Response
@@ -1661,15 +1653,15 @@ const handlePaymentSuccess = async (paymentData) => {
               </div>
             </div>
 
-            {/* Right Column - Booking Card */}
+            {/* Right Column - Booking Card - Blue Theme */}
             <div className="lg:col-span-1">
               <div className={`sticky top-24 p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <span className="text-3xl font-bold text-amber-500">₵{tour.price}</span>
+                    <span className="text-3xl font-bold text-blue-500">₵{tour.price}</span>
                     <span className={isDark ? 'text-gray-400' : 'text-gray-500'}> / person</span>
                   </div>
-                  <div className="flex items-center gap-1 text-amber-400">
+                  <div className="flex items-center gap-1 text-blue-400">
                     <Star className="w-4 h-4 fill-current" />
                     <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
                       {tour.rating}
@@ -1689,7 +1681,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         isDark 
                           ? 'bg-gray-700 text-white border-gray-600' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
-                      } border focus:border-amber-500 transition-colors`}
+                      } border focus:border-blue-500 transition-colors`}
                     >
                       <option value="">Select a date</option>
                       {tour.availableDates && tour.availableDates.map((date) => (
@@ -1746,7 +1738,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       className={`w-full mt-4 px-6 py-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
                         isProcessing
                           ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 shadow-lg shadow-amber-500/30'
+                          : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 shadow-lg shadow-blue-500/30'
                       }`}
                     >
                       {isProcessing ? (
@@ -1774,7 +1766,7 @@ const handlePaymentSuccess = async (paymentData) => {
         </div>
       </section>
 
-      {/* Booking Modal with Paystack */}
+      {/* Booking Modal with Paystack - Blue Theme */}
       <AnimatePresence>
         {showBookingModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -1816,19 +1808,19 @@ const handlePaymentSuccess = async (paymentData) => {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-6"
                 >
-                  {/* Success Animation */}
+                  {/* Success Animation - Blue Theme */}
                   <div className="relative w-28 h-28 mx-auto mb-6">
                     <motion.div
-                      className="absolute inset-0 rounded-full bg-green-500/20"
+                      className="absolute inset-0 rounded-full bg-blue-500/20"
                       animate={{ scale: [1, 1.5, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
                     />
                     <motion.div
-                      className="absolute inset-2 rounded-full bg-green-500/40"
+                      className="absolute inset-2 rounded-full bg-blue-500/40"
                       animate={{ scale: [1, 1.3, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
                     />
-                    <div className="absolute inset-0 rounded-full bg-green-500 flex items-center justify-center shadow-2xl shadow-green-500/30">
+                    <div className="absolute inset-0 rounded-full bg-blue-500 flex items-center justify-center shadow-2xl shadow-blue-500/30">
                       <Check className="w-14 h-14 text-white" />
                     </div>
                   </div>
@@ -1840,10 +1832,10 @@ const handlePaymentSuccess = async (paymentData) => {
                     Your tour has been booked successfully. A confirmation email has been sent to your email address.
                   </p>
 
-                  {/* Booking Details Card */}
+                  {/* Booking Details Card - Blue Theme */}
                   <div className={`mt-6 p-5 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} max-w-sm mx-auto text-left`}>
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/20">
-                      <Ticket className="w-5 h-5 text-amber-500" />
+                      <Ticket className="w-5 h-5 text-blue-500" />
                       <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Booking Details</span>
                     </div>
                     <div className="space-y-2 text-sm">
@@ -1868,7 +1860,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       </div>
                       <div className="flex justify-between pt-2 border-t border-gray-200/20">
                         <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Total Paid</span>
-                        <span className="font-bold text-amber-500 text-lg">₵{(tour.price * guests).toLocaleString()}</span>
+                        <span className="font-bold text-blue-500 text-lg">₵{(tour.price * guests).toLocaleString()}</span>
                       </div>
                       {bookingReference && (
                         <div className="flex justify-between pt-1">
@@ -1884,7 +1876,7 @@ const handlePaymentSuccess = async (paymentData) => {
                   <div className="mt-6 flex flex-wrap justify-center gap-3">
                     <Link
                       to="/dashboard"
-                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/30"
+                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30"
                     >
                       Go to Dashboard
                     </Link>
@@ -1895,10 +1887,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       Browse More Tours
                     </Link>
                     <button
-                      onClick={() => {
-                        // Print functionality
-                        window.print()
-                      }}
+                      onClick={() => window.print()}
                       className={`px-6 py-3 rounded-xl border ${isDark ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'} hover:scale-105 transition-all flex items-center gap-2`}
                     >
                       <Printer className="w-4 h-4" />
@@ -1915,7 +1904,7 @@ const handlePaymentSuccess = async (paymentData) => {
                       setShowBookingModal(false)
                       navigate('/dashboard')
                     }}
-                    className="mt-4 text-amber-500 hover:text-amber-600 transition-colors text-sm"
+                    className="mt-4 text-blue-500 hover:text-blue-600 transition-colors text-sm"
                   >
                     Close this window →
                   </button>
@@ -1953,13 +1942,13 @@ const handlePaymentSuccess = async (paymentData) => {
                       <div key={step} className="flex items-center">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                           bookingStep >= step 
-                            ? 'bg-amber-500 text-white' 
+                            ? 'bg-blue-500 text-white' 
                             : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                         }`}>
                           {step}
                         </div>
                         {step < 2 && (
-                          <div className={`w-12 h-0.5 ${bookingStep > step ? 'bg-amber-500' : isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                          <div className={`w-12 h-0.5 ${bookingStep > step ? 'bg-blue-500' : isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
                         )}
                       </div>
                     ))}
@@ -1979,7 +1968,7 @@ const handlePaymentSuccess = async (paymentData) => {
                             isDark 
                               ? 'bg-gray-800 text-white border-gray-700' 
                               : 'bg-gray-50 text-gray-800 border-gray-200'
-                          } border focus:border-amber-500 transition-colors`}
+                          } border focus:border-blue-500 transition-colors`}
                           placeholder="John Doe"
                         />
                       </div>
@@ -1995,7 +1984,7 @@ const handlePaymentSuccess = async (paymentData) => {
                             isDark 
                               ? 'bg-gray-800 text-white border-gray-700' 
                               : 'bg-gray-50 text-gray-800 border-gray-200'
-                          } border focus:border-amber-500 transition-colors`}
+                          } border focus:border-blue-500 transition-colors`}
                           placeholder="john@example.com"
                         />
                       </div>
@@ -2011,7 +2000,7 @@ const handlePaymentSuccess = async (paymentData) => {
                             isDark 
                               ? 'bg-gray-800 text-white border-gray-700' 
                               : 'bg-gray-50 text-gray-800 border-gray-200'
-                          } border focus:border-amber-500 transition-colors`}
+                          } border focus:border-blue-500 transition-colors`}
                           placeholder="+233 55 123 4567"
                         />
                       </div>
@@ -2027,7 +2016,7 @@ const handlePaymentSuccess = async (paymentData) => {
                             isDark 
                               ? 'bg-gray-800 text-white border-gray-700' 
                               : 'bg-gray-50 text-gray-800 border-gray-200'
-                          } border focus:border-amber-500 transition-colors resize-none`}
+                          } border focus:border-blue-500 transition-colors resize-none`}
                           placeholder="Any dietary restrictions, accessibility needs, or special requests..."
                         />
                       </div>
@@ -2047,7 +2036,7 @@ const handlePaymentSuccess = async (paymentData) => {
                         className={`w-full px-6 py-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
                           isProcessing
                             ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105'
+                            : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 shadow-lg shadow-blue-500/30'
                         }`}
                       >
                         {isProcessing ? (
@@ -2093,7 +2082,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           </div>
                           <div className="flex justify-between pt-2 border-t border-gray-200/20">
                             <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Total Price</span>
-                            <span className="font-bold text-amber-500 text-lg">
+                            <span className="font-bold text-blue-500 text-lg">
                               ₵{(tour.price * guests).toLocaleString()}
                             </span>
                           </div>
@@ -2135,7 +2124,7 @@ const handlePaymentSuccess = async (paymentData) => {
                           className={`flex-1 px-6 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
                             isProcessing || isSubmitting || isRedirecting
                               ? 'bg-gray-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105'
+                              : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 shadow-lg shadow-blue-500/30'
                           }`}
                         >
                           {isProcessing || isSubmitting || isRedirecting ? (

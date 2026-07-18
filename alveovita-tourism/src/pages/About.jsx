@@ -1,4 +1,4 @@
-// src/pages/About.jsx
+// src/pages/About.jsx - Updated with Blue-Black Theme
 import { motion } from 'framer-motion'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
@@ -145,7 +145,7 @@ const About = () => {
     <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
       <Navbar />
 
-      {/* Hero Section */}
+      {/* Hero Section - Blue Theme */}
       <section className="relative min-h-[60vh] md:min-h-[70vh] flex items-center overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center"
@@ -162,13 +162,13 @@ const About = () => {
             transition={{ duration: 0.8 }}
             className="max-w-3xl mx-auto text-center"
           >
-            <span className="inline-flex items-center gap-2 text-amber-400 font-semibold text-xs sm:text-sm uppercase tracking-wider bg-amber-500/10 px-4 py-2 rounded-full border border-amber-500/20">
+            <span className="inline-flex items-center gap-2 text-blue-400 font-semibold text-xs sm:text-sm uppercase tracking-wider bg-blue-500/10 px-4 py-2 rounded-full border border-blue-500/20">
               <Sparkles className="w-4 h-4" />
               About Us
             </span>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mt-4 leading-tight">
               Transforming Lives Through <br className="hidden sm:inline" />
-              <span className="text-amber-400">Wellness</span> Tourism
+              <span className="text-blue-400">Wellness</span> Tourism
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-gray-300 mt-4 md:mt-6 leading-relaxed max-w-2xl mx-auto">
               Alveovita Health & Wellness Tourism is a premier health tourism company dedicated to connecting 
@@ -180,7 +180,7 @@ const About = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleServices}
-                className="px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-medium hover:shadow-lg hover:shadow-amber-500/30 transition-all text-sm sm:text-base"
+                className="px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full font-medium hover:shadow-lg hover:shadow-blue-500/30 transition-all text-sm sm:text-base"
               >
                 Our Services
               </motion.button>
@@ -197,7 +197,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Our Story */}
+      {/* Our Story - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="container-custom px-4 sm:px-6">
           <div className="grid lg:grid-cols-2 gap-8 md:gap-12 items-center">
@@ -206,9 +206,9 @@ const About = () => {
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <span className="text-amber-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Our Story</span>
+              <span className="text-blue-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Our Story</span>
               <h2 className={`text-2xl sm:text-3xl md:text-4xl font-display font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                A Journey of <span className="text-amber-400">Healing</span> and Discovery
+                A Journey of <span className="text-blue-400">Healing</span> and Discovery
               </h2>
               <div className={`mt-4 md:mt-6 space-y-3 md:space-y-4 text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                 <p>
@@ -243,7 +243,7 @@ const About = () => {
                 alt="Our Story"
                 className="rounded-2xl shadow-2xl w-full h-auto"
               />
-              <div className="absolute -bottom-3 -right-3 sm:-bottom-6 sm:-right-6 p-4 sm:p-6 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl shadow-xl">
+              <div className="absolute -bottom-3 -right-3 sm:-bottom-6 sm:-right-6 p-4 sm:p-6 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl shadow-xl">
                 <div className="text-white">
                   <div className="text-xl sm:text-3xl font-bold">5+</div>
                   <div className="text-xs sm:text-sm">Years of Excellence</div>
@@ -254,7 +254,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Mission & Vision */}
+      {/* Mission & Vision - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
         <div className="container-custom px-4 sm:px-6">
           <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
@@ -262,9 +262,9 @@ const About = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className={`p-6 sm:p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-amber-50'} border ${isDark ? 'border-gray-700' : 'border-amber-200'}`}
+              className={`p-6 sm:p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-blue-50'} border ${isDark ? 'border-gray-700' : 'border-blue-200'}`}
             >
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center mb-3 sm:mb-4">
                 <Target className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <h3 className={`text-xl sm:text-2xl font-bold mb-2 sm:mb-3 ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -281,9 +281,9 @@ const About = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className={`p-6 sm:p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-blue-50'} border ${isDark ? 'border-gray-700' : 'border-blue-200'}`}
+              className={`p-6 sm:p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-cyan-50'} border ${isDark ? 'border-gray-700' : 'border-cyan-200'}`}
             >
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center mb-3 sm:mb-4">
                 <Lightbulb className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <h3 className={`text-xl sm:text-2xl font-bold mb-2 sm:mb-3 ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -299,7 +299,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Our Values */}
+      {/* Our Values - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="container-custom px-4 sm:px-6">
           <motion.div
@@ -308,7 +308,7 @@ const About = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-8 md:mb-12"
           >
-            <span className="text-amber-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Core Values</span>
+            <span className="text-blue-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Core Values</span>
             <h2 className={`text-2xl sm:text-3xl md:text-4xl font-display font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
               What Drives Us
             </h2>
@@ -328,7 +328,7 @@ const About = () => {
                   isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
                 }`}
               >
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <value.icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
                 <h3 className={`text-lg sm:text-xl font-bold mb-1 sm:mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -343,7 +343,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Our Services Preview */}
+      {/* Our Services Preview - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
         <div className="container-custom px-4 sm:px-6">
           <motion.div
@@ -352,9 +352,9 @@ const About = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-8 md:mb-12"
           >
-            <span className="text-amber-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">What We Offer</span>
+            <span className="text-blue-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">What We Offer</span>
             <h2 className={`text-2xl sm:text-3xl md:text-4xl font-display font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-              Our <span className="text-amber-400">Services</span>
+              Our <span className="text-blue-400">Services</span>
             </h2>
           </motion.div>
 
@@ -369,7 +369,7 @@ const About = () => {
                   isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:shadow-xl'
                 }`}
               >
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center mb-3 sm:mb-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-r from-blue-400 to-indigo-500 flex items-center justify-center mb-3 sm:mb-4">
                   <service.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <h3 className={`text-lg sm:text-xl font-bold mb-1 sm:mb-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -385,7 +385,7 @@ const About = () => {
           <div className="text-center mt-8 md:mt-12">
             <button
               onClick={handleServices}
-              className="inline-flex items-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-medium hover:shadow-lg hover:shadow-amber-500/30 transition-all hover:scale-105 text-sm sm:text-base"
+              className="inline-flex items-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full font-medium hover:shadow-lg hover:shadow-blue-500/30 transition-all hover:scale-105 text-sm sm:text-base"
             >
               View All Services
               <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -394,7 +394,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Timeline */}
+      {/* Timeline - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="container-custom px-4 sm:px-6">
           <motion.div
@@ -403,7 +403,7 @@ const About = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-8 md:mb-12"
           >
-            <span className="text-amber-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Our Journey</span>
+            <span className="text-blue-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Our Journey</span>
             <h2 className={`text-2xl sm:text-3xl md:text-4xl font-display font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
               Milestones
             </h2>
@@ -422,7 +422,7 @@ const About = () => {
               >
                 <div className={`sm:w-5/12 w-full ${index % 2 === 0 ? 'sm:text-right sm:pr-8' : 'sm:text-left sm:pl-8'}`}>
                   <div className={`p-4 sm:p-5 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
-                    <div className="text-xl sm:text-2xl font-bold text-amber-500">{milestone.year}</div>
+                    <div className="text-xl sm:text-2xl font-bold text-blue-500">{milestone.year}</div>
                     <h4 className={`font-bold text-base sm:text-lg ${isDark ? 'text-white' : 'text-gray-800'}`}>
                       {milestone.title}
                     </h4>
@@ -432,12 +432,12 @@ const About = () => {
                   </div>
                 </div>
                 <div className="hidden sm:flex relative z-10">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 border-4 border-white dark:border-gray-900 flex-shrink-0" />
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 border-4 border-white dark:border-gray-900 flex-shrink-0" />
                 </div>
                 <div className="sm:w-5/12 hidden sm:block" />
                 {/* Mobile timeline dot */}
                 <div className="sm:hidden flex items-center gap-3 mt-2">
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 border-2 border-white dark:border-gray-900 flex-shrink-0" />
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 border-2 border-white dark:border-gray-900 flex-shrink-0" />
                   <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Step {index + 1}</span>
                 </div>
               </motion.div>
@@ -446,7 +446,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Team */}
+      {/* Team - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
         <div className="container-custom px-4 sm:px-6">
           <motion.div
@@ -455,9 +455,9 @@ const About = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-8 md:mb-12"
           >
-            <span className="text-amber-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Our Team</span>
+            <span className="text-blue-500 font-semibold text-xs sm:text-sm uppercase tracking-wider">Our Team</span>
             <h2 className={`text-2xl sm:text-3xl md:text-4xl font-display font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-              Meet the <span className="text-amber-400">Experts</span>
+              Meet the <span className="text-blue-400">Experts</span>
             </h2>
             <p className={`max-w-2xl mx-auto mt-3 md:mt-4 text-sm sm:text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Passionate professionals dedicated to your wellness journey.
@@ -479,27 +479,27 @@ const About = () => {
                   <img 
                     src={member.image} 
                     alt={member.name}
-                    className="w-full h-full rounded-full object-cover ring-4 ring-amber-400/30 group-hover:ring-amber-400/50 transition-all"
+                    className="w-full h-full rounded-full object-cover ring-4 ring-blue-400/30 group-hover:ring-blue-400/50 transition-all"
                   />
                 </div>
                 <h4 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                   {member.name}
                 </h4>
-                <p className="text-amber-500 font-medium text-xs sm:text-sm">{member.role}</p>
+                <p className="text-blue-500 font-medium text-xs sm:text-sm">{member.role}</p>
                 <p className={`text-sm mt-1 sm:mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   {member.bio}
                 </p>
                 <div className="flex justify-center gap-2 mt-3 sm:mt-4">
                   <button
                     onClick={() => handleSocialClick(member.social.linkedin, 'LinkedIn')}
-                    className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-amber-500 hover:text-white transition-all"
+                    className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white transition-all"
                     aria-label={`${member.name} LinkedIn`}
                   >
                     <LinkedInIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                   </button>
                   <button
                     onClick={() => handleSocialClick(member.social.twitter, 'Twitter')}
-                    className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-amber-500 hover:text-white transition-all"
+                    className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white transition-all"
                     aria-label={`${member.name} Twitter`}
                   >
                     <TwitterIcon className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -511,7 +511,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats - Blue Theme */}
       <section className={`py-12 sm:py-16 md:py-24 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="container-custom px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
@@ -528,7 +528,7 @@ const About = () => {
                 transition={{ delay: index * 0.1 }}
                 className={`p-4 sm:p-6 rounded-2xl text-center ${isDark ? 'bg-gray-800' : 'bg-white shadow-lg'}`}
               >
-                <stat.icon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 mx-auto mb-2 sm:mb-3" />
+                <stat.icon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 mx-auto mb-2 sm:mb-3" />
                 <div className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                   {stat.value}
                 </div>
@@ -541,7 +541,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* CTA - Blue Theme */}
       <section className="relative py-16 sm:py-24 overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center"
@@ -549,7 +549,7 @@ const About = () => {
             backgroundImage: 'url(https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1920&q=80)',
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-amber-900/95 to-orange-800/95" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/95 to-indigo-800/95" />
         </div>
         <div className="container-custom relative z-10 px-4 sm:px-6">
           <motion.div
@@ -559,7 +559,7 @@ const About = () => {
             className="max-w-3xl mx-auto text-center text-white"
           >
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold mb-3 md:mb-4">
-              Ready to Start Your <span className="text-amber-300">Wellness</span> Journey?
+              Ready to Start Your <span className="text-blue-300">Wellness</span> Journey?
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-gray-200 mb-6 md:mb-8">
               Join thousands of satisfied clients who have transformed their lives through our wellness programs.
@@ -567,7 +567,7 @@ const About = () => {
             <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
               <button
                 onClick={handleBookConsultation}
-                className="px-6 sm:px-8 py-2.5 sm:py-3 bg-white text-amber-700 rounded-full font-medium hover:bg-amber-50 transition-all shadow-xl hover:scale-105 flex items-center justify-center gap-2 text-sm sm:text-base"
+                className="px-6 sm:px-8 py-2.5 sm:py-3 bg-white text-blue-700 rounded-full font-medium hover:bg-blue-50 transition-all shadow-xl hover:scale-105 flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                 Book a Consultation

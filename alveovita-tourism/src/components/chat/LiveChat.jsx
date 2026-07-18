@@ -1,4 +1,4 @@
-// src/components/chat/LiveChat.jsx
+// src/components/chat/LiveChat.jsx - Updated with Blue-Black Theme
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from '../../api/axios'
@@ -17,7 +17,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
   const { showToast } = useToast()
   const { socket, isConnected, joinChat, sendMessage, sendTyping, sessionId: socketSessionId, setSessionId, reconnect } = useSocket()
   
-  const [step, setStep] = useState(1) // ✅ STEP 1 = FORM, STEP 2 = CHAT
+  const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState([])
@@ -39,7 +39,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
   const inputRef = useRef(null)
   const typingTimeoutRef = useRef(null)
 
-  // FALLBACK BOT RESPONSES (used when offline or API fails)
+  // FALLBACK BOT RESPONSES
   const getFallbackResponse = (messageText) => {
     const lowerMsg = messageText.toLowerCase()
     const fallbackReplies = {
@@ -160,13 +160,12 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     };
   }, [socket, showToast]);
 
-  // ✅ Handle form submission - creates session with user data
+  // Handle form submission
   const handleFormSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setFormError(null)
 
-    // Validate required fields
     if (!formData.name || !formData.name.trim()) {
       setFormError('Please enter your full name')
       setLoading(false)
@@ -179,7 +178,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       return
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(formData.email.trim())) {
       setFormError('Please enter a valid email address')
@@ -204,12 +202,10 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
       if (response.data.success) {
         const session = response.data.session;
         
-        // ✅ Set session ID for sending messages
         setLocalSessionId(session._id);
         setSessionId(session._id);
         console.log('✅ [LiveChat] Session ID set:', session._id);
         
-        // Join chat via socket
         if (joinChat && isConnected) {
           joinChat({
             sessionId: session._id,
@@ -219,7 +215,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           });
         }
 
-        // Create contact record in background
         try {
           await axios.post('/contact', {
             name: formData.name.trim(),
@@ -234,7 +229,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           console.warn('⚠️ [LiveChat] Contact record failed:', contactError.message);
         }
 
-        // ✅ Start with welcome message
         const initialMessages = [
           {
             id: 1,
@@ -244,7 +238,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           }
         ];
 
-        // ✅ Only add user message if they actually typed something
         if (formData.message && formData.message.trim()) {
           const userMessage = {
             id: 2,
@@ -254,7 +247,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           };
           initialMessages.push(userMessage);
 
-          // Get bot response for the user's message
           try {
             const botResponse = await axios.post('/auto-reply/respond', {
               message: formData.message.trim()
@@ -295,7 +287,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
             initialMessages.push(botMessage);
           }
 
-          // Send initial message via socket
           if (isConnected && sendMessage) {
             sendMessage({
               sessionId: session._id,
@@ -305,7 +296,6 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           }
         }
 
-        // ✅ CRITICAL: Move to chat interface (step 2) ONLY after successful form submission
         setMessages(initialMessages);
         setStep(2);
         setChatSubmitted(true);
@@ -335,7 +325,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   };
 
-  // ✅ Send message handler with proper session check
+  // Send message handler
   const sendMessageHandler = async () => {
     if (!sessionId) {
       console.error('❌ [LiveChat] No session ID available');
@@ -497,11 +487,11 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
     }
   }, [step])
 
-  // ✅ Reset when modal closes - ALWAYS go back to step 1 (form)
+  // Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
-        setStep(1) // ✅ Reset to form view
+        setStep(1)
         setMessages([])
         setMessage('')
         setChatSubmitted(false)
@@ -541,8 +531,8 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white'
         }`}
       >
-        {/* Header */}
-        <div className="relative p-6 bg-gradient-to-r from-amber-500 to-orange-500">
+        {/* Header - Blue Theme */}
+        <div className="relative p-6 bg-gradient-to-r from-blue-500 to-indigo-500">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/20 transition-colors text-white"
@@ -574,14 +564,14 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
           </div>
         </div>
 
-        {/* Body - Conditional rendering based on step */}
+        {/* Body - Blue Theme */}
         <div className="p-6 max-h-[70vh] overflow-y-auto">
           {step === 1 ? (
-            // ✅ STEP 1: FORM - Users must fill this out first
+            // STEP 1: FORM
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-amber-500" />
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-blue-500" />
                 </div>
                 <div>
                   <h4 className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -607,7 +597,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                           setFormError(null)
                           handleFormSubmit(new Event('submit'))
                         }}
-                        className="mt-2 text-sm text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1"
+                        className="mt-2 text-sm text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1"
                       >
                         <RefreshCw className="w-3 h-3" />
                         Retry
@@ -644,7 +634,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                         isDark 
                           ? 'bg-gray-800 text-white border-gray-700' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
-                      } border focus:border-amber-500 transition-colors`}
+                      } border focus:border-blue-500 transition-colors`}
                       placeholder="John Doe"
                     />
                   </div>
@@ -665,7 +655,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                         isDark 
                           ? 'bg-gray-800 text-white border-gray-700' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
-                      } border focus:border-amber-500 transition-colors`}
+                      } border focus:border-blue-500 transition-colors`}
                       placeholder="john@example.com"
                     />
                   </div>
@@ -685,7 +675,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                         isDark 
                           ? 'bg-gray-800 text-white border-gray-700' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
-                      } border focus:border-amber-500 transition-colors`}
+                      } border focus:border-blue-500 transition-colors`}
                       placeholder="+233 55 123 4567"
                     />
                   </div>
@@ -705,7 +695,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                         isDark 
                           ? 'bg-gray-800 text-white border-gray-700' 
                           : 'bg-gray-50 text-gray-800 border-gray-200'
-                      } border focus:border-amber-500 transition-colors resize-none`}
+                      } border focus:border-blue-500 transition-colors resize-none`}
                       placeholder="Tell us how we can help you... (optional)"
                     />
                   </div>
@@ -717,7 +707,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:scale-105 transition-all shadow-lg shadow-amber-500/30 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium hover:scale-105 transition-all shadow-lg shadow-blue-500/30 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -739,7 +729,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
               </form>
             </div>
           ) : (
-            // ✅ STEP 2: CHAT INTERFACE - Only shown after form submission
+            // STEP 2: CHAT INTERFACE - Blue Theme
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="flex items-center gap-2 text-xs">
@@ -758,7 +748,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                   </span>
                 )}
                 {isAdminTyping && (
-                  <span className="text-xs text-amber-500 flex items-center gap-1 animate-pulse">
+                  <span className="text-xs text-blue-500 flex items-center gap-1 animate-pulse">
                     <Mic className="w-3 h-3" />
                     Admin typing...
                   </span>
@@ -776,11 +766,11 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                           isDark ? 'bg-gray-700' : 'bg-white'
                         } shadow-sm`}>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm text-amber-500">{msg.text}</span>
+                            <span className="text-sm text-blue-500">{msg.text}</span>
                             <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                           </div>
                         </div>
@@ -796,7 +786,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                       <div
                         className={`max-w-[85%] p-3 rounded-2xl ${
                           msg.sender === 'user'
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-tr-none'
+                            ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-tr-none shadow-lg shadow-blue-500/20'
                             : msg.sender === 'admin'
                               ? isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-50 text-blue-700'
                               : isDark
@@ -822,7 +812,7 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                       isDark ? 'bg-gray-700' : 'bg-gray-200'
                     }`}>
                       <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                         <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           Sending...
                         </span>
@@ -855,13 +845,13 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
                       : isDark 
                         ? 'bg-gray-800 text-white placeholder-gray-400 border border-gray-700' 
                         : 'bg-gray-50 text-gray-800 placeholder-gray-500 border border-gray-200'
-                  } focus:border-amber-500 transition-colors`}
+                  } focus:border-blue-500 transition-colors`}
                   disabled={isWaitingForAdmin || isSending || !sessionId}
                 />
                 <button
                   onClick={sendMessageHandler}
                   disabled={!message.trim() || isWaitingForAdmin || isSending || !sessionId}
-                  className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[44px]"
+                  className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[44px] shadow-lg shadow-blue-500/30"
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -872,12 +862,12 @@ const LiveChat = ({ isOpen, onClose, isDark }) => {
               </div>
 
               <div className={`mt-3 text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                <Sparkles className="w-3 h-3 inline mr-1" />
+                <Sparkles className="w-3 h-3 inline mr-1 text-blue-500" />
                 Powered by Alveovita Wellness AI Assistant
                 {!isConnected && (
                   <button
                     onClick={handleReconnect}
-                    className="ml-2 text-amber-500 hover:text-amber-600 font-medium flex items-center gap-1"
+                    className="ml-2 text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1"
                   >
                     <RefreshCw className="w-3 h-3" />
                     Reconnect

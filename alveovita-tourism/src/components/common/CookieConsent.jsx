@@ -1,4 +1,4 @@
-// src/components/common/CookieConsent.jsx
+// src/components/common/CookieConsent.jsx - Updated with Blue-Black Theme
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -162,12 +162,12 @@ const CookieConsent = () => {
           }`}>
             <div className="p-6">
               <div className="flex items-start gap-4">
-                {/* Icon */}
+                {/* Icon - Blue Theme */}
                 <div className="flex-shrink-0">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    isDark ? 'bg-amber-500/20' : 'bg-amber-100'
+                    isDark ? 'bg-blue-500/20' : 'bg-blue-100'
                   }`}>
-                    <Cookie className={`w-6 h-6 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                    <Cookie className={`w-6 h-6 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                   </div>
                 </div>
 
@@ -206,14 +206,14 @@ const CookieConsent = () => {
                       </button>
                       <button
                         onClick={handleAcceptAll}
-                        className="px-6 py-2 rounded-xl text-sm font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 transition-all hover:scale-105"
+                        className="px-6 py-2 rounded-xl text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all hover:scale-105"
                       >
                         Accept All
                       </button>
                     </div>
                   </div>
 
-                  {/* Settings Panel */}
+                  {/* Settings Panel - Blue Theme */}
                   <AnimatePresence>
                     {showSettings && (
                       <motion.div
@@ -241,7 +241,7 @@ const CookieConsent = () => {
                                       isDark ? 'bg-gray-700' : 'bg-gray-100'
                                     }`}>
                                       <Icon className={`w-4 h-4 ${
-                                        isEnabled ? 'text-amber-400' : isDark ? 'text-gray-500' : 'text-gray-400'
+                                        isEnabled ? 'text-blue-400' : isDark ? 'text-gray-500' : 'text-gray-400'
                                       }`} />
                                     </div>
                                     <div>
@@ -250,7 +250,7 @@ const CookieConsent = () => {
                                           {category.name}
                                         </span>
                                         {isRequired && (
-                                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-semibold">
+                                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold">
                                             Required
                                           </span>
                                         )}
@@ -266,7 +266,7 @@ const CookieConsent = () => {
                                       disabled={isRequired}
                                       className={`relative w-12 h-6 rounded-full transition-all ${
                                         isEnabled 
-                                          ? 'bg-amber-500' 
+                                          ? 'bg-blue-500' 
                                           : isDark ? 'bg-gray-700' : 'bg-gray-300'
                                       } ${isRequired ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                     >
@@ -293,7 +293,7 @@ const CookieConsent = () => {
                             </button>
                             <button
                               onClick={handleSavePreferences}
-                              className="px-6 py-2 rounded-xl text-sm font-medium bg-amber-500 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 transition-all hover:scale-105 flex items-center gap-2"
+                              className="px-6 py-2 rounded-xl text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all hover:scale-105 flex items-center gap-2"
                             >
                               <Check className="w-4 h-4" />
                               Save Preferences
@@ -304,14 +304,13 @@ const CookieConsent = () => {
                     )}
                   </AnimatePresence>
 
-                  {/* Footer */}
+                  {/* Footer - Blue Theme */}
                   <div className={`mt-3 pt-3 border-t flex flex-wrap items-center justify-between gap-2 ${
                     isDark ? 'border-gray-800' : 'border-gray-200'
                   }`}>
                     <div className="flex items-center gap-4 text-xs">
                       <button
                         onClick={() => {
-                          // Show privacy policy
                           window.open('/privacy', '_blank')
                         }}
                         className={`flex items-center gap-1 ${
@@ -323,7 +322,6 @@ const CookieConsent = () => {
                       </button>
                       <button
                         onClick={() => {
-                          // Show cookie policy
                           window.open('/cookies', '_blank')
                         }}
                         className={`flex items-center gap-1 ${

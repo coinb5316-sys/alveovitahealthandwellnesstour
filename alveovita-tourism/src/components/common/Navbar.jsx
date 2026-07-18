@@ -1,4 +1,4 @@
-// src/components/common/Navbar.jsx - COMPLETE with Alveoly Pattern
+// src/components/common/Navbar.jsx - Updated with Blue-Black Theme
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -106,7 +106,6 @@ const Navbar = () => {
       })
       if (response.data.success) {
         setQuickNotifications(response.data.notifications || [])
-        // Also update unread count from the response
         if (response.data.unreadCount !== undefined) {
           setUnreadCount(response.data.unreadCount)
         }
@@ -465,11 +464,11 @@ const Navbar = () => {
           <img
             src={avatarUrl}
             alt={user?.name || 'User'}
-            className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-amber-400/30 ring-offset-2 ring-offset-[#0a0a0a] shadow-lg shadow-amber-500/20 transition-all duration-300 hover:ring-amber-400/60 hover:shadow-amber-500/40`}
+            className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-blue-400/30 ring-offset-2 ring-offset-[#0a0a0a] shadow-lg shadow-blue-500/20 transition-all duration-300 hover:ring-blue-400/60 hover:shadow-blue-500/40`}
             onError={() => setAvatarError(true)}
           />
         ) : (
-          <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold shadow-lg shadow-amber-500/30 ring-2 ring-amber-400/30 ring-offset-2 ring-offset-[#0a0a0a] transition-all duration-300 hover:ring-amber-400/60 hover:shadow-amber-500/40`}>
+          <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/30 ring-offset-2 ring-offset-[#0a0a0a] transition-all duration-300 hover:ring-blue-400/60 hover:shadow-blue-500/40`}>
             {initials}
           </div>
         )}
@@ -479,7 +478,7 @@ const Navbar = () => {
   }
 
   // ============================================
-  // DATA
+  // DATA - Updated to Blue Theme
   // ============================================
   const services = [
     { 
@@ -487,7 +486,7 @@ const Navbar = () => {
       icon: Flower2, 
       href: '/services/wellness', 
       desc: 'Rejuvenate your soul',
-      color: 'from-emerald-500 to-teal-500',
+      color: 'from-blue-500 to-cyan-500',
       badge: 'Popular'
     },
     { 
@@ -495,7 +494,7 @@ const Navbar = () => {
       icon: Stethoscope, 
       href: '/services/medical', 
       desc: 'World-class healthcare',
-      color: 'from-blue-500 to-cyan-500',
+      color: 'from-indigo-500 to-blue-500',
       badge: 'Trusted'
     },
     { 
@@ -503,7 +502,7 @@ const Navbar = () => {
       icon: Briefcase, 
       href: '/services/corporate', 
       desc: 'Employee well-being',
-      color: 'from-purple-500 to-indigo-500',
+      color: 'from-blue-600 to-slate-700',
       badge: 'Enterprise'
     },
     { 
@@ -511,7 +510,7 @@ const Navbar = () => {
       icon: Gift, 
       href: '/services/special', 
       desc: 'Unique experiences',
-      color: 'from-amber-500 to-orange-500',
+      color: 'from-cyan-500 to-blue-500',
       badge: 'Exclusive'
     },
   ]
@@ -526,16 +525,16 @@ const Navbar = () => {
 
   const userMenuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-blue-400' },
-    { name: 'My Bookings', icon: Calendar, href: '/bookings', color: 'text-green-400' },
-    { name: 'Favorites', icon: Heart, href: '/favorites', color: 'text-red-400' },
-    { name: 'Profile', icon: User, href: '/profile', color: 'text-amber-400' },
+    { name: 'My Bookings', icon: Calendar, href: '/bookings', color: 'text-cyan-400' },
+    { name: 'Favorites', icon: Heart, href: '/favorites', color: 'text-blue-400' },
+    { name: 'Profile', icon: User, href: '/profile', color: 'text-indigo-400' },
     { name: 'Settings', icon: Settings, href: '/settings', color: 'text-gray-400' },
   ]
 
   const isActive = (path) => location.pathname === path
 
   // ============================================
-  // LOGO COMPONENT
+  // LOGO COMPONENT - Updated to Blue Theme
   // ============================================
   const Logo = () => (
     <div className="flex items-center gap-3 group">
@@ -547,10 +546,10 @@ const Navbar = () => {
           onError={(e) => {
             e.target.style.display = 'none'
             e.target.parentElement.innerHTML = `
-              <div class="relative w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl sm:text-2xl shadow-lg shadow-amber-500/30 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <div class="relative w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl sm:text-2xl shadow-lg shadow-blue-500/30 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                 <span class="font-display">A</span>
-                <div class="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-amber-400 rounded-full animate-pulse"></div>
-                <div class="absolute -bottom-1 -left-1 w-2 h-2 sm:w-3 sm:h-3 bg-orange-400 rounded-full animate-pulse animation-delay-500"></div>
+                <div class="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-blue-400 rounded-full animate-pulse"></div>
+                <div class="absolute -bottom-1 -left-1 w-2 h-2 sm:w-3 sm:h-3 bg-indigo-400 rounded-full animate-pulse animation-delay-500"></div>
               </div>
             `
           }}
@@ -561,10 +560,10 @@ const Navbar = () => {
         <span className="font-bold text-lg sm:text-xl text-white leading-tight">
           Alveovita
         </span>
-        <span className="hidden sm:inline-block text-[10px] uppercase tracking-widest ml-1 px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-300 font-medium border border-amber-500/20">
+        <span className="hidden sm:inline-block text-[10px] uppercase tracking-widest ml-1 px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-300 font-medium border border-blue-500/20">
           Premium
         </span>
-        <span className="sm:hidden text-[8px] uppercase tracking-wider text-amber-300/60">
+        <span className="sm:hidden text-[8px] uppercase tracking-wider text-blue-300/60">
           Premium
         </span>
       </div>
@@ -612,11 +611,11 @@ const Navbar = () => {
   const getSuggestionColor = (type) => {
     const colors = {
       hotel: 'text-blue-500 bg-blue-500/10',
-      tour: 'text-green-500 bg-green-500/10',
-      destination: 'text-purple-500 bg-purple-500/10',
-      experience: 'text-amber-500 bg-amber-500/10',
+      tour: 'text-cyan-500 bg-cyan-500/10',
+      destination: 'text-indigo-500 bg-indigo-500/10',
+      experience: 'text-blue-400 bg-blue-400/10',
       page: 'text-gray-500 bg-gray-500/10',
-      service: 'text-rose-500 bg-rose-500/10'
+      service: 'text-blue-500 bg-blue-500/10'
     }
     return colors[type] || 'text-gray-500 bg-gray-500/10'
   }
@@ -645,22 +644,22 @@ const Navbar = () => {
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${
       isScrolled 
-        ? 'bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-amber-500/20 shadow-2xl shadow-amber-500/10' 
-        : 'bg-gradient-to-r from-[#0a0a0a] via-[#1a0a00] to-[#0a0a0a] border-b border-amber-500/10 shadow-2xl shadow-amber-500/5'
+        ? 'bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-blue-500/20 shadow-2xl shadow-blue-500/10' 
+        : 'bg-gradient-to-r from-[#0a0a0a] via-[#0a0a1a] to-[#0a0a0a] border-b border-blue-500/10 shadow-2xl shadow-blue-500/5'
     }`}>
-      {/* Top glowing gradient bar */}
-      <div className="h-0.5 w-full bg-gradient-to-r from-amber-400/50 via-orange-400 to-amber-400/50 animate-pulse" />
+      {/* Top glowing gradient bar - Blue Theme */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-blue-400/50 via-indigo-400 to-blue-400/50 animate-pulse" />
 
       <div className="container-custom px-3 sm:px-4 md:px-6">
         <div className="flex justify-between items-center h-14 sm:h-16 md:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group relative flex-shrink-0">
             <Logo />
-            <div className="absolute -inset-2 rounded-2xl bg-gradient-to-r from-amber-400/0 via-amber-400/5 to-orange-400/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
+            <div className="absolute -inset-2 rounded-2xl bg-gradient-to-r from-blue-400/0 via-blue-400/5 to-indigo-400/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
           </Link>
 
           {/* ============================================ */}
-          {/* DESKTOP MENU */}
+          {/* DESKTOP MENU - Blue Theme */}
           {/* ============================================ */}
           <div className="hidden lg:flex items-center gap-1">
             {/* Public Links */}
@@ -670,8 +669,8 @@ const Navbar = () => {
                 to={link.href}
                 className={`relative px-3 xl:px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 group ${
                   isActive(link.href)
-                    ? 'text-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10'
-                    : 'text-gray-300 hover:text-amber-400 hover:bg-amber-500/10 hover:shadow-lg hover:shadow-amber-500/5'
+                    ? 'text-blue-400 bg-blue-500/10 shadow-lg shadow-blue-500/10'
+                    : 'text-gray-300 hover:text-blue-400 hover:bg-blue-500/10 hover:shadow-lg hover:shadow-blue-500/5'
                 }`}
               >
                 <link.icon className="w-4 h-4" />
@@ -679,20 +678,20 @@ const Navbar = () => {
                 {isActive(link.href) && (
                   <motion.div 
                     layoutId="navbar-active"
-                    className="absolute -bottom-0.5 left-4 right-4 h-0.5 bg-gradient-to-r from-amber-400 to-orange-400 rounded-full shadow-lg shadow-amber-400/50"
+                    className="absolute -bottom-0.5 left-4 right-4 h-0.5 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full shadow-lg shadow-blue-400/50"
                   />
                 )}
               </Link>
             ))}
             
-            {/* Services Dropdown */}
+            {/* Services Dropdown - Blue Theme */}
             <div className="relative" ref={servicesRef}>
               <button 
                 onClick={() => setIsServicesOpen(!isServicesOpen)}
                 className={`relative px-3 xl:px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 group ${
                   isServicesOpen
-                    ? 'text-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10'
-                    : 'text-gray-300 hover:text-amber-400 hover:bg-amber-500/10 hover:shadow-lg hover:shadow-amber-500/5'
+                    ? 'text-blue-400 bg-blue-500/10 shadow-lg shadow-blue-500/10'
+                    : 'text-gray-300 hover:text-blue-400 hover:bg-blue-500/10 hover:shadow-lg hover:shadow-blue-500/5'
                 }`}
               >
                 <Package className="w-4 h-4" />
@@ -712,17 +711,17 @@ const Navbar = () => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="absolute top-full left-0 mt-2 w-72 xl:w-80 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
+                    className="absolute top-full left-0 mt-2 w-72 xl:w-80 rounded-2xl shadow-2xl border border-blue-500/20 overflow-hidden bg-gradient-to-b from-[#0a0a1a] to-[#0a0a0a]"
                   >
                     <div className="p-2">
-                      <div className="px-3 py-2 text-xs font-semibold text-amber-400/60 uppercase tracking-wider">
+                      <div className="px-3 py-2 text-xs font-semibold text-blue-400/60 uppercase tracking-wider">
                         Our Services
                       </div>
                       {services.map((service, index) => (
                         <Link
                           key={index}
                           to={service.href}
-                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white"
+                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-blue-500/10 text-gray-300 hover:text-white"
                           onClick={() => setIsServicesOpen(false)}
                         >
                           <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${service.color} flex items-center justify-center text-white shadow-lg flex-shrink-0`}>
@@ -733,7 +732,7 @@ const Navbar = () => {
                             <div className="text-xs text-gray-500 truncate">{service.desc}</div>
                           </div>
                           {service.badge && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-semibold border border-amber-500/20 flex-shrink-0">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/20 flex-shrink-0">
                               {service.badge}
                             </span>
                           )}
@@ -741,7 +740,7 @@ const Navbar = () => {
                       ))}
                       <Link 
                         to="/services" 
-                        className="block text-center py-3 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
+                        className="block text-center py-3 rounded-xl text-sm font-medium transition-all duration-300 text-blue-400 hover:bg-blue-500/10"
                         onClick={() => setIsServicesOpen(false)}
                       >
                         View All Services →
@@ -754,7 +753,7 @@ const Navbar = () => {
 
             {/* Right side */}
             <div className="flex items-center gap-1 ml-4">
-              {/* Enhanced Search */}
+              {/* Enhanced Search - Blue Theme */}
               <div ref={searchRef} className="relative">
                 <button
                   onClick={() => {
@@ -768,8 +767,8 @@ const Navbar = () => {
                   }}
                   className={`p-2.5 rounded-xl transition-all duration-300 hover:scale-110 ${
                     searchOpen
-                      ? 'bg-amber-500/20 text-amber-400 shadow-lg shadow-amber-500/20'
-                      : 'text-gray-400 hover:text-amber-400 hover:bg-amber-500/10'
+                      ? 'bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/20'
+                      : 'text-gray-400 hover:text-blue-400 hover:bg-blue-500/10'
                   }`}
                   aria-label="Search"
                 >
@@ -783,12 +782,12 @@ const Navbar = () => {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute right-0 mt-2 w-96 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
+                      className="absolute right-0 mt-2 w-96 rounded-2xl shadow-2xl border border-blue-500/20 overflow-hidden bg-gradient-to-b from-[#0a0a1a] to-[#0a0a0a]"
                     >
                       <form onSubmit={handleSearch} className="p-3">
-                        <div className={`flex items-center gap-2 rounded-xl px-4 transition-all bg-gray-800/50 ${(isSearching || searchLoading) ? 'ring-2 ring-amber-400' : ''}`}>
+                        <div className={`flex items-center gap-2 rounded-xl px-4 transition-all bg-gray-800/50 ${(isSearching || searchLoading) ? 'ring-2 ring-blue-400' : ''}`}>
                           {searchLoading ? (
-                            <Loader2 className="w-5 h-5 text-amber-400 animate-spin flex-shrink-0" />
+                            <Loader2 className="w-5 h-5 text-blue-400 animate-spin flex-shrink-0" />
                           ) : (
                             <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
                           )}
@@ -815,10 +814,10 @@ const Navbar = () => {
                           )}
                         </div>
                         
-                        {/* Search button */}
+                        {/* Search button - Blue Theme */}
                         <button
                           type="submit"
-                          className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30 flex items-center justify-center gap-2"
+                          className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
                           disabled={searchLoading}
                         >
                           {searchLoading ? (
@@ -835,26 +834,26 @@ const Navbar = () => {
                         </button>
                       </form>
 
-                      {/* Search Suggestions */}
+                      {/* Search Suggestions - Blue Theme */}
                       {(searchSuggestions.length > 0 || searchLoading) && (
-                        <div className="p-2 pt-0 border-t border-amber-500/10">
+                        <div className="p-2 pt-0 border-t border-blue-500/10">
                           {searchLoading && searchSuggestions.length === 0 && (
                             <div className="flex items-center justify-center py-4">
-                              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                              <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
                               <span className="ml-2 text-sm text-gray-400">Loading suggestions...</span>
                             </div>
                           )}
                           
                           {searchSuggestions.length > 0 && (
                             <>
-                              <div className="px-3 py-2 text-xs font-semibold text-amber-400/60 uppercase tracking-wider">
+                              <div className="px-3 py-2 text-xs font-semibold text-blue-400/60 uppercase tracking-wider">
                                 Suggestions
                               </div>
                               {searchSuggestions.map((suggestion, idx) => (
                                 <button
                                   key={idx}
                                   onClick={() => handleSuggestionClick(suggestion)}
-                                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
+                                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-blue-500/10 text-gray-300 hover:text-white text-left"
                                 >
                                   <div className={`p-2 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
                                     {getSuggestionIcon(suggestion.type)}
@@ -874,7 +873,7 @@ const Navbar = () => {
                               {searchQuery.trim().length >= 2 && (
                                 <button
                                   onClick={() => performSearch(searchQuery)}
-                                  className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
+                                  className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-blue-400 hover:bg-blue-500/10"
                                 >
                                   See all results for "{searchQuery}"
                                 </button>
@@ -896,7 +895,7 @@ const Navbar = () => {
               </div>
 
               {/* ============================================ */}
-              {/* NOTIFICATIONS */}
+              {/* NOTIFICATIONS - Blue Theme */}
               {/* ============================================ */}
               {user && (
                 <div className="relative" ref={notificationRef}>
@@ -907,7 +906,7 @@ const Navbar = () => {
                         fetchQuickNotifications()
                       }
                     }}
-                    className="relative p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+                    className="relative p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
                     aria-label="Notifications"
                   >
                     <Bell className="w-5 h-5" />
@@ -919,14 +918,14 @@ const Navbar = () => {
                       <motion.span 
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-amber-500/30 px-1"
+                        className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-blue-500/30 px-1"
                       >
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </motion.span>
                     )}
                   </button>
 
-                  {/* Notification Quick Preview Dropdown */}
+                  {/* Notification Quick Preview Dropdown - Blue Theme */}
                   <AnimatePresence>
                     {notificationOpen && (
                       <motion.div 
@@ -934,16 +933,16 @@ const Navbar = () => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="absolute right-0 mt-2 w-[380px] rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
+                        className="absolute right-0 mt-2 w-[380px] rounded-2xl shadow-2xl border border-blue-500/20 overflow-hidden bg-gradient-to-b from-[#0a0a1a] to-[#0a0a0a]"
                       >
-                        {/* Header */}
-                        <div className="p-4 border-b border-amber-500/10 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+                        {/* Header - Blue Theme */}
+                        <div className="p-4 border-b border-blue-500/10 bg-gradient-to-r from-blue-500/5 to-indigo-500/5">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <Bell className="w-4 h-4 text-amber-400" />
+                              <Bell className="w-4 h-4 text-blue-400" />
                               <h3 className="font-bold text-white text-sm">Notifications</h3>
                               {unreadCount > 0 && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
                                   {unreadCount} new
                                 </span>
                               )}
@@ -952,7 +951,7 @@ const Navbar = () => {
                               {unreadCount > 0 && (
                                 <button
                                   onClick={handleMarkAllAsRead}
-                                  className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
+                                  className="p-1.5 rounded-lg hover:bg-blue-500/10 text-gray-400 hover:text-blue-400 transition-colors"
                                   title="Mark all as read"
                                 >
                                   <CheckCheck className="w-3.5 h-3.5" />
@@ -963,7 +962,7 @@ const Navbar = () => {
                                   setNotificationOpen(false)
                                   setNotificationPanelOpen(true)
                                 }}
-                                className="text-xs text-amber-400 hover:text-amber-300 transition-colors px-2 py-1 rounded-lg hover:bg-amber-500/10"
+                                className="text-xs text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded-lg hover:bg-blue-500/10"
                               >
                                 View all
                               </button>
@@ -975,12 +974,12 @@ const Navbar = () => {
                         <div className="max-h-[400px] overflow-y-auto p-2 space-y-1">
                           {loadingQuick ? (
                             <div className="flex items-center justify-center py-8">
-                              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                              <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
                             </div>
                           ) : quickNotifications.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-8">
-                              <div className="p-3 rounded-full bg-amber-500/10 mb-3">
-                                <Bell className="w-8 h-8 text-amber-400/40" />
+                              <div className="p-3 rounded-full bg-blue-500/10 mb-3">
+                                <Bell className="w-8 h-8 text-blue-400/40" />
                               </div>
                               <p className="text-sm text-gray-400 font-medium">No new notifications</p>
                               <p className="text-xs text-gray-500">You're all caught up! 🎉</p>
@@ -993,13 +992,13 @@ const Navbar = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 className={`group relative rounded-xl p-3 transition-all duration-300 ${
                                   !notification.read
-                                    ? 'bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10'
+                                    ? 'bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10'
                                     : 'hover:bg-gray-800/30'
                                 }`}
                               >
-                                {/* Unread indicator */}
+                                {/* Unread indicator - Blue Theme */}
                                 {!notification.read && (
-                                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-amber-400 to-orange-400 rounded-r-full" />
+                                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-indigo-400 rounded-r-full" />
                                 )}
 
                                 <div className="flex items-start gap-3 ml-2">
@@ -1031,7 +1030,7 @@ const Navbar = () => {
                                       {notification.actionUrl && (
                                         <Link
                                           to={notification.actionUrl}
-                                          className="text-[10px] text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-0.5"
+                                          className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-0.5"
                                           onClick={() => setNotificationOpen(false)}
                                         >
                                           View
@@ -1051,7 +1050,7 @@ const Navbar = () => {
                                     {!notification.read && (
                                       <button
                                         onClick={() => handleQuickMarkAsRead(notification._id)}
-                                        className="p-1 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
+                                        className="p-1 rounded-lg hover:bg-blue-500/10 text-gray-400 hover:text-blue-400 transition-colors"
                                         title="Mark as read"
                                       >
                                         <Check className="w-3 h-3" />
@@ -1072,7 +1071,7 @@ const Navbar = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="p-3 border-t border-amber-500/10 bg-gray-900/50">
+                        <div className="p-3 border-t border-blue-500/10 bg-gray-900/50">
                           <div className="flex items-center justify-between">
                             <p className="text-xs text-gray-500">
                               {unreadCount > 0 ? `${unreadCount} unread` : 'All read'}
@@ -1082,7 +1081,7 @@ const Navbar = () => {
                                 setNotificationOpen(false)
                                 setNotificationPanelOpen(true)
                               }}
-                              className="text-xs text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+                              className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
                             >
                               Open full panel
                               <ChevronDown className="w-3 h-3 -rotate-90" />
@@ -1098,7 +1097,7 @@ const Navbar = () => {
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+                className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
                 aria-label="Toggle theme"
               >
                 <motion.div
@@ -1109,12 +1108,12 @@ const Navbar = () => {
                 </motion.div>
               </button>
 
-              {/* User Section */}
+              {/* User Section - Blue Theme */}
               {user ? (
                 <div className="flex items-center gap-2" ref={dropdownRef}>
                   <Link 
                     to="/favorites" 
-                    className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10" 
+                    className="p-2.5 rounded-xl transition-all duration-300 hover:scale-110 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10" 
                     aria-label="Favorites"
                   >
                     <Heart className="w-5 h-5" />
@@ -1125,8 +1124,8 @@ const Navbar = () => {
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 hover:scale-105 ${
                         isDropdownOpen
-                          ? 'bg-amber-500/20 text-amber-400 shadow-lg shadow-amber-500/20'
-                          : 'text-gray-300 hover:text-amber-400 hover:bg-amber-500/10'
+                          ? 'bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/20'
+                          : 'text-gray-300 hover:text-blue-400 hover:bg-blue-500/10'
                       }`}
                       aria-label="User menu"
                     >
@@ -1149,9 +1148,9 @@ const Navbar = () => {
                           initial={{ opacity: 0, y: 10, scale: 0.95 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                          className="absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a]"
+                          className="absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl border border-blue-500/20 overflow-hidden bg-gradient-to-b from-[#0a0a1a] to-[#0a0a0a]"
                         >
-                          <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/10">
+                          <div className="p-4 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border-b border-blue-500/10">
                             <div className="flex items-center gap-3">
                               <UserAvatar size="lg" />
                               <div className="min-w-0">
@@ -1170,14 +1169,14 @@ const Navbar = () => {
                               <Link
                                 key={item.name}
                                 to={item.href}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white"
+                                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-blue-500/10 text-gray-300 hover:text-white"
                                 onClick={() => setIsDropdownOpen(false)}
                               >
                                 <item.icon className={`w-4 h-4 ${item.color} flex-shrink-0`} />
                                 <span className="font-medium text-sm">{item.name}</span>
                               </Link>
                             ))}
-                            <hr className="my-1 border-amber-500/10" />
+                            <hr className="my-1 border-blue-500/10" />
                             <button
                               onClick={() => {
                                 logout()
@@ -1199,14 +1198,14 @@ const Navbar = () => {
                 <div className="flex items-center gap-2">
                   <Link 
                     to="/login" 
-                    className="px-3 xl:px-4 py-2.5 rounded-xl font-medium transition-all duration-300 hover:scale-105 flex items-center gap-2 text-gray-300 hover:text-amber-400 hover:bg-amber-500/10 text-sm"
+                    className="px-3 xl:px-4 py-2.5 rounded-xl font-medium transition-all duration-300 hover:scale-105 flex items-center gap-2 text-gray-300 hover:text-blue-400 hover:bg-blue-500/10 text-sm"
                   >
                     <LogIn className="w-4 h-4" />
                     <span className="hidden sm:inline">Login</span>
                   </Link>
                   <Link 
                     to="/register" 
-                    className="px-4 xl:px-6 py-2.5 rounded-xl font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 transition-all duration-300 hover:scale-105 flex items-center gap-2 text-sm"
+                    className="px-4 xl:px-6 py-2.5 rounded-xl font-medium bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all duration-300 hover:scale-105 flex items-center gap-2 text-sm"
                   >
                     <UserPlus className="w-4 h-4" />
                     <span className="hidden sm:inline">Get Started</span>
@@ -1218,12 +1217,12 @@ const Navbar = () => {
           </div>
 
           {/* ============================================ */}
-          {/* MOBILE CONTROLS */}
+          {/* MOBILE CONTROLS - Blue Theme */}
           {/* ============================================ */}
           <div className="flex items-center gap-1 sm:gap-2 lg:hidden">
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-              className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+              className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
               aria-label="Search"
             >
               <Search className="w-5 h-5" />
@@ -1231,14 +1230,14 @@ const Navbar = () => {
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+              className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
               aria-label="Toggle theme"
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
             
             {user && (
-              <Link to="/favorites" className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10" aria-label="Favorites">
+              <Link to="/favorites" className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10" aria-label="Favorites">
                 <Heart className="w-5 h-5" />
               </Link>
             )}
@@ -1249,12 +1248,12 @@ const Navbar = () => {
                   setNotificationPanelOpen(true)
                   fetchQuickNotifications()
                 }}
-                className="relative p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10"
+                className="relative p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
                 aria-label="Notifications"
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-amber-500/30 px-1">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold shadow-lg shadow-blue-500/30 px-1">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -1263,7 +1262,7 @@ const Navbar = () => {
 
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-amber-400 hover:bg-amber-500/10 mobile-toggle"
+              className="p-2 rounded-xl transition-all duration-300 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 mobile-toggle"
               aria-label={isOpen ? 'Close menu' : 'Open menu'}
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -1272,7 +1271,7 @@ const Navbar = () => {
         </div>
 
         {/* ============================================ */}
-        {/* MOBILE SEARCH BAR - Enhanced */}
+        {/* MOBILE SEARCH BAR - Enhanced Blue Theme */}
         {/* ============================================ */}
         <AnimatePresence>
           {isMobileSearchOpen && (
@@ -1285,7 +1284,7 @@ const Navbar = () => {
             >
               <form onSubmit={handleSearch} className="relative">
                 {searchLoading ? (
-                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-amber-400 animate-spin" />
+                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-400 animate-spin" />
                 ) : (
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 )}
@@ -1294,7 +1293,7 @@ const Navbar = () => {
                   placeholder="Search hotels, tours, experiences..."
                   value={searchQuery}
                   onChange={handleSearchInput}
-                  className="w-full pl-10 pr-12 py-3 rounded-xl outline-none bg-gray-800/50 text-white placeholder-gray-400 border border-amber-500/10 focus:border-amber-400 text-sm"
+                  className="w-full pl-10 pr-12 py-3 rounded-xl outline-none bg-gray-800/50 text-white placeholder-gray-400 border border-blue-500/10 focus:border-blue-400 text-sm"
                   autoFocus
                 />
                 {searchQuery && (
@@ -1312,14 +1311,14 @@ const Navbar = () => {
                 )}
               </form>
               
-              {/* Mobile Search Suggestions */}
+              {/* Mobile Search Suggestions - Blue Theme */}
               {searchSuggestions.length > 0 && (
-                <div className="mt-2 rounded-xl border border-amber-500/10 bg-gray-800/30 overflow-hidden">
+                <div className="mt-2 rounded-xl border border-blue-500/10 bg-gray-800/30 overflow-hidden">
                   {searchSuggestions.slice(0, 4).map((suggestion, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleSuggestionClick(suggestion)}
-                      className="w-full flex items-center gap-3 px-4 py-3 transition-all hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3 transition-all hover:bg-blue-500/10 text-gray-300 hover:text-white text-left"
                     >
                       <div className={`p-1.5 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
                         {getSuggestionIcon(suggestion.type)}
@@ -1337,7 +1336,7 @@ const Navbar = () => {
                   {searchQuery.trim().length >= 2 && (
                     <button
                       onClick={() => performSearch(searchQuery)}
-                      className="w-full text-center py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                      className="w-full text-center py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/10 transition-colors"
                     >
                       See all results for "{searchQuery}"
                     </button>
@@ -1349,7 +1348,7 @@ const Navbar = () => {
         </AnimatePresence>
 
         {/* ============================================ */}
-        {/* MOBILE MENU */}
+        {/* MOBILE MENU - Blue Theme */}
         {/* ============================================ */}
         <AnimatePresence>
           {isOpen && (
@@ -1359,13 +1358,13 @@ const Navbar = () => {
               animate={{ opacity: 1, height: 'calc(100vh - 56px)' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="lg:hidden overflow-hidden border-t border-amber-500/10 fixed left-0 right-0 bg-gradient-to-b from-[#0a0a0a] to-[#1a0a00]"
+              className="lg:hidden overflow-hidden border-t border-blue-500/10 fixed left-0 right-0 bg-gradient-to-b from-[#0a0a0a] to-[#0a0a1a]"
               style={{ top: '56px' }}
             >
               <div className="h-full overflow-y-auto pb-20">
                 <div className="py-3 space-y-1">
                   {user ? (
-                    <div className="px-4 py-3 mb-2 bg-gradient-to-r from-amber-500/5 to-orange-500/5 rounded-xl mx-2 border border-amber-500/10">
+                    <div className="px-4 py-3 mb-2 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 rounded-xl mx-2 border border-blue-500/10">
                       <div className="flex items-center gap-3">
                         <UserAvatar size="md" />
                         <div className="min-w-0">
@@ -1382,7 +1381,7 @@ const Navbar = () => {
                     <div className="flex flex-col gap-2 px-4 pb-3">
                       <Link 
                         to="/login" 
-                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300 text-gray-300 hover:text-amber-400 hover:bg-amber-500/10"
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300 text-gray-300 hover:text-blue-400 hover:bg-blue-500/10"
                         onClick={() => setIsOpen(false)}
                       >
                         <LogIn className="w-4 h-4" />
@@ -1390,7 +1389,7 @@ const Navbar = () => {
                       </Link>
                       <Link 
                         to="/register" 
-                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-medium transition-all duration-300 hover:scale-105"
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium transition-all duration-300 hover:scale-105"
                         onClick={() => setIsOpen(false)}
                       >
                         <UserPlus className="w-4 h-4" />
@@ -1406,22 +1405,22 @@ const Navbar = () => {
                         to={link.href}
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                           isActive(link.href)
-                            ? 'bg-amber-500/10 text-amber-400'
-                            : 'text-gray-300 hover:text-amber-400 hover:bg-amber-500/10'
+                            ? 'bg-blue-500/10 text-blue-400'
+                            : 'text-gray-300 hover:text-blue-400 hover:bg-blue-500/10'
                         }`}
                         onClick={() => setIsOpen(false)}
                       >
-                        <link.icon className={`w-4 h-4 ${isActive(link.href) ? 'text-amber-400' : ''}`} />
+                        <link.icon className={`w-4 h-4 ${isActive(link.href) ? 'text-blue-400' : ''}`} />
                         <span className="text-sm">{link.name}</span>
                         {isActive(link.href) && (
-                          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400"></span>
                         )}
                       </Link>
                     ))}
                   </div>
 
                   <div className="mt-2">
-                    <div className="px-4 py-2 text-xs font-semibold text-amber-400/60 uppercase tracking-wider flex items-center gap-2">
+                    <div className="px-4 py-2 text-xs font-semibold text-blue-400/60 uppercase tracking-wider flex items-center gap-2">
                       <Package className="w-4 h-4" />
                       Services
                     </div>
@@ -1430,7 +1429,7 @@ const Navbar = () => {
                         <Link
                           key={index}
                           to={service.href}
-                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-gray-300 hover:text-amber-400 hover:bg-amber-500/10"
+                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-gray-300 hover:text-blue-400 hover:bg-blue-500/10"
                           onClick={() => setIsOpen(false)}
                         >
                           <div className={`w-8 h-8 rounded-lg bg-gradient-to-r ${service.color} flex items-center justify-center text-white flex-shrink-0`}>
@@ -1441,7 +1440,7 @@ const Navbar = () => {
                             <div className="text-xs text-gray-500 truncate">{service.desc}</div>
                           </div>
                           {service.badge && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-semibold border border-amber-500/20 flex-shrink-0">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/20 flex-shrink-0">
                               {service.badge}
                             </span>
                           )}
@@ -1449,7 +1448,7 @@ const Navbar = () => {
                       ))}
                       <Link 
                         to="/services" 
-                        className="block text-center py-3 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10 mx-2"
+                        className="block text-center py-3 rounded-xl text-sm font-medium transition-all duration-300 text-blue-400 hover:bg-blue-500/10 mx-2"
                         onClick={() => setIsOpen(false)}
                       >
                         View All Services →
@@ -1457,7 +1456,7 @@ const Navbar = () => {
                     </div>
                   </div>
 
-                  <hr className="my-2 border-amber-500/10 mx-4" />
+                  <hr className="my-2 border-blue-500/10 mx-4" />
 
                   {user && (
                     <div className="px-2">
@@ -1465,7 +1464,7 @@ const Navbar = () => {
                         <Link
                           key={item.name}
                           to={item.href}
-                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-gray-300 hover:text-amber-400 hover:bg-amber-500/10"
+                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-gray-300 hover:text-blue-400 hover:bg-blue-500/10"
                           onClick={() => setIsOpen(false)}
                         >
                           <item.icon className={`w-4 h-4 ${item.color}`} />
