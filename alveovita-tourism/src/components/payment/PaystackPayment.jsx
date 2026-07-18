@@ -33,9 +33,11 @@ const PaystackPayment = ({
   const [reference, setReference] = useState(null);
   const [bookingId, setBookingId] = useState(null);
   const [paymentUrl, setPaymentUrl] = useState(null);
+  const [pollingActive, setPollingActive] = useState(false);
   const isMountedRef = useRef(true);
   const initializedRef = useRef(false);
   const pollIntervalRef = useRef(null);
+  const windowCheckIntervalRef = useRef(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -45,8 +47,148 @@ const PaystackPayment = ({
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
+      if (windowCheckIntervalRef.current) {
+        clearInterval(windowCheckIntervalRef.current);
+      }
     };
   }, []);
+
+  // Check if payment window is still open
+  const checkPaymentWindow = (paymentWindow, ref) => {
+    if (windowCheckIntervalRef.current) {
+      clearInterval(windowCheckIntervalRef.current);
+    }
+
+    windowCheckIntervalRef.current = setInterval(() => {
+      // If the window is closed, start polling for status
+      if (!paymentWindow || paymentWindow.closed) {
+        console.log('🔍 Payment window closed, starting verification...');
+        clearInterval(windowCheckIntervalRef.current);
+        windowCheckIntervalRef.current = null;
+        
+        // Check payment status immediately when window closes
+        checkPaymentStatus(ref);
+        
+        // Start polling
+        if (!pollIntervalRef.current) {
+          startPolling(ref);
+        }
+      }
+    }, 2000);
+  };
+
+  // Check payment status once
+  const checkPaymentStatus = async (ref) => {
+    try {
+      console.log('🔍 Checking payment status for:', ref);
+      const response = await axios.get(`/payments/verify/${ref}`);
+      
+      if (!isMountedRef.current) return;
+      
+      if (response.data.success) {
+        console.log('✅ Payment verified successfully!');
+        handlePaymentSuccess(response.data, ref);
+        return true;
+      } else {
+        console.log('⏳ Payment still pending...');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Status check error:', error);
+      return false;
+    }
+  };
+
+  // Handle payment success
+  const handlePaymentSuccess = (data, ref) => {
+    // Clear all intervals
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (windowCheckIntervalRef.current) {
+      clearInterval(windowCheckIntervalRef.current);
+      windowCheckIntervalRef.current = null;
+    }
+    
+    setPollingActive(false);
+    setPaymentStatus('success');
+    setPaymentMessage('Payment completed successfully! 🎉');
+    showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+    
+    if (onSuccess) {
+      onSuccess({
+        ...data.data,
+        booking: data.booking,
+        reference: ref
+      });
+    }
+    initializedRef.current = false;
+  };
+
+  const startPolling = (ref) => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    setPollingActive(true);
+    let attempts = 0;
+    const maxAttempts = 40; // 40 * 3 seconds = 120 seconds (2 minutes)
+
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      console.log(`⏳ Polling attempt ${attempts}/${maxAttempts} for: ${ref}`);
+      
+      try {
+        const response = await axios.get(`/payments/verify/${ref}`);
+        
+        if (!isMountedRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          return;
+        }
+        
+        if (response.data.success) {
+          console.log('✅ Payment verified via polling!');
+          handlePaymentSuccess(response.data, ref);
+          return;
+        }
+        
+        if (attempts >= maxAttempts) {
+          // Timeout - check one more time
+          console.log('⏰ Polling timeout, final check...');
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setPollingActive(false);
+          
+          // Final check
+          const finalCheck = await checkPaymentStatus(ref);
+          if (!finalCheck) {
+            setPaymentStatus('failed');
+            setPaymentMessage('Payment verification timed out. Please contact support.');
+            showToast('Payment verification timed out', 'error');
+            if (onError) onError({ message: 'Payment verification timed out' });
+            initializedRef.current = false;
+          }
+        }
+      } catch (error) {
+        console.error('❌ Polling error:', error);
+        if (attempts >= maxAttempts) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setPollingActive(false);
+          
+          if (!isMountedRef.current) return;
+          
+          setPaymentStatus('failed');
+          setPaymentMessage('Payment verification failed. Please contact support.');
+          showToast('Payment verification failed', 'error');
+          if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
+          initializedRef.current = false;
+        }
+      }
+    }, 3000);
+  };
 
   const initializePayment = async () => {
     if (initializedRef.current) {
@@ -79,7 +221,7 @@ const PaystackPayment = ({
         },
       };
 
-      const response = await axios.post('/payments/initialize', payload);
+      const response = await axios.post('/payments/initiate', payload);
 
       if (!isMountedRef.current) return;
 
@@ -91,16 +233,39 @@ const PaystackPayment = ({
         setPaymentMessage(`Payment of ₵${amount.toLocaleString()} initialized`);
 
         // Open payment in new window/tab
-        const newWindow = window.open(authorization_url, '_blank', 'width=800,height=600,scrollbars=yes');
+        const newWindow = window.open(authorization_url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
         
         if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-          // Popup blocked - open in same window
+          // Popup blocked - redirect in same window
           window.location.href = authorization_url;
           return;
         }
 
-        // Start polling for payment status
+        // Start checking if the window is still open
+        checkPaymentWindow(newWindow, ref);
+        
+        // Also start polling as backup
         startPolling(ref);
+
+        // Also check for focus events on the page (user returned to tab)
+        const handleFocus = () => {
+          console.log('👁️ Page focused, checking payment status...');
+          if (ref && !pollingActive) {
+            checkPaymentStatus(ref);
+          }
+        };
+        window.addEventListener('focus', handleFocus);
+        
+        // Cleanup listener when component unmounts or payment completes
+        const cleanup = () => {
+          window.removeEventListener('focus', handleFocus);
+        };
+        
+        // Store cleanup function
+        if (window._paystackCleanup) {
+          window._paystackCleanup();
+        }
+        window._paystackCleanup = cleanup;
 
       } else {
         setPaymentStatus('failed');
@@ -124,69 +289,6 @@ const PaystackPayment = ({
     }
   };
 
-  const startPolling = (ref) => {
-    let attempts = 0;
-    const maxAttempts = 60; // 60 * 3 seconds = 180 seconds (3 minutes)
-
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-    }
-
-    pollIntervalRef.current = setInterval(async () => {
-      attempts++;
-      
-      try {
-        const response = await axios.get(`/payments/verify/${ref}`);
-        
-        if (response.data.success) {
-          // Payment successful
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-          
-          if (!isMountedRef.current) return;
-          
-          setPaymentStatus('success');
-          setPaymentMessage('Payment completed successfully! 🎉');
-          showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
-          
-          if (onSuccess) {
-            onSuccess({
-              ...response.data.data,
-              booking: response.data.booking,
-              reference: ref
-            });
-          }
-          initializedRef.current = false;
-        } else if (attempts >= maxAttempts) {
-          // Timeout
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-          
-          if (!isMountedRef.current) return;
-          
-          setPaymentStatus('failed');
-          setPaymentMessage('Payment verification timed out. Please contact support.');
-          showToast('Payment verification timed out', 'error');
-          if (onError) onError({ message: 'Payment verification timed out' });
-          initializedRef.current = false;
-        }
-      } catch (error) {
-        if (attempts >= maxAttempts) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-          
-          if (!isMountedRef.current) return;
-          
-          setPaymentStatus('failed');
-          setPaymentMessage('Payment verification failed. Please contact support.');
-          showToast('Payment verification failed', 'error');
-          if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
-          initializedRef.current = false;
-        }
-      }
-    }, 3000); // Check every 3 seconds
-  };
-
   // Auto-initialize payment on mount
   useEffect(() => {
     if (!email && !user?.email) {
@@ -205,6 +307,13 @@ const PaystackPayment = ({
       clearTimeout(timer);
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
+      }
+      if (windowCheckIntervalRef.current) {
+        clearInterval(windowCheckIntervalRef.current);
+      }
+      if (window._paystackCleanup) {
+        window._paystackCleanup();
+        window._paystackCleanup = null;
       }
     };
   }, []);
@@ -285,6 +394,11 @@ const PaystackPayment = ({
                   clearInterval(pollIntervalRef.current);
                   pollIntervalRef.current = null;
                 }
+                if (windowCheckIntervalRef.current) {
+                  clearInterval(windowCheckIntervalRef.current);
+                  windowCheckIntervalRef.current = null;
+                }
+                setPollingActive(false);
                 initializePayment();
               }}
               className="w-full sm:flex-1 px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all font-medium"
@@ -344,9 +458,14 @@ const PaystackPayment = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:flex-1 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:scale-105 transition-all font-medium text-center"
-                onClick={() => {
-                  // Open again if user clicks
-                  window.open(paymentUrl, '_blank', 'width=800,height=600,scrollbars=yes');
+                onClick={(e) => {
+                  e.preventDefault();
+                  const newWin = window.open(paymentUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+                  if (newWin) {
+                    checkPaymentWindow(newWin, reference);
+                  } else {
+                    window.location.href = paymentUrl;
+                  }
                 }}
               >
                 Open Payment Page
@@ -359,9 +478,16 @@ const PaystackPayment = ({
               </button>
             </div>
             
-            <p className="text-xs text-gray-400 mt-2">
-              Waiting for payment confirmation... <span className="animate-pulse">●</span>
-            </p>
+            {pollingActive ? (
+              <p className="text-xs text-gray-400 mt-2 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Waiting for payment confirmation...
+              </p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-2">
+                Complete payment in the new window. We'll automatically detect when it's done.
+              </p>
+            )}
           </>
         ) : (
           <>
