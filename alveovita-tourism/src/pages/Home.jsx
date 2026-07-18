@@ -1,4 +1,4 @@
-// src/pages/Home.jsx - COMPLETE with Premium Search Functionality
+// src/pages/Home.jsx - Updated with Blue-Black Theme
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -453,11 +453,11 @@ const Home = () => {
   const getSuggestionColor = (type) => {
     const colors = {
       hotel: 'text-blue-500 bg-blue-500/10',
-      tour: 'text-green-500 bg-green-500/10',
+      tour: 'text-cyan-500 bg-cyan-500/10',
       destination: 'text-purple-500 bg-purple-500/10',
-      experience: 'text-amber-500 bg-amber-500/10',
+      experience: 'text-blue-400 bg-blue-400/10',
       page: 'text-gray-500 bg-gray-500/10',
-      service: 'text-rose-500 bg-rose-500/10'
+      service: 'text-indigo-500 bg-indigo-500/10'
     }
     return colors[type] || 'text-gray-500 bg-gray-500/10'
   }
@@ -683,7 +683,7 @@ const Home = () => {
     wellness: {
       title: 'Wellness Retreats',
       icon: Flower2,
-      color: 'from-emerald-500 to-teal-500',
+      color: 'from-blue-500 to-cyan-500',
       services: [
         { name: 'Stress Relief Getaways', description: 'Weekend escapes for busy professionals', icon: Sun },
         { name: 'Mental Wellness Retreats', description: 'Emotional restoration & mindfulness', icon: Heart },
@@ -694,7 +694,7 @@ const Home = () => {
     medical: {
       title: 'Medical Tourism',
       icon: Stethoscope,
-      color: 'from-blue-500 to-cyan-500',
+      color: 'from-indigo-500 to-blue-500',
       services: [
         { name: 'Executive Health Screening', description: 'Comprehensive health check-ups', icon: Shield },
         { name: 'Wellness Programs', description: 'Preventive healthcare & holistic wellness', icon: Heart },
@@ -705,7 +705,7 @@ const Home = () => {
     corporate: {
       title: 'Corporate Wellness',
       icon: Briefcase,
-      color: 'from-purple-500 to-indigo-500',
+      color: 'from-blue-600 to-slate-700',
       services: [
         { name: 'Corporate Wellness Retreats', description: 'Team building & leadership development', icon: Users },
         { name: 'Stress Management Programs', description: 'Employee well-being & productivity', icon: Mountain },
@@ -716,7 +716,7 @@ const Home = () => {
     special: {
       title: 'Special Programs',
       icon: Gift,
-      color: 'from-amber-500 to-orange-500',
+      color: 'from-cyan-500 to-blue-500',
       services: [
         { name: 'Senior Wellness Tourism', description: 'Gentle exercise & social engagement', icon: Crown },
         { name: 'Student Wellness Programs', description: 'Academic stress management', icon: BookOpen },
@@ -775,9 +775,9 @@ const Home = () => {
   const getExperienceColor = (type) => {
     switch(type) {
       case 'video': return 'bg-gradient-to-r from-blue-500 to-purple-500'
-      case 'image': return 'bg-gradient-to-r from-green-500 to-emerald-500'
-      case 'audio': return 'bg-gradient-to-r from-purple-500 to-pink-500'
-      default: return 'bg-gradient-to-r from-amber-500 to-orange-500'
+      case 'image': return 'bg-gradient-to-r from-cyan-500 to-blue-500'
+      case 'audio': return 'bg-gradient-to-r from-purple-500 to-indigo-500'
+      default: return 'bg-gradient-to-r from-blue-500 to-indigo-500'
     }
   }
 
@@ -788,16 +788,16 @@ const Home = () => {
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-              <Loader2 className="w-20 h-20 text-amber-500 animate-spin mx-auto relative z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+              <Loader2 className="w-20 h-20 text-blue-500 animate-spin mx-auto relative z-10" />
             </div>
             <p className={`mt-6 text-lg font-light tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Loading Luxury Experiences
             </p>
             <div className="mt-4 flex justify-center gap-2">
-              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
             </div>
           </div>
         </div>
@@ -811,25 +811,25 @@ const Home = () => {
     <div className={`min-h-screen transition-colors duration-500 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
       <Navbar />
 
-      {/* Premium Connection Status */}
+      {/* Premium Connection Status - Blue Theme */}
       {isConnected && (
-        <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-400/5 to-emerald-500/10 border-b border-emerald-500/20 py-2 px-4 text-center backdrop-blur-sm">
-          <span className="text-xs text-emerald-400 flex items-center justify-center gap-3 font-light tracking-wider">
+        <div className="bg-gradient-to-r from-blue-500/10 via-indigo-400/5 to-blue-500/10 border-b border-blue-500/20 py-2 px-4 text-center backdrop-blur-sm">
+          <span className="text-xs text-blue-400 flex items-center justify-center gap-3 font-light tracking-wider">
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-lg shadow-emerald-400/50"></span>
+              <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse shadow-lg shadow-blue-400/50"></span>
               <span className="hidden sm:inline">Live Connection</span>
             </span>
-            <span className="w-px h-4 bg-emerald-500/20"></span>
+            <span className="w-px h-4 bg-blue-500/20"></span>
             <span>Real-time Experiences</span>
-            <span className="w-px h-4 bg-emerald-500/20"></span>
+            <span className="w-px h-4 bg-blue-500/20"></span>
             <span className="hidden md:inline">Premium Network</span>
-            <span className="w-px h-4 bg-emerald-500/20 hidden md:block"></span>
+            <span className="w-px h-4 bg-blue-500/20 hidden md:block"></span>
             <span className="hidden md:inline">24/7 Support</span>
           </span>
         </div>
       )}
 
-      {/* Luxury Notification */}
+      {/* Luxury Notification - Blue Theme */}
       <AnimatePresence>
         {notification && (
           <motion.div
@@ -839,9 +839,9 @@ const Home = () => {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className={`fixed top-24 left-1/2 transform -translate-x-1/2 z-50 px-8 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border ${
               notification.type === 'new' 
-                ? 'bg-gradient-to-r from-emerald-500/90 to-teal-500/90 border-emerald-400/30 text-white' 
+                ? 'bg-gradient-to-r from-blue-600/90 to-indigo-600/90 border-blue-400/30 text-white' 
                 : notification.type === 'updated'
-                ? 'bg-gradient-to-r from-blue-500/90 to-indigo-500/90 border-blue-400/30 text-white'
+                ? 'bg-gradient-to-r from-cyan-600/90 to-blue-600/90 border-cyan-400/30 text-white'
                 : 'bg-gradient-to-r from-rose-500/90 to-red-500/90 border-rose-400/30 text-white'
             }`}
           >
@@ -864,7 +864,7 @@ const Home = () => {
         )}
       </AnimatePresence>
 
-      {/* Ultra-Luxury Hero Section */}
+      {/* Ultra-Luxury Hero Section - Blue Theme */}
       <section className="relative min-h-[95vh] overflow-hidden">
         <Swiper
           modules={[Autoplay, Pagination, Navigation, EffectFade]}
@@ -903,17 +903,17 @@ const Home = () => {
                       transition={{ duration: 1, delay: 0.2 }}
                       className="max-w-4xl"
                     >
-                      {/* Premium Badge */}
-                      <div className="inline-flex items-center space-x-4 bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-amber-500/20 backdrop-blur-2xl border border-amber-400/20 rounded-full px-6 py-3 mb-8 shadow-2xl shadow-amber-500/10">
-                        <span className="w-3 h-3 bg-amber-400 rounded-full animate-pulse shadow-lg shadow-amber-400/50" />
-                        <span className="text-amber-200 font-light text-xs tracking-[0.2em] uppercase">{slide.badge}</span>
-                        <Diamond className="w-4 h-4 text-amber-400" />
+                      {/* Premium Badge - Blue Theme */}
+                      <div className="inline-flex items-center space-x-4 bg-gradient-to-r from-blue-500/20 via-indigo-400/10 to-blue-500/20 backdrop-blur-2xl border border-blue-400/20 rounded-full px-6 py-3 mb-8 shadow-2xl shadow-blue-500/10">
+                        <span className="w-3 h-3 bg-blue-400 rounded-full animate-pulse shadow-lg shadow-blue-400/50" />
+                        <span className="text-blue-200 font-light text-xs tracking-[0.2em] uppercase">{slide.badge}</span>
+                        <Diamond className="w-4 h-4 text-blue-400" />
                       </div>
 
                       <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold text-white leading-[1.1]">
                         {slide.title}
                         <br />
-                        <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
+                        <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-blue-400 bg-clip-text text-transparent">
                           {slide.subtitle}
                         </span>
                       </h1>
@@ -922,15 +922,13 @@ const Home = () => {
                         {slide.description}
                       </p>
 
-                      {/* ============================================ */}
-                      {/* ENHANCED PREMIUM SEARCH BAR - NO PAGE RELOAD */}
-                      {/* ============================================ */}
+                      {/* Enhanced Premium Search Bar - Blue Theme */}
                       <div className="mt-10">
                         <div ref={searchContainerRef} className="relative group">
-                          <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
                           <div className="relative flex flex-col sm:flex-row gap-4">
                             <div className="flex-1 relative">
-                              <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-amber-400 w-5 h-5 z-10" />
+                              <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-blue-400 w-5 h-5 z-10" />
                               <input
                                 ref={searchInputRef}
                                 type="text"
@@ -943,12 +941,12 @@ const Home = () => {
                                     setShowSuggestions(true)
                                   }
                                 }}
-                                className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-all shadow-2xl"
+                                className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all shadow-2xl"
                                 autoComplete="off"
                               />
                               {isSearchingSuggestions && (
                                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                  <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                                  <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
                                 </div>
                               )}
                               {searchTerm && !isSearchingSuggestions && (
@@ -969,9 +967,7 @@ const Home = () => {
                                 </button>
                               )}
                               
-                              {/* ============================================ */}
-                              {/* SEARCH SUGGESTIONS DROPDOWN - NO PAGE RELOAD */}
-                              {/* ============================================ */}
+                              {/* Search Suggestions Dropdown */}
                               <AnimatePresence>
                                 {showSuggestions && searchSuggestions.length > 0 && (
                                   <motion.div
@@ -979,14 +975,14 @@ const Home = () => {
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                                     transition={{ duration: 0.2 }}
-                                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl overflow-hidden bg-gradient-to-b from-[#1a0a00] to-[#0a0a0a] border border-amber-500/20 z-50"
+                                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl overflow-hidden bg-gradient-to-b from-[#0a0a1a] to-[#0a0a0a] border border-blue-500/20 z-50"
                                   >
                                     <div className="p-2 max-h-72 overflow-y-auto">
                                       {searchSuggestions.map((suggestion, idx) => (
                                         <button
                                           key={idx}
                                           onClick={() => handleSuggestionClick(suggestion)}
-                                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-amber-500/10 text-gray-300 hover:text-white text-left"
+                                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:bg-blue-500/10 text-gray-300 hover:text-white text-left"
                                         >
                                           <div className={`p-2 rounded-lg ${getSuggestionColor(suggestion.type)}`}>
                                             {getSuggestionIcon(suggestion.type)}
@@ -1005,7 +1001,7 @@ const Home = () => {
                                       {searchTerm.trim().length >= 2 && (
                                         <button
                                           onClick={handleSearchSubmit}
-                                          className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-amber-400 hover:bg-amber-500/10"
+                                          className="w-full mt-1 text-center py-2.5 rounded-xl text-sm font-medium transition-all duration-300 text-blue-400 hover:bg-blue-500/10"
                                         >
                                           See all results for "{searchTerm}"
                                         </button>
@@ -1027,9 +1023,9 @@ const Home = () => {
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={handleSearchSubmit}
-                              className="relative group bg-gradient-to-r from-amber-500 to-orange-500 text-white px-10 py-5 rounded-2xl font-semibold shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 transition-all flex items-center justify-center space-x-3 overflow-hidden flex-shrink-0"
+                              className="relative group bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-10 py-5 rounded-2xl font-semibold shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 transition-all flex items-center justify-center space-x-3 overflow-hidden flex-shrink-0"
                             >
-                              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                               <Search className="w-5 h-5 relative z-10" />
                               <span className="relative z-10">Search</span>
                               <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
@@ -1042,7 +1038,7 @@ const Home = () => {
                       <div className="mt-10 flex flex-wrap gap-8">
                         {slide.stats.map((stat, idx) => (
                           <div key={idx} className="flex items-center space-x-3 text-white/80 backdrop-blur-sm bg-white/5 px-5 py-2 rounded-full border border-white/10">
-                            <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
+                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
                             <span className="text-sm font-light tracking-wide">{stat}</span>
                           </div>
                         ))}
@@ -1063,13 +1059,13 @@ const Home = () => {
               <motion.div 
                 animate={{ y: [0, 12, 0] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                className="w-1.5 h-4 bg-gradient-to-b from-amber-400 to-amber-300 rounded-full mt-2 shadow-lg shadow-amber-400/30"
+                className="w-1.5 h-4 bg-gradient-to-b from-blue-400 to-indigo-400 rounded-full mt-2 shadow-lg shadow-blue-400/30"
               />
             </div>
           </div>
         </div>
 
-        {/* Premium Share Button */}
+        {/* Premium Share Button - Blue Theme */}
         <motion.button
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
@@ -1082,7 +1078,7 @@ const Home = () => {
             }
             setShowShareModal(true)
           }}
-          className="fixed bottom-10 right-10 z-50 group bg-gradient-to-r from-amber-500 to-orange-500 text-white p-5 rounded-2xl shadow-2xl shadow-amber-500/40 hover:shadow-amber-500/70 transition-all duration-500"
+          className="fixed bottom-10 right-10 z-50 group bg-gradient-to-r from-blue-500 to-indigo-500 text-white p-5 rounded-2xl shadow-2xl shadow-blue-500/40 hover:shadow-blue-500/70 transition-all duration-500"
         >
           <div className="flex items-center space-x-3">
             <div className="relative">
@@ -1095,7 +1091,7 @@ const Home = () => {
         </motion.button>
       </section>
 
-      {/* Premium Region Filter */}
+      {/* Premium Region Filter - Blue Theme */}
       <section className={`py-6 transition-colors duration-300 ${isDark ? 'bg-gray-900/80 backdrop-blur-sm' : 'bg-gray-50'}`}>
         <div className="container-custom">
           <div className="flex flex-wrap items-center gap-3">
@@ -1105,7 +1101,7 @@ const Home = () => {
               onClick={() => setSelectedRegion('all')}
               className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                 selectedRegion === 'all'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-2xl shadow-amber-500/30'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-2xl shadow-blue-500/30'
                   : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >
@@ -1141,7 +1137,7 @@ const Home = () => {
                   onClick={() => setSelectedRegion(region.id)}
                   className={`px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 flex items-center space-x-2 ${
                     selectedRegion === region.id
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-2xl shadow-amber-500/30'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-2xl shadow-blue-500/30'
                       : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                   }`}
                 >
@@ -1166,9 +1162,9 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Premium Services Section */}
+      {/* Premium Services Section - Blue Theme */}
       <section className={`py-28 transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-white'} relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-transparent pointer-events-none"></div>
         <div className="container-custom relative z-10">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
@@ -1176,19 +1172,19 @@ const Home = () => {
             transition={{ duration: 0.8 }}
             className="text-center mb-16"
           >
-            <div className="inline-flex items-center space-x-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 backdrop-blur-sm px-6 py-2 rounded-full border border-amber-500/20 mb-4">
-              <Diamond className="w-4 h-4 text-amber-500" />
-              <span className="text-amber-500 font-light text-xs tracking-[0.2em] uppercase">Luxury Services</span>
+            <div className="inline-flex items-center space-x-3 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 backdrop-blur-sm px-6 py-2 rounded-full border border-blue-500/20 mb-4">
+              <Diamond className="w-4 h-4 text-blue-500" />
+              <span className="text-blue-500 font-light text-xs tracking-[0.2em] uppercase">Luxury Services</span>
             </div>
             <h2 className={`text-5xl md:text-6xl font-display font-bold mt-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-              World-Class <span className="bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">Wellness</span>
+              World-Class <span className="bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">Wellness</span>
             </h2>
             <p className={`max-w-3xl mx-auto mt-4 text-lg font-light tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Discover our comprehensive range of premium wellness programs designed to rejuvenate your mind, body, and spirit.
             </p>
           </motion.div>
 
-          {/* Premium Tab Navigation */}
+          {/* Premium Tab Navigation - Blue Theme */}
           <div className="flex flex-wrap justify-center gap-3 mb-16">
             {Object.entries(serviceCategories).map(([key, category]) => (
               <motion.button
@@ -1210,7 +1206,7 @@ const Home = () => {
             ))}
           </div>
 
-          {/* Premium Tab Content */}
+          {/* Premium Tab Content - Blue Theme */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {serviceCategories[activeTab].services.map((service, idx) => (
               <motion.div
@@ -1225,7 +1221,7 @@ const Home = () => {
                     : 'bg-gray-50 hover:shadow-2xl border border-gray-100'
                 }`}
               >
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-gradient-to-br ${serviceCategories[activeTab].color} group-hover:scale-110 transition-transform duration-500 shadow-2xl shadow-amber-500/20`}>
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-gradient-to-br ${serviceCategories[activeTab].color} group-hover:scale-110 transition-transform duration-500 shadow-2xl shadow-blue-500/20`}>
                   <service.icon className="w-8 h-8 text-white" />
                 </div>
                 <h3 className={`font-bold text-xl ${isDark ? 'text-white' : 'text-gray-800'}`}>
@@ -1234,35 +1230,35 @@ const Home = () => {
                 <p className={`text-sm mt-2 font-light leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   {service.description}
                 </p>
-                <div className="mt-4 w-12 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full group-hover:w-20 transition-all duration-500"></div>
+                <div className="mt-4 w-12 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full group-hover:w-20 transition-all duration-500"></div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Premium Hotels Section */}
+      {/* Premium Hotels Section - Blue Theme */}
       <section className={`py-20 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'} relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-gradient-to-t from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-blue-500/5 via-transparent to-transparent pointer-events-none"></div>
         <div className="container-custom relative z-10">
           <div className="flex items-center justify-between mb-12">
             <div>
               <div className="flex items-center space-x-3">
-                <div className="w-1 h-8 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
-                <span className="text-amber-500 font-light text-sm tracking-[0.2em] uppercase">Luxury Accommodation</span>
+                <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
+                <span className="text-blue-500 font-light text-sm tracking-[0.2em] uppercase">Luxury Accommodation</span>
               </div>
               <h2 className={`text-4xl md:text-5xl font-display font-bold mt-3 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                Premium <span className="bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">Hotels</span> in Ghana
+                Premium <span className="bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">Hotels</span> in Ghana
               </h2>
             </div>
             <Link 
               to="/hotels"
               className={`group flex items-center space-x-2 text-sm font-medium transition-all duration-300 ${
-                isDark ? 'text-gray-400 hover:text-amber-400' : 'text-gray-600 hover:text-amber-600'
+                isDark ? 'text-gray-400 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'
               }`}
             >
               <span>View All</span>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all">
                 <ChevronRight className="w-4 h-4 text-white" />
               </div>
             </Link>
@@ -1289,7 +1285,7 @@ const Home = () => {
                       loading="lazy"
                     />
                     {hotel.badge && (
-                      <div className="absolute top-4 left-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl shadow-amber-500/30">
+                      <div className="absolute top-4 left-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl shadow-blue-500/30">
                         <span className="flex items-center space-x-1">
                           <Crown className="w-3 h-3" />
                           <span>{hotel.badge}</span>
@@ -1298,11 +1294,11 @@ const Home = () => {
                     )}
                     <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                       <div className="flex items-center space-x-2 text-white bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
-                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                         <span className="text-sm font-medium">{hotel.rating}</span>
                         <span className="text-xs text-gray-300">({hotel.reviews})</span>
                       </div>
-                      <span className="text-white bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 rounded-full text-sm font-bold shadow-2xl shadow-amber-500/30">
+                      <span className="text-white bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 rounded-full text-sm font-bold shadow-2xl shadow-blue-500/30">
                         {hotel.price || `₵${hotel.price}`}
                       </span>
                     </div>
@@ -1312,7 +1308,7 @@ const Home = () => {
                       {hotel.name}
                     </h3>
                     <div className="flex items-center text-sm text-gray-500 mt-2">
-                      <MapPin className="w-4 h-4 mr-1.5 text-amber-500" />
+                      <MapPin className="w-4 h-4 mr-1.5 text-blue-500" />
                       {hotel.location}
                     </div>
                     <p className={`text-sm mt-3 line-clamp-2 font-light leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1342,8 +1338,8 @@ const Home = () => {
 
           {hotels.length === 0 && (
             <div className="text-center py-16">
-              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-3xl flex items-center justify-center">
-                <Hotel className="w-10 h-10 text-amber-500" />
+              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-3xl flex items-center justify-center">
+                <Hotel className="w-10 h-10 text-blue-500" />
               </div>
               <p className={`mt-6 text-lg font-light ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 No luxury hotels found in this region
@@ -1353,28 +1349,28 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Premium Tours Section */}
+      {/* Premium Tours Section - Blue Theme */}
       <section className={`py-20 transition-colors duration-300 ${isDark ? 'bg-gray-950' : 'bg-white'} relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-transparent pointer-events-none"></div>
         <div className="container-custom relative z-10">
           <div className="flex items-center justify-between mb-12">
             <div>
               <div className="flex items-center space-x-3">
-                <div className="w-1 h-8 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
-                <span className="text-amber-500 font-light text-sm tracking-[0.2em] uppercase">Exclusive Tours</span>
+                <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
+                <span className="text-blue-500 font-light text-sm tracking-[0.2em] uppercase">Exclusive Tours</span>
               </div>
               <h2 className={`text-4xl md:text-5xl font-display font-bold mt-3 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                Explore Ghana's <span className="bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">Wonders</span>
+                Explore Ghana's <span className="bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">Wonders</span>
               </h2>
             </div>
             <Link 
               to="/tours"
               className={`group flex items-center space-x-2 text-sm font-medium transition-all duration-300 ${
-                isDark ? 'text-gray-400 hover:text-amber-400' : 'text-gray-600 hover:text-amber-600'
+                isDark ? 'text-gray-400 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'
               }`}
             >
               <span>View All</span>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all">
                 <ChevronRight className="w-4 h-4 text-white" />
               </div>
             </Link>
@@ -1401,7 +1397,7 @@ const Home = () => {
                       loading="lazy"
                     />
                     <div className="absolute top-4 left-4 flex gap-2">
-                      <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl shadow-amber-500/30">
+                      <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl shadow-blue-500/30">
                         {tour.type}
                       </span>
                       <span className="bg-black/50 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-xs border border-white/10">
@@ -1410,11 +1406,11 @@ const Home = () => {
                     </div>
                     <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                       <div className="flex items-center space-x-2 text-white bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
-                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        <Star className="w-4 h-4 fill-blue-400 text-blue-400" />
                         <span className="text-sm font-medium">{tour.rating}</span>
                         <span className="text-xs text-gray-300">({tour.reviews})</span>
                       </div>
-                      <span className="text-white bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 rounded-full text-sm font-bold shadow-2xl shadow-amber-500/30">
+                      <span className="text-white bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 rounded-full text-sm font-bold shadow-2xl shadow-blue-500/30">
                         {tour.price || `₵${tour.price}`}
                       </span>
                     </div>
@@ -1424,10 +1420,10 @@ const Home = () => {
                       {tour.title}
                     </h3>
                     <div className="flex items-center text-sm text-gray-500 mt-2">
-                      <MapPin className="w-4 h-4 mr-1.5 text-amber-500" />
+                      <MapPin className="w-4 h-4 mr-1.5 text-blue-500" />
                       {tour.location}
                       <span className="mx-2">•</span>
-                      <Clock className="w-4 h-4 mr-1.5 text-amber-500" />
+                      <Clock className="w-4 h-4 mr-1.5 text-blue-500" />
                       {tour.duration}
                     </div>
                     <p className={`text-sm mt-3 line-clamp-2 font-light leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1457,8 +1453,8 @@ const Home = () => {
 
           {tours.length === 0 && (
             <div className="text-center py-16">
-              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-3xl flex items-center justify-center">
-                <Compass className="w-10 h-10 text-amber-500" />
+              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-3xl flex items-center justify-center">
+                <Compass className="w-10 h-10 text-blue-500" />
               </div>
               <p className={`mt-6 text-lg font-light ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 No exclusive tours found in this region
@@ -1468,18 +1464,18 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Premium Experiences Section */}
+      {/* Premium Experiences Section - Blue Theme */}
       <section className={`py-20 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'} relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-gradient-to-t from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-blue-500/5 via-transparent to-transparent pointer-events-none"></div>
         <div className="container-custom relative z-10">
           <div className="flex items-center justify-between mb-12">
             <div>
               <div className="flex items-center space-x-3">
-                <div className="w-1 h-8 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
-                <span className="text-amber-500 font-light text-sm tracking-[0.2em] uppercase">Community Stories</span>
+                <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
+                <span className="text-blue-500 font-light text-sm tracking-[0.2em] uppercase">Community Stories</span>
               </div>
               <h2 className={`text-4xl md:text-5xl font-display font-bold mt-3 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                Traveler <span className="bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">Experiences</span>
+                Traveler <span className="bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">Experiences</span>
               </h2>
             </div>
             <motion.button
@@ -1497,7 +1493,7 @@ const Home = () => {
                 isDark ? 'bg-gray-800 text-white hover:bg-gray-700 border border-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
               }`}
             >
-              <Upload className="w-4 h-4 text-amber-500" />
+              <Upload className="w-4 h-4 text-blue-500" />
               <span>Share Your Story</span>
             </motion.button>
           </div>
@@ -1522,7 +1518,7 @@ const Home = () => {
                       <img 
                         src={exp.user?.avatar || `https://ui-avatars.com/api/?name=${exp.user?.name || 'Anonymous'}&background=random`} 
                         alt={exp.user?.name || 'User'}
-                        className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-500/20"
+                        className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500/20"
                         loading="lazy"
                       />
                       <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-800"></div>
@@ -1532,7 +1528,7 @@ const Home = () => {
                         {exp.user?.name || 'Anonymous'}
                       </h4>
                       <div className="flex items-center text-xs text-gray-500">
-                        <MapPin className="w-3 h-3 mr-1 text-amber-500" />
+                        <MapPin className="w-3 h-3 mr-1 text-blue-500" />
                         {exp.user?.location || 'Ghana'}
                         <span className="mx-2">•</span>
                         {formatDate(exp.createdAt)}
@@ -1554,7 +1550,7 @@ const Home = () => {
                       />
                       <div className="absolute inset-0 bg-black/30 group-hover/video:bg-black/20 transition-colors"></div>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-16 h-16 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center shadow-2xl shadow-amber-500/30 hover:scale-110 transition-transform">
+                        <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/30 hover:scale-110 transition-transform">
                           <Play className="w-7 h-7 text-white ml-1" />
                         </div>
                       </div>
@@ -1575,7 +1571,7 @@ const Home = () => {
                     <div className={`p-4 rounded-2xl mb-4 flex items-center space-x-4 ${
                       isDark ? 'bg-gray-700/50' : 'bg-gray-100'
                     }`}>
-                      <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
                         <Mic className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1">
@@ -1594,10 +1590,10 @@ const Home = () => {
 
                   {/* Premium Tags */}
                   <div className="flex flex-wrap gap-2 mt-4">
-                    <span className={`text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-500 border border-amber-500/20`}>
+                    <span className={`text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 to-indigo-500/10 text-blue-500 border border-blue-500/20`}>
                       {getRegionName(exp.region)}
                     </span>
-                    <span className={`text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 to-indigo-500/10 text-blue-500 border border-blue-500/20`}>
+                    <span className={`text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/10 to-blue-500/10 text-cyan-500 border border-cyan-500/20`}>
                       {exp.tourName || 'General Experience'}
                     </span>
                   </div>
@@ -1608,8 +1604,8 @@ const Home = () => {
                       <button 
                         className={`flex items-center space-x-2 transition-all duration-300 group/like ${
                           likedExperiences[exp._id] 
-                            ? 'text-amber-500' 
-                            : isDark ? 'text-gray-400 hover:text-amber-400' : 'text-gray-500 hover:text-amber-500'
+                            ? 'text-blue-500' 
+                            : isDark ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1617,16 +1613,16 @@ const Home = () => {
                         }}
                       >
                         <div className="relative">
-                          <Heart className={`w-5 h-5 ${likedExperiences[exp._id] ? 'fill-amber-500' : ''} group-hover/like:scale-110 transition-transform`} />
+                          <Heart className={`w-5 h-5 ${likedExperiences[exp._id] ? 'fill-blue-500' : ''} group-hover/like:scale-110 transition-transform`} />
                           {likedExperiences[exp._id] && (
-                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                           )}
                         </div>
                         <span className="text-sm font-medium">{exp.likes?.length || 0}</span>
                       </button>
                       <button 
                         className={`flex items-center space-x-2 ${
-                          isDark ? 'text-gray-400 hover:text-amber-400' : 'text-gray-500 hover:text-amber-500'
+                          isDark ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
                         } transition-all duration-300`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1640,7 +1636,7 @@ const Home = () => {
                     <div className="flex items-center space-x-3">
                       <button 
                         className={`p-2 rounded-full transition-all duration-300 ${
-                          isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-amber-400' : 'hover:bg-gray-100 text-gray-500 hover:text-amber-500'
+                          isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-400' : 'hover:bg-gray-100 text-gray-500 hover:text-blue-500'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1651,18 +1647,18 @@ const Home = () => {
                       </button>
                       <button 
                         className={`p-2 rounded-full transition-all duration-300 ${
-                          isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-amber-400' : 'hover:bg-gray-100 text-gray-500 hover:text-amber-500'
+                          isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-400' : 'hover:bg-gray-100 text-gray-500 hover:text-blue-500'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
                           handleBookmark(exp._id)
                         }}
                       >
-                        <Bookmark className={`w-4 h-4 ${bookmarkedExperiences[exp._id] ? 'fill-amber-500 text-amber-500' : ''}`} />
+                        <Bookmark className={`w-4 h-4 ${bookmarkedExperiences[exp._id] ? 'fill-blue-500 text-blue-500' : ''}`} />
                       </button>
                       <button 
                         className={`p-2 rounded-full transition-all duration-300 ${
-                          isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-amber-400' : 'hover:bg-gray-100 text-gray-500 hover:text-amber-500'
+                          isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-400' : 'hover:bg-gray-100 text-gray-500 hover:text-blue-500'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1680,8 +1676,8 @@ const Home = () => {
 
           {displayedExperiences.length === 0 && (
             <div className="text-center py-16">
-              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-3xl flex items-center justify-center">
-                <Users className="w-10 h-10 text-amber-500" />
+              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-3xl flex items-center justify-center">
+                <Users className="w-10 h-10 text-blue-500" />
               </div>
               <p className={`mt-6 text-lg font-light ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 No experiences shared for this region yet. Be the first!
@@ -1697,7 +1693,7 @@ const Home = () => {
                   }
                   setShowShareModal(true)
                 }}
-                className="mt-6 inline-flex items-center space-x-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-4 rounded-full font-medium shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 transition-all"
+                className="mt-6 inline-flex items-center space-x-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-8 py-4 rounded-full font-medium shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 transition-all"
               >
                 <Upload className="w-5 h-5" />
                 <span>Share Your Experience</span>
@@ -1707,7 +1703,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Premium CTA Section */}
+      {/* Premium CTA Section - Blue Theme */}
       <section className="relative py-40 overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center bg-fixed"
@@ -1715,8 +1711,8 @@ const Home = () => {
             backgroundImage: 'url(https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=1920&q=80)',
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-950/95 via-orange-900/90 to-amber-950/95" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-950/95 via-indigo-900/90 to-slate-950/95" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent"></div>
         </div>
 
         <div className="container-custom relative z-10">
@@ -1728,15 +1724,15 @@ const Home = () => {
           >
             <div className="inline-flex items-center space-x-4 bg-white/10 backdrop-blur-2xl px-8 py-4 rounded-full mb-10 border border-white/20 shadow-2xl">
               <div className="flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
+                <Sparkles className="w-5 h-5 text-blue-400" />
                 <span className="text-sm font-light tracking-[0.2em] uppercase">Exclusive Offer</span>
               </div>
               <div className="w-px h-6 bg-white/20"></div>
-              <span className="text-xs text-amber-300 font-light">Limited Time</span>
+              <span className="text-xs text-blue-300 font-light">Limited Time</span>
             </div>
             
             <h2 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold mb-8 leading-tight">
-              Begin Your <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">Wellness</span> Journey Today
+              Begin Your <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-blue-400 bg-clip-text text-transparent">Wellness</span> Journey Today
             </h2>
             <p className="text-xl md:text-2xl text-gray-200 mb-10 max-w-3xl mx-auto leading-relaxed font-light tracking-wide">
               Join thousands of satisfied clients and experience the perfect blend of 
@@ -1748,9 +1744,9 @@ const Home = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="group relative bg-white text-amber-700 px-14 py-6 rounded-2xl font-bold hover:shadow-2xl transition-all shadow-2xl flex items-center space-x-3 overflow-hidden"
+                  className="group relative bg-white text-blue-700 px-14 py-6 rounded-2xl font-bold hover:shadow-2xl transition-all shadow-2xl flex items-center space-x-3 overflow-hidden"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-amber-50 to-orange-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   <span className="relative z-10">Book Your Journey</span>
                   <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
                 </motion.button>
@@ -1761,7 +1757,7 @@ const Home = () => {
                   whileTap={{ scale: 0.95 }}
                   className="group glass px-14 py-6 rounded-2xl font-semibold border-2 border-white/30 hover:bg-white/10 transition-all flex items-center space-x-3 backdrop-blur-2xl"
                 >
-                  <Phone className="w-5 h-5 text-amber-400" />
+                  <Phone className="w-5 h-5 text-blue-400" />
                   <span>Contact Concierge</span>
                 </motion.button>
               </Link>
@@ -1770,19 +1766,19 @@ const Home = () => {
             {/* Premium Trust Badges */}
             <div className="mt-16 flex flex-wrap justify-center gap-12">
               <div className="flex items-center space-x-3 text-white/60">
-                <Trophy className="w-5 h-5 text-amber-400" />
+                <Trophy className="w-5 h-5 text-blue-400" />
                 <span className="text-sm font-light tracking-wide">Award Winning</span>
               </div>
               <div className="flex items-center space-x-3 text-white/60">
-                <Medal className="w-5 h-5 text-amber-400" />
+                <Medal className="w-5 h-5 text-blue-400" />
                 <span className="text-sm font-light tracking-wide">5-Star Rating</span>
               </div>
               <div className="flex items-center space-x-3 text-white/60">
-                <Shield className="w-5 h-5 text-amber-400" />
+                <Shield className="w-5 h-5 text-blue-400" />
                 <span className="text-sm font-light tracking-wide">Premium Security</span>
               </div>
               <div className="flex items-center space-x-3 text-white/60">
-                <Users className="w-5 h-5 text-amber-400" />
+                <Users className="w-5 h-5 text-blue-400" />
                 <span className="text-sm font-light tracking-wide">15K+ Happy Clients</span>
               </div>
             </div>
