@@ -9,7 +9,8 @@ import {
   CreditCard, 
   Lock, 
   Check, 
-  XCircle
+  XCircle,
+  ExternalLink
 } from 'lucide-react';
 
 const PaystackPayment = ({
@@ -31,48 +32,23 @@ const PaystackPayment = ({
   const [paymentMessage, setPaymentMessage] = useState('');
   const [reference, setReference] = useState(null);
   const [bookingId, setBookingId] = useState(null);
-  const paystackHandlerRef = useRef(null);
+  const [paymentUrl, setPaymentUrl] = useState(null);
   const isMountedRef = useRef(true);
   const initializedRef = useRef(false);
+  const pollIntervalRef = useRef(null);
 
   // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (paystackHandlerRef.current) {
-        try {
-          paystackHandlerRef.current.close();
-        } catch (e) {
-          // Ignore
-        }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
       }
     };
   }, []);
 
-  // Load Paystack inline script
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !window.PaystackPop) {
-      const script = document.createElement('script');
-      script.src = 'https://js.paystack.co/v1/inline.js';
-      script.async = true;
-      script.onload = () => {
-        console.log('✅ Paystack SDK loaded successfully');
-      };
-      script.onerror = () => {
-        console.error('❌ Failed to load Paystack SDK');
-        if (isMountedRef.current) {
-          setPaymentStatus('failed');
-          setPaymentMessage('Failed to load payment gateway. Please refresh and try again.');
-          showToast('Failed to load payment gateway', 'error');
-        }
-      };
-      document.body.appendChild(script);
-    }
-  }, []);
-
-  const initializeDirectPayment = async () => {
-    // Prevent multiple initializations
+  const initializePayment = async () => {
     if (initializedRef.current) {
       console.log('⏳ Payment already initializing, skipping...');
       return;
@@ -103,114 +79,28 @@ const PaystackPayment = ({
         },
       };
 
-      const response = await axios.post('/payments/initialize-direct', payload);
+      const response = await axios.post('/payments/initialize', payload);
 
       if (!isMountedRef.current) return;
 
       if (response.data.success) {
-        const { data, reference: ref, bookingId: bId, amount: amt } = response.data;
+        const { authorization_url, reference: ref, bookingId: bId } = response.data;
         setReference(ref);
         setBookingId(bId);
-        setPaymentMessage(`Payment of ₵${amt.toLocaleString()} initialized`);
+        setPaymentUrl(authorization_url);
+        setPaymentMessage(`Payment of ₵${amount.toLocaleString()} initialized`);
 
-        // Check if PaystackPop is available
-        if (typeof window.PaystackPop === 'undefined') {
-          setPaymentStatus('failed');
-          setPaymentMessage('Paystack SDK not loaded. Please refresh and try again.');
-          showToast('Paystack SDK not loaded', 'error');
-          if (onError) onError({ message: 'Paystack SDK not loaded' });
-          initializedRef.current = false;
+        // Open payment in new window/tab
+        const newWindow = window.open(authorization_url, '_blank', 'width=800,height=600,scrollbars=yes');
+        
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+          // Popup blocked - open in same window
+          window.location.href = authorization_url;
           return;
         }
 
-        // Get the public key
-        const publicKey = data.key || import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY;
-        
-        console.log('🔑 Using Paystack public key:', publicKey ? '✅ Present' : '❌ Missing');
-
-        // Define the callback function - MUST be synchronous for Paystack
-        // We'll handle the async verification inside
-        const handlePaymentSuccess = function(paystackResponse) {
-          console.log('✅ Paystack payment success callback triggered:', paystackResponse);
-          
-          if (!isMountedRef.current) return;
-          
-          // Set verifying state
-          setPaymentMessage('Verifying payment...');
-          
-          // Use a separate async function for verification
-          const verifyPayment = function() {
-            // Use an IIFE to handle async
-            (async function() {
-              try {
-                const verifyResponse = await axios.get(`/payments/verify/${paystackResponse.reference}`);
-                
-                if (!isMountedRef.current) return;
-                
-                if (verifyResponse.data.success) {
-                  setPaymentStatus('success');
-                  setPaymentMessage('Payment completed successfully! 🎉');
-                  showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
-                  
-                  if (onSuccess) {
-                    onSuccess({
-                      ...verifyResponse.data.data,
-                      booking: verifyResponse.data.booking,
-                      reference: paystackResponse.reference
-                    });
-                  }
-                } else {
-                  setPaymentStatus('failed');
-                  setPaymentMessage('Payment verification failed. Please contact support.');
-                  showToast('Payment verification failed', 'error');
-                  if (onError) onError({ message: 'Payment verification failed' });
-                }
-              } catch (error) {
-                console.error('Verification error:', error);
-                if (!isMountedRef.current) return;
-                setPaymentStatus('failed');
-                setPaymentMessage('Payment verification failed. Please contact support.');
-                showToast('Payment verification failed', 'error');
-                if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
-              } finally {
-                initializedRef.current = false;
-              }
-            })();
-          };
-          
-          // Call the verification function
-          verifyPayment();
-        };
-
-        const handlePaymentClose = function() {
-          console.log('❌ Paystack modal closed by user');
-          if (!isMountedRef.current) return;
-          // Only show cancellation if payment wasn't successful
-          if (paymentStatus === 'processing' || paymentStatus === 'idle') {
-            setPaymentStatus('idle');
-            setPaymentMessage('');
-            showToast('Payment cancelled', 'info');
-            if (onError) onError({ message: 'Payment cancelled by user' });
-          }
-          initializedRef.current = false;
-        };
-
-        // Initialize Paystack inline popup with proper callbacks
-        const handler = window.PaystackPop.setup({
-          key: publicKey,
-          email: data.email,
-          amount: data.amount,
-          currency: 'GHS',
-          ref: data.reference,
-          metadata: data.metadata,
-          callback: handlePaymentSuccess,
-          onClose: handlePaymentClose,
-        });
-
-        paystackHandlerRef.current = handler;
-        
-        // Open the Paystack modal
-        handler.openIframe();
+        // Start polling for payment status
+        startPolling(ref);
 
       } else {
         setPaymentStatus('failed');
@@ -234,6 +124,69 @@ const PaystackPayment = ({
     }
   };
 
+  const startPolling = (ref) => {
+    let attempts = 0;
+    const maxAttempts = 60; // 60 * 3 seconds = 180 seconds (3 minutes)
+
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const response = await axios.get(`/payments/verify/${ref}`);
+        
+        if (response.data.success) {
+          // Payment successful
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          
+          if (!isMountedRef.current) return;
+          
+          setPaymentStatus('success');
+          setPaymentMessage('Payment completed successfully! 🎉');
+          showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+          
+          if (onSuccess) {
+            onSuccess({
+              ...response.data.data,
+              booking: response.data.booking,
+              reference: ref
+            });
+          }
+          initializedRef.current = false;
+        } else if (attempts >= maxAttempts) {
+          // Timeout
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          
+          if (!isMountedRef.current) return;
+          
+          setPaymentStatus('failed');
+          setPaymentMessage('Payment verification timed out. Please contact support.');
+          showToast('Payment verification timed out', 'error');
+          if (onError) onError({ message: 'Payment verification timed out' });
+          initializedRef.current = false;
+        }
+      } catch (error) {
+        if (attempts >= maxAttempts) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          
+          if (!isMountedRef.current) return;
+          
+          setPaymentStatus('failed');
+          setPaymentMessage('Payment verification failed. Please contact support.');
+          showToast('Payment verification failed', 'error');
+          if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
+          initializedRef.current = false;
+        }
+      }
+    }, 3000); // Check every 3 seconds
+  };
+
   // Auto-initialize payment on mount
   useEffect(() => {
     if (!email && !user?.email) {
@@ -244,13 +197,15 @@ const PaystackPayment = ({
       return;
     }
     
-    // Small delay to ensure everything is ready
     const timer = setTimeout(() => {
-      initializeDirectPayment();
-    }, 1000);
+      initializePayment();
+    }, 500);
 
     return () => {
       clearTimeout(timer);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
     };
   }, []);
 
@@ -326,7 +281,11 @@ const PaystackPayment = ({
                 setPaymentStatus('idle');
                 setPaymentMessage('');
                 initializedRef.current = false;
-                initializeDirectPayment();
+                if (pollIntervalRef.current) {
+                  clearInterval(pollIntervalRef.current);
+                  pollIntervalRef.current = null;
+                }
+                initializePayment();
               }}
               className="w-full sm:flex-1 px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all font-medium"
             >
@@ -351,6 +310,58 @@ const PaystackPayment = ({
             <Loader2 className="w-16 h-16 text-amber-500 animate-spin" />
             <p className="text-gray-600 dark:text-gray-400">{paymentMessage || 'Initializing payment...'}</p>
             <p className="text-sm text-gray-400">Please wait while we prepare your payment</p>
+          </>
+        ) : paymentUrl ? (
+          <>
+            <div className="flex justify-center">
+              <div className="w-24 h-24 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <ExternalLink className="w-12 h-12 text-amber-500" />
+              </div>
+            </div>
+            
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              Payment Window Opened
+            </h3>
+            
+            <p className="text-gray-600 dark:text-gray-400 text-center max-w-sm">
+              A new window has been opened for payment. Please complete the payment there.
+            </p>
+            
+            <div className="flex flex-col items-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                <span>Secure payment by Paystack</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Shield className="w-4 h-4" />
+                <span>Your payment is fully encrypted</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 mt-2 w-full max-w-sm">
+              <a
+                href={paymentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:flex-1 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:scale-105 transition-all font-medium text-center"
+                onClick={() => {
+                  // Open again if user clicks
+                  window.open(paymentUrl, '_blank', 'width=800,height=600,scrollbars=yes');
+                }}
+              >
+                Open Payment Page
+              </a>
+              <button
+                onClick={onClose}
+                className="w-full sm:flex-1 px-6 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            
+            <p className="text-xs text-gray-400 mt-2">
+              Waiting for payment confirmation... <span className="animate-pulse">●</span>
+            </p>
           </>
         ) : (
           <>
