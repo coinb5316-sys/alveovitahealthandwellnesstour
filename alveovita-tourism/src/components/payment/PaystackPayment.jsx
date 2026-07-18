@@ -123,56 +123,69 @@ const PaystackPayment = ({
           return;
         }
 
-        // Define callback functions as named functions (non-async for Paystack)
-        const handlePaymentSuccess = (paystackResponse) => {
-          console.log('✅ Paystack payment success:', paystackResponse);
+        // Get the public key
+        const publicKey = data.key || import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY;
+        
+        console.log('🔑 Using Paystack public key:', publicKey ? '✅ Present' : '❌ Missing');
+
+        // Define the callback function - MUST be synchronous for Paystack
+        // We'll handle the async verification inside
+        const handlePaymentSuccess = function(paystackResponse) {
+          console.log('✅ Paystack payment success callback triggered:', paystackResponse);
+          
           if (!isMountedRef.current) return;
           
+          // Set verifying state
           setPaymentMessage('Verifying payment...');
           
           // Use a separate async function for verification
-          const verifyPayment = async () => {
-            try {
-              const verifyResponse = await axios.get(`/payments/verify/${paystackResponse.reference}`);
-              
-              if (!isMountedRef.current) return;
-              
-              if (verifyResponse.data.success) {
-                setPaymentStatus('success');
-                setPaymentMessage('Payment completed successfully! 🎉');
-                showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+          const verifyPayment = function() {
+            // Use an IIFE to handle async
+            (async function() {
+              try {
+                const verifyResponse = await axios.get(`/payments/verify/${paystackResponse.reference}`);
                 
-                if (onSuccess) {
-                  onSuccess({
-                    ...verifyResponse.data.data,
-                    booking: verifyResponse.data.booking,
-                    reference: paystackResponse.reference
-                  });
+                if (!isMountedRef.current) return;
+                
+                if (verifyResponse.data.success) {
+                  setPaymentStatus('success');
+                  setPaymentMessage('Payment completed successfully! 🎉');
+                  showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+                  
+                  if (onSuccess) {
+                    onSuccess({
+                      ...verifyResponse.data.data,
+                      booking: verifyResponse.data.booking,
+                      reference: paystackResponse.reference
+                    });
+                  }
+                } else {
+                  setPaymentStatus('failed');
+                  setPaymentMessage('Payment verification failed. Please contact support.');
+                  showToast('Payment verification failed', 'error');
+                  if (onError) onError({ message: 'Payment verification failed' });
                 }
-              } else {
+              } catch (error) {
+                console.error('Verification error:', error);
+                if (!isMountedRef.current) return;
                 setPaymentStatus('failed');
                 setPaymentMessage('Payment verification failed. Please contact support.');
                 showToast('Payment verification failed', 'error');
-                if (onError) onError({ message: 'Payment verification failed' });
+                if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
+              } finally {
+                initializedRef.current = false;
               }
-            } catch (error) {
-              console.error('Verification error:', error);
-              if (!isMountedRef.current) return;
-              setPaymentStatus('failed');
-              setPaymentMessage('Payment verification failed. Please contact support.');
-              showToast('Payment verification failed', 'error');
-              if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
-            } finally {
-              initializedRef.current = false;
-            }
+            })();
           };
           
+          // Call the verification function
           verifyPayment();
         };
 
-        const handlePaymentClose = () => {
+        const handlePaymentClose = function() {
           console.log('❌ Paystack modal closed by user');
           if (!isMountedRef.current) return;
+          // Only show cancellation if payment wasn't successful
           if (paymentStatus === 'processing' || paymentStatus === 'idle') {
             setPaymentStatus('idle');
             setPaymentMessage('');
@@ -181,11 +194,6 @@ const PaystackPayment = ({
           }
           initializedRef.current = false;
         };
-
-        // Get the public key - try multiple sources
-        const publicKey = data.key || import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY;
-        
-        console.log('🔑 Using Paystack public key:', publicKey ? '✅ Present' : '❌ Missing');
 
         // Initialize Paystack inline popup with proper callbacks
         const handler = window.PaystackPop.setup({
@@ -239,7 +247,7 @@ const PaystackPayment = ({
     // Small delay to ensure everything is ready
     const timer = setTimeout(() => {
       initializeDirectPayment();
-    }, 800);
+    }, 1000);
 
     return () => {
       clearTimeout(timer);
