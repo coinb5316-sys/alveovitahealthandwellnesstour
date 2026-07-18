@@ -8,10 +8,8 @@ import {
   Shield, 
   CreditCard, 
   Lock, 
-  CheckCircle, 
-  XCircle,
-  AlertCircle,
-  Check
+  Check, 
+  XCircle
 } from 'lucide-react';
 
 const PaystackPayment = ({
@@ -29,11 +27,28 @@ const PaystackPayment = ({
   const { user } = useAuth();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState('idle'); // idle, processing, success, failed
+  const [paymentStatus, setPaymentStatus] = useState('idle');
   const [paymentMessage, setPaymentMessage] = useState('');
   const [reference, setReference] = useState(null);
   const [bookingId, setBookingId] = useState(null);
   const paystackHandlerRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const initializedRef = useRef(false);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (paystackHandlerRef.current) {
+        try {
+          paystackHandlerRef.current.close();
+        } catch (e) {
+          // Ignore
+        }
+      }
+    };
+  }, []);
 
   // Load Paystack inline script
   useEffect(() => {
@@ -41,12 +56,32 @@ const PaystackPayment = ({
       const script = document.createElement('script');
       script.src = 'https://js.paystack.co/v1/inline.js';
       script.async = true;
+      script.onload = () => {
+        console.log('✅ Paystack SDK loaded successfully');
+      };
+      script.onerror = () => {
+        console.error('❌ Failed to load Paystack SDK');
+        if (isMountedRef.current) {
+          setPaymentStatus('failed');
+          setPaymentMessage('Failed to load payment gateway. Please refresh and try again.');
+          showToast('Failed to load payment gateway', 'error');
+        }
+      };
       document.body.appendChild(script);
     }
   }, []);
 
   const initializeDirectPayment = async () => {
+    // Prevent multiple initializations
+    if (initializedRef.current) {
+      console.log('⏳ Payment already initializing, skipping...');
+      return;
+    }
+    initializedRef.current = true;
+
     try {
+      if (!isMountedRef.current) return;
+      
       setLoading(true);
       setPaymentStatus('processing');
       setPaymentMessage('Initializing payment...');
@@ -70,6 +105,8 @@ const PaystackPayment = ({
 
       const response = await axios.post('/payments/initialize-direct', payload);
 
+      if (!isMountedRef.current) return;
+
       if (response.data.success) {
         const { data, reference: ref, bookingId: bId, amount: amt } = response.data;
         setReference(ref);
@@ -81,61 +118,86 @@ const PaystackPayment = ({
           setPaymentStatus('failed');
           setPaymentMessage('Paystack SDK not loaded. Please refresh and try again.');
           showToast('Paystack SDK not loaded', 'error');
-          onError?.({ message: 'Paystack SDK not loaded' });
+          if (onError) onError({ message: 'Paystack SDK not loaded' });
+          initializedRef.current = false;
           return;
         }
 
-        // Initialize Paystack inline popup
-        const handler = window.PaystackPop.setup({
-          key: data.key || process.env.VITE_PAYSTACK_PUBLIC_KEY,
-          email: data.email,
-          amount: data.amount,
-          ref: data.reference,
-          metadata: data.metadata,
-          callback: async (response) => {
-            // Payment successful callback
-            setPaymentMessage('Verifying payment...');
+        // Define callback functions as named functions (non-async for Paystack)
+        const handlePaymentSuccess = (paystackResponse) => {
+          console.log('✅ Paystack payment success:', paystackResponse);
+          if (!isMountedRef.current) return;
+          
+          setPaymentMessage('Verifying payment...');
+          
+          // Use a separate async function for verification
+          const verifyPayment = async () => {
             try {
-              // Verify payment
-              const verifyResponse = await axios.get(`/payments/verify/${response.reference}`);
+              const verifyResponse = await axios.get(`/payments/verify/${paystackResponse.reference}`);
+              
+              if (!isMountedRef.current) return;
               
               if (verifyResponse.data.success) {
                 setPaymentStatus('success');
                 setPaymentMessage('Payment completed successfully! 🎉');
                 showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
                 
-                // Call onSuccess with the data
-                onSuccess?.({
-                  ...verifyResponse.data.data,
-                  booking: verifyResponse.data.booking,
-                  reference: response.reference
-                });
+                if (onSuccess) {
+                  onSuccess({
+                    ...verifyResponse.data.data,
+                    booking: verifyResponse.data.booking,
+                    reference: paystackResponse.reference
+                  });
+                }
               } else {
                 setPaymentStatus('failed');
                 setPaymentMessage('Payment verification failed. Please contact support.');
                 showToast('Payment verification failed', 'error');
-                onError?.({ message: 'Payment verification failed' });
+                if (onError) onError({ message: 'Payment verification failed' });
               }
             } catch (error) {
               console.error('Verification error:', error);
+              if (!isMountedRef.current) return;
               setPaymentStatus('failed');
               setPaymentMessage('Payment verification failed. Please contact support.');
               showToast('Payment verification failed', 'error');
-              onError?.(error.response?.data || { message: 'Payment verification failed' });
+              if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
+            } finally {
+              initializedRef.current = false;
             }
-          },
-          onClose: () => {
-            // User closed the modal
-            if (paymentStatus === 'processing' || paymentStatus === 'idle') {
-              setPaymentStatus('idle');
-              setPaymentMessage('');
-              showToast('Payment cancelled', 'info');
-              onError?.({ message: 'Payment cancelled by user' });
-            }
-          },
+          };
+          
+          verifyPayment();
+        };
+
+        const handlePaymentClose = () => {
+          console.log('❌ Paystack modal closed by user');
+          if (!isMountedRef.current) return;
+          if (paymentStatus === 'processing' || paymentStatus === 'idle') {
+            setPaymentStatus('idle');
+            setPaymentMessage('');
+            showToast('Payment cancelled', 'info');
+            if (onError) onError({ message: 'Payment cancelled by user' });
+          }
+          initializedRef.current = false;
+        };
+
+        // Get the public key - try multiple sources
+        const publicKey = data.key || import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY;
+        
+        console.log('🔑 Using Paystack public key:', publicKey ? '✅ Present' : '❌ Missing');
+
+        // Initialize Paystack inline popup with proper callbacks
+        const handler = window.PaystackPop.setup({
+          key: publicKey,
+          email: data.email,
+          amount: data.amount,
+          ref: data.reference,
+          metadata: data.metadata,
+          callback: handlePaymentSuccess,
+          onClose: handlePaymentClose,
         });
 
-        // Store handler reference for cleanup
         paystackHandlerRef.current = handler;
         
         // Open the Paystack modal
@@ -145,16 +207,21 @@ const PaystackPayment = ({
         setPaymentStatus('failed');
         setPaymentMessage(response.data.message || 'Failed to initialize payment');
         showToast('Failed to initialize payment', 'error');
-        onError?.(response.data);
+        if (onError) onError(response.data);
+        initializedRef.current = false;
       }
     } catch (error) {
       console.error('Payment initialization error:', error);
+      if (!isMountedRef.current) return;
       setPaymentStatus('failed');
       setPaymentMessage(error.response?.data?.message || 'Payment initialization failed');
       showToast(error.response?.data?.message || 'Payment initialization failed', 'error');
-      onError?.(error.response?.data || { message: 'Payment initialization failed' });
+      if (onError) onError(error.response?.data || { message: 'Payment initialization failed' });
+      initializedRef.current = false;
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -164,25 +231,17 @@ const PaystackPayment = ({
       setPaymentStatus('failed');
       setPaymentMessage('Email is required for payment');
       showToast('Email is required for payment', 'error');
-      onError?.({ message: 'Email is required' });
+      if (onError) onError({ message: 'Email is required' });
       return;
     }
     
     // Small delay to ensure everything is ready
     const timer = setTimeout(() => {
       initializeDirectPayment();
-    }, 500);
+    }, 800);
 
     return () => {
       clearTimeout(timer);
-      // Clean up paystack handler if it exists
-      if (paystackHandlerRef.current) {
-        try {
-          paystackHandlerRef.current.close();
-        } catch (e) {
-          // Ignore close errors
-        }
-      }
     };
   }, []);
 
@@ -205,7 +264,7 @@ const PaystackPayment = ({
             {paymentMessage || 'Your payment has been completed successfully.'}
           </p>
           {bookingId && (
-            <div className={`p-4 rounded-xl bg-gray-50 dark:bg-gray-800 w-full max-w-sm`}>
+            <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 w-full max-w-sm">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Booking Reference</span>
                 <span className="font-mono font-medium text-gray-900 dark:text-white">
@@ -257,6 +316,7 @@ const PaystackPayment = ({
               onClick={() => {
                 setPaymentStatus('idle');
                 setPaymentMessage('');
+                initializedRef.current = false;
                 initializeDirectPayment();
               }}
               className="w-full sm:flex-1 px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all font-medium"
