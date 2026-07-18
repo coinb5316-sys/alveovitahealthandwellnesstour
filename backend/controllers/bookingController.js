@@ -3,6 +3,7 @@ import Booking from '../models/Booking.js';
 import Revenue from '../models/Revenue.js';
 import Tour from '../models/Tour.js';
 import Hotel from '../models/Hotel.js';
+import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 
 // ============================================
