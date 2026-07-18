@@ -28,7 +28,7 @@ import {
   Play, Pause, Maximize2, Minimize2,
   LogIn, Edit3, ThumbsUp as ThumbsUpIcon, Flag,
   Reply, Verified, StarHalf, Star as StarIcon,
-  Heart as HeartIcon
+  Heart as HeartIcon, Sparkle, Ticket, ReceiptText
 } from 'lucide-react'
 
 const TOUR_BOOKING_KEY = 'alveovita_tour_booking_data'
@@ -79,6 +79,7 @@ const TourDetails = () => {
   const [touchStart, setTouchStart] = useState(null)
   const [touchEnd, setTouchEnd] = useState(null)
   const [paymentAttempted, setPaymentAttempted] = useState(false)
+  const [bookingConfirmedData, setBookingConfirmedData] = useState(null)
 
   // Review states
   const [reviews, setReviews] = useState([])
@@ -179,13 +180,11 @@ const TourDetails = () => {
     
     try {
       if (isFavorite && favoriteId) {
-        // Remove from favorites
         await axios.delete(`/favorites/${favoriteId}`)
         setIsFavorite(false)
         setFavoriteId(null)
         showToast(`Removed "${tour.title}" from favorites`, 'success')
         
-        // Emit socket event for removal
         if (socket) {
           socket.emit('favorite-removed', {
             favoriteId: favoriteId,
@@ -197,7 +196,6 @@ const TourDetails = () => {
           })
         }
       } else {
-        // Add to favorites
         const response = await axios.post('/favorites', {
           itemType: 'tour',
           itemId: tour.id
@@ -208,7 +206,6 @@ const TourDetails = () => {
           setFavoriteId(response.data.favorite._id)
           showToast(`Added "${tour.title}" to favorites ❤️`, 'success')
           
-          // Emit socket event for addition
           if (socket) {
             socket.emit('favorite-added', {
               favoriteId: response.data.favorite._id,
@@ -497,7 +494,6 @@ const TourDetails = () => {
 
   // Handle booking initialization
   const handleBookingInit = async () => {
-    // Prevent multiple submissions
     if (isProcessing || isSubmitting) {
       return
     }
@@ -506,7 +502,6 @@ const TourDetails = () => {
     setIsProcessing(true)
     setIsSubmitting(true)
     
-    // Check if user is logged in
     if (!user) {
       const bookingState = {
         tourId: tour.id,
@@ -535,7 +530,6 @@ const TourDetails = () => {
       return
     }
 
-    // Validate date
     if (!selectedDate) {
       setBookingError('Please select a date')
       setIsProcessing(false)
@@ -543,7 +537,6 @@ const TourDetails = () => {
       return
     }
 
-    // Validate customer info
     if (!bookingData.name || !bookingData.email) {
       setBookingError('Please fill in all required fields')
       setIsProcessing(false)
@@ -554,7 +547,6 @@ const TourDetails = () => {
     const totalAmount = tour.price * guests
 
     try {
-      // Check for existing pending booking
       const existingBookingRes = await axios.get(`/bookings/mine`)
       let existingBooking = null
       
@@ -571,7 +563,6 @@ const TourDetails = () => {
       let bookingResult
 
       if (existingBooking) {
-        // Update existing booking
         const updateRes = await axios.patch(`/bookings/${existingBooking._id}`, {
           guests: guests,
           date: selectedDate,
@@ -584,7 +575,6 @@ const TourDetails = () => {
         bookingResult = updateRes.data
         showToast('Booking updated successfully', 'success')
       } else {
-        // Create new booking
         bookingResult = await createBooking({
           tourId: tour.id,
           tourTitle: tour.title,
@@ -623,37 +613,59 @@ const TourDetails = () => {
     }
   }
 
+  // Updated handlePaymentSuccess with professional confirmation
   const handlePaymentSuccess = async (paymentData) => {
-    setBookingSuccess(true)
-    setBookingStep(3)
-    setShowPayment(false)
-    setIsProcessing(false)
-    setIsSubmitting(false)
-    
-    showToast('🎉 Payment successful! Your booking is confirmed.', 'success')
-    
-    // Update the booking with payment reference
-    if (bookingReference) {
-      await createBooking({
-        ...bookingData,
-        tourId: tour.id,
-        tourTitle: tour.title,
+    try {
+      const bookingInfo = paymentData?.booking || {};
+      const reference = paymentData?.reference || bookingReference;
+      
+      // Set confirmation data for display
+      setBookingConfirmedData({
+        id: bookingInfo.id || bookingReference,
+        reference: reference,
+        amount: tour.price * guests,
+        name: tour.title,
+        type: 'tour',
         date: selectedDate,
         guests: guests,
-        totalAmount: tour.price * guests,
-        paymentReference: paymentData.reference || bookingReference,
-        status: 'confirmed',
-        type: 'tour'
-      })
+        customerName: bookingData.name,
+        customerEmail: bookingData.email,
+        paymentReference: reference
+      });
+      
+      setBookingSuccess(true);
+      setBookingStep(3);
+      setShowPayment(false);
+      setIsProcessing(false);
+      setIsSubmitting(false);
+      
+      // Update booking status
+      if (reference) {
+        try {
+          await axios.patch(`/bookings/${bookingInfo.id || bookingReference}`, {
+            status: 'confirmed',
+            paymentStatus: 'paid',
+            paymentReference: reference
+          });
+        } catch (updateError) {
+          console.warn('Booking update warning:', updateError);
+        }
+      }
+      
+      showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+      setPaymentAttempted(false);
+      clearSavedBooking();
+
+      // Auto-close after showing success
+      setTimeout(() => {
+        setShowBookingModal(false);
+        navigate('/dashboard');
+      }, 6000);
+    } catch (error) {
+      console.error('Payment success handling error:', error);
+      showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
     }
-
-    clearSavedBooking()
-
-    setTimeout(() => {
-      setShowBookingModal(false)
-      navigate('/dashboard')
-    }, 3000)
-  }
+  };
 
   const handlePaymentError = (error) => {
     setBookingError(error.message || 'Payment failed. Please try again.')
@@ -671,9 +683,10 @@ const TourDetails = () => {
   }
 
   const openBookingModal = () => {
-    // Reset payment states when opening modal
     setPaymentAttempted(false)
     setBookingError(null)
+    setBookingSuccess(false)
+    setBookingConfirmedData(null)
     setShowBookingModal(true)
     
     const savedData = localStorage.getItem(TOUR_BOOKING_KEY)
@@ -1318,7 +1331,6 @@ const TourDetails = () => {
                   {/* Tab Content - Reviews */}
                   {activeTab === 'reviews' && (
                     <div className="space-y-6">
-                      {/* Review Stats */}
                       <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                         <div className="flex flex-col md:flex-row items-center gap-6">
                           <div className="text-center">
@@ -1365,7 +1377,6 @@ const TourDetails = () => {
                         </div>
                       </div>
 
-                      {/* Write Review Button */}
                       {user ? (
                         <button
                           onClick={() => setShowReviewForm(!showReviewForm)}
@@ -1384,7 +1395,6 @@ const TourDetails = () => {
                         </button>
                       )}
 
-                      {/* Review Form */}
                       {showReviewForm && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
@@ -1469,7 +1479,6 @@ const TourDetails = () => {
                         </motion.div>
                       )}
 
-                      {/* Review List */}
                       <div className="space-y-4">
                         {reviews.length === 0 ? (
                           <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1709,7 +1718,7 @@ const TourDetails = () => {
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                  {bookingSuccess ? 'Booking Confirmed! 🎉' : 
+                  {bookingSuccess ? '🎉 Booking Confirmed!' : 
                    showPayment ? 'Complete Payment' :
                    bookingStep === 1 ? 'Book Your Journey' : 
                    'Review & Confirm'}
@@ -1724,6 +1733,7 @@ const TourDetails = () => {
                       setBookingError(null)
                       setIsProcessing(false)
                       setIsSubmitting(false)
+                      setBookingConfirmedData(null)
                     }}
                     className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
                   >
@@ -1736,22 +1746,77 @@ const TourDetails = () => {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-8"
+                  className="text-center py-6"
                 >
-                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Check className="w-10 h-10 text-white" />
+                  {/* Success Animation */}
+                  <div className="relative w-28 h-28 mx-auto mb-6">
+                    <motion.div
+                      className="absolute inset-0 rounded-full bg-green-500/20"
+                      animate={{ scale: [1, 1.5, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    <motion.div
+                      className="absolute inset-2 rounded-full bg-green-500/40"
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                    />
+                    <div className="absolute inset-0 rounded-full bg-green-500 flex items-center justify-center shadow-2xl shadow-green-500/30">
+                      <Check className="w-14 h-14 text-white" />
+                    </div>
                   </div>
-                  <h4 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                    Booking Confirmed!
-                  </h4>
-                  <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Your tour has been booked successfully.
-                    We'll send you a confirmation email with all the details.
+
+                  <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-800'} mb-2`}>
+                    Booking Confirmed! 🎉
+                  </h3>
+                  <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-center max-w-sm mx-auto`}>
+                    Your tour has been booked successfully. A confirmation email has been sent to your email address.
                   </p>
-                  <div className="mt-6 flex flex-wrap justify-center gap-4">
+
+                  {/* Booking Details Card */}
+                  <div className={`mt-6 p-5 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} max-w-sm mx-auto text-left`}>
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/20">
+                      <Ticket className="w-5 h-5 text-amber-500" />
+                      <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Booking Details</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Tour</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{tour.title}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Date</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                          {selectedDate ? new Date(selectedDate).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          }) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Guests</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{guests}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-gray-200/20">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Total Paid</span>
+                        <span className="font-bold text-amber-500 text-lg">₵{(tour.price * guests).toLocaleString()}</span>
+                      </div>
+                      {bookingReference && (
+                        <div className="flex justify-between pt-1">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Reference</span>
+                          <span className={`font-mono text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {bookingReference.slice(0, 16)}...
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
                     <Link
                       to="/dashboard"
-                      className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all"
+                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/30"
                     >
                       Go to Dashboard
                     </Link>
@@ -1761,7 +1826,31 @@ const TourDetails = () => {
                     >
                       Browse More Tours
                     </Link>
+                    <button
+                      onClick={() => {
+                        // Print functionality
+                        window.print()
+                      }}
+                      className={`px-6 py-3 rounded-xl border ${isDark ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'} hover:scale-105 transition-all flex items-center gap-2`}
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print
+                    </button>
                   </div>
+                  
+                  <p className={`mt-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    📧 Confirmation email sent to {bookingData.email}
+                  </p>
+                  
+                  <button
+                    onClick={() => {
+                      setShowBookingModal(false)
+                      navigate('/dashboard')
+                    }}
+                    className="mt-4 text-amber-500 hover:text-amber-600 transition-colors text-sm"
+                  >
+                    Close this window →
+                  </button>
                 </motion.div>
               ) : showPayment ? (
                 <PaystackPayment
@@ -1778,11 +1867,16 @@ const TourDetails = () => {
                     customerName: bookingData.name,
                     customerEmail: bookingData.email,
                     customerPhone: bookingData.phone,
-                    specialRequests: bookingData.specialRequests
+                    specialRequests: bookingData.specialRequests,
+                    location: tour.location
                   }}
                   onSuccess={handlePaymentSuccess}
                   onError={handlePaymentError}
                   onClose={handlePaymentClose}
+                  onPaymentStart={() => {
+                    setBookingError(null);
+                    setPaymentAttempted(true);
+                  }}
                 />
               ) : (
                 <>
@@ -1950,6 +2044,15 @@ const TourDetails = () => {
                           Secure payment powered by Paystack
                         </div>
                       </div>
+
+                      {bookingError && (
+                        <div className={`p-4 rounded-xl flex items-center gap-2 ${
+                          isDark ? 'bg-red-900/30' : 'bg-red-50'
+                        } border border-red-500/30`}>
+                          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                          <span className={isDark ? 'text-red-400' : 'text-red-600'}>{bookingError}</span>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-4">
                         <button

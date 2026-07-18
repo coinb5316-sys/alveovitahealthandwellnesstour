@@ -1,4 +1,4 @@
-// routes/paymentRoutes.js - COMPLETE with Alveoly Notification Pattern
+// backend/routes/paymentRoutes.js - COMPLETE WITH INLINE PAYMENT SUPPORT
 import express from 'express';
 import paystack from '../config/paystack.js';
 import { protect } from '../middleware/auth.js';
@@ -10,9 +10,8 @@ import { createNotification } from '../controllers/notificationController.js';
 const router = express.Router();
 
 // ============================================
-// ROUTES
+// TEST ROUTE
 // ============================================
-
 router.get('/test', async (req, res) => {
   try {
     const response = await paystack.bank.list();
@@ -31,6 +30,145 @@ router.get('/test', async (req, res) => {
   }
 });
 
+// ============================================
+// DIRECT PAYMENT INITIALIZE (FOR INLINE MODAL)
+// ============================================
+router.post('/initialize-direct', protect, async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    const { email, amount, tourTitle, hotelName, customerName, bookingData } = req.body;
+
+    console.log('📝 Direct payment initialization request:', {
+      email: email || req.user.email,
+      amount,
+      tourTitle,
+      hotelName,
+      userId: req.user.id
+    });
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid amount. Please provide a valid amount.'
+      });
+    }
+
+    // Check for existing pending booking
+    const existingBooking = await Booking.findOne({
+      user: req.user.id,
+      type: bookingData?.type || 'tour',
+      status: 'pending',
+      ...(bookingData?.tourId && { tourId: bookingData.tourId }),
+      ...(bookingData?.hotelId && { hotelId: bookingData.hotelId }),
+    }).sort({ createdAt: -1 });
+
+    let booking;
+
+    if (existingBooking) {
+      booking = existingBooking;
+      booking.totalAmount = amount;
+      booking.guests = bookingData?.guests || 1;
+      booking.nights = bookingData?.nights || 1;
+      booking.date = bookingData?.date || new Date();
+      booking.customerName = bookingData?.customerName || customerName || req.user.name;
+      booking.customerEmail = bookingData?.customerEmail || email || req.user.email;
+      booking.customerPhone = bookingData?.customerPhone || '';
+      booking.specialRequests = bookingData?.specialRequests || '';
+      await booking.save();
+      console.log('🔄 Updated existing booking:', booking._id);
+    } else {
+      booking = await Booking.create({
+        user: req.user.id,
+        type: bookingData?.type || 'tour',
+        tourId: bookingData?.tourId || null,
+        hotelId: bookingData?.hotelId || null,
+        tourTitle: bookingData?.tourTitle || tourTitle || null,
+        hotelName: bookingData?.hotelName || hotelName || null,
+        destination: bookingData?.destination || bookingData?.location || '',
+        date: bookingData?.date || new Date(),
+        nights: bookingData?.nights || 1,
+        guests: bookingData?.guests || 1,
+        totalAmount: amount,
+        status: 'pending',
+        paymentStatus: 'pending',
+        customerName: bookingData?.customerName || customerName || req.user.name,
+        customerEmail: bookingData?.customerEmail || email || req.user.email,
+        customerPhone: bookingData?.customerPhone || '',
+        specialRequests: bookingData?.specialRequests || '',
+      });
+      console.log('✅ Created new booking:', booking._id);
+    }
+
+    const reference = `ALV-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // Update booking with reference
+    await Booking.findByIdAndUpdate(booking._id, {
+      paymentReference: reference,
+    });
+
+    // Return data for inline payment modal
+    const response = {
+      success: true,
+      data: {
+        email: email || req.user.email,
+        amount: Math.round(amount * 100), // Paystack expects amount in kobo/pesewas
+        reference: reference,
+        key: process.env.PAYSTACK_PUBLIC_KEY,
+        callback_url: `${process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com/'}/payment/verify`,
+        metadata: {
+          custom_fields: [
+            {
+              display_name: 'Customer Name',
+              variable_name: 'customer_name',
+              value: customerName || req.user.name,
+            },
+            {
+              display_name: 'Booking ID',
+              variable_name: 'booking_id',
+              value: booking._id.toString(),
+            },
+            {
+              display_name: 'User ID',
+              variable_name: 'user_id',
+              value: req.user.id,
+            },
+          ],
+        },
+      },
+      bookingId: booking._id,
+      reference: reference,
+      amount: amount,
+    };
+
+    console.log('✅ Direct payment initialized for booking:', booking._id);
+
+    res.json(response);
+  } catch (error) {
+    console.error('❌ Direct payment initialization error:', error);
+    
+    if (error.response) {
+      console.error('Paystack API error:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+      
+      return res.status(error.response.status || 500).json({
+        success: false,
+        message: error.response.data?.message || 'Payment gateway error',
+        details: error.response.data
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to initialize payment'
+    });
+  }
+});
+
+// ============================================
+// REDIRECT PAYMENT INITIALIZE (LEGACY - KEPT FOR COMPATIBILITY)
+// ============================================
 router.post('/initialize', protect, async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -102,7 +240,7 @@ router.post('/initialize', protect, async (req, res) => {
       email: email || req.user.email,
       amount: Math.round(amount * 100),
       reference: reference,
-      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/verify`,
+      callback_url: `${process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com/'}/payment/verify`,
       metadata: {
         custom_fields: [
           {
@@ -179,6 +317,9 @@ router.post('/initialize', protect, async (req, res) => {
   }
 });
 
+// ============================================
+// VERIFY PAYMENT
+// ============================================
 router.get('/verify/:reference', async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -190,7 +331,8 @@ router.get('/verify/:reference', async (req, res) => {
 
     console.log('📤 Verification response:', {
       status: response.status,
-      message: response.message
+      message: response.message,
+      dataStatus: response.data?.status
     });
 
     if (!response.status) {
@@ -208,14 +350,15 @@ router.get('/verify/:reference', async (req, res) => {
           paymentStatus: 'paid'
         },
         { new: true }
-      );
+      ).populate('user', 'name email');
 
       if (booking) {
+        // Create revenue record
         const existingRevenue = await Revenue.findOne({ bookingId: booking._id });
         if (!existingRevenue) {
           await Revenue.create({
             bookingId: booking._id,
-            userId: booking.user,
+            userId: booking.user._id,
             type: booking.type,
             amount: booking.totalAmount,
             paymentReference: req.params.reference,
@@ -226,11 +369,11 @@ router.get('/verify/:reference', async (req, res) => {
         // Create payment success notification for user
         const itemName = booking.tourTitle || booking.hotelName || 'Alveovita';
         await createNotification(
-          booking.user,
+          booking.user._id,
           'user',
           'success',
           `✅ Payment Successful: ${itemName}`,
-          `Your payment of $${booking.totalAmount} for "${itemName}" has been confirmed.`,
+          `Your payment of ₵${booking.totalAmount} for "${itemName}" has been confirmed.`,
           `/bookings/${booking._id}`,
           { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_success' }
         );
@@ -242,18 +385,40 @@ router.get('/verify/:reference', async (req, res) => {
             admin._id,
             'admin',
             'success',
-            `💰 Payment Received: $${booking.totalAmount}`,
-            `Payment of $${booking.totalAmount} received from ${booking.customerName} for "${itemName}".`,
+            `💰 Payment Received: ₵${booking.totalAmount}`,
+            `Payment of ₵${booking.totalAmount} received from ${booking.customerName} for "${itemName}".`,
             `/admin/payments`,
             { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_received' }
           );
         }
+
+        // Emit socket event for real-time updates
+        if (io) {
+          io.emit('payment-success', {
+            bookingId: booking._id,
+            userId: booking.user._id,
+            amount: booking.totalAmount,
+            type: booking.type,
+            itemName: itemName,
+            customerName: booking.customerName
+          });
+        }
       }
 
-      res.json({
+      return res.json({
         success: true,
         data: response.data,
-        booking: booking,
+        booking: booking ? {
+          id: booking._id,
+          type: booking.type,
+          status: booking.status,
+          totalAmount: booking.totalAmount,
+          tourTitle: booking.tourTitle,
+          hotelName: booking.hotelName,
+          customerName: booking.customerName,
+          customerEmail: booking.customerEmail,
+        } : null,
+        message: 'Payment verified successfully'
       });
     } else {
       const booking = await Booking.findOneAndUpdate(
@@ -273,24 +438,10 @@ router.get('/verify/:reference', async (req, res) => {
           'user',
           'error',
           `❌ Payment Failed: ${itemName}`,
-          `Payment of $${booking.totalAmount} for "${itemName}" failed. Please try again.`,
+          `Payment of ₵${booking.totalAmount} for "${itemName}" failed. Please try again.`,
           `/bookings/${booking._id}`,
           { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_failed' }
         );
-
-        // Create notification for admins
-        const admins = await User.find({ role: 'admin' });
-        for (const admin of admins) {
-          await createNotification(
-            admin._id,
-            'admin',
-            'warning',
-            `❌ Payment Failed: $${booking.totalAmount}`,
-            `Payment of $${booking.totalAmount} from ${booking.customerName} for "${itemName}" failed.`,
-            `/admin/payments`,
-            { bookingId: booking._id, amount: booking.totalAmount, action: 'payment_failed_admin' }
-          );
-        }
       }
 
       res.status(400).json({
@@ -316,6 +467,9 @@ router.get('/verify/:reference', async (req, res) => {
   }
 });
 
+// ============================================
+// WEBHOOK FOR PAYSTACK CALLBACKS
+// ============================================
 router.post('/webhook', async (req, res) => {
   try {
     const io = req.app.get('io');
@@ -351,12 +505,23 @@ router.post('/webhook', async (req, res) => {
             'user',
             'success',
             `✅ Payment Successful: ${itemName}`,
-            `Your payment of $${existingBooking.totalAmount} for "${itemName}" has been confirmed.`,
+            `Your payment of ₵${existingBooking.totalAmount} for "${itemName}" has been confirmed.`,
             `/bookings/${existingBooking._id}`,
             { bookingId: existingBooking._id, amount: existingBooking.totalAmount, action: 'payment_success' }
           );
           
-          console.log('✅ Payment successful:', event.data.reference);
+          // Emit socket event
+          if (io) {
+            io.emit('payment-success', {
+              bookingId: existingBooking._id,
+              userId: existingBooking.user,
+              amount: existingBooking.totalAmount,
+              type: existingBooking.type,
+              itemName: itemName
+            });
+          }
+          
+          console.log('✅ Payment successful (webhook):', event.data.reference);
         }
         break;
       case 'charge.failed':
@@ -376,15 +541,15 @@ router.post('/webhook', async (req, res) => {
             'user',
             'error',
             `❌ Payment Failed: ${itemName}`,
-            `Payment of $${failedBooking.totalAmount} for "${itemName}" failed. Please try again.`,
+            `Payment of ₵${failedBooking.totalAmount} for "${itemName}" failed. Please try again.`,
             `/bookings/${failedBooking._id}`,
             { bookingId: failedBooking._id, amount: failedBooking.totalAmount, action: 'payment_failed' }
           );
         }
-        console.log('❌ Payment failed:', event.data.reference);
+        console.log('❌ Payment failed (webhook):', event.data.reference);
         break;
       default:
-        console.log('📝 Unhandled event:', event.event);
+        console.log('📝 Unhandled webhook event:', event.event);
     }
 
     res.status(200).json({ success: true });

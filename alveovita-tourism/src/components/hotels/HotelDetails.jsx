@@ -23,7 +23,8 @@ import {
   ExternalLink, PhoneCall, MailOpen, Map, Navigation,
   Hotel, Bed, Bath, Tv, Wifi as WifiIcon, Coffee as CoffeeIcon,
   Loader2, Play, Pause, Maximize2, Minimize2,
-  LogIn, Edit3, Verified, StarHalf, Heart as HeartIcon
+  LogIn, Edit3, Verified, StarHalf, Heart as HeartIcon,
+  Printer, Ticket, ReceiptText
 } from 'lucide-react'
 
 const HOTEL_BOOKING_KEY = 'alveovita_hotel_booking_data'
@@ -76,6 +77,7 @@ const HotelDetails = () => {
   const [touchStart, setTouchStart] = useState(null)
   const [touchEnd, setTouchEnd] = useState(null)
   const [paymentAttempted, setPaymentAttempted] = useState(false)
+  const [bookingConfirmedData, setBookingConfirmedData] = useState(null)
 
   // Review states
   const [reviews, setReviews] = useState([])
@@ -192,13 +194,11 @@ const HotelDetails = () => {
     
     try {
       if (isFavorite && favoriteId) {
-        // Remove from favorites
         await axios.delete(`/favorites/${favoriteId}`)
         setIsFavorite(false)
         setFavoriteId(null)
         showToast(`Removed "${hotel.name}" from favorites`, 'success')
         
-        // Emit socket event for removal
         if (socket) {
           socket.emit('favorite-removed', {
             favoriteId: favoriteId,
@@ -210,7 +210,6 @@ const HotelDetails = () => {
           })
         }
       } else {
-        // Add to favorites
         const response = await axios.post('/favorites', {
           itemType: 'hotel',
           itemId: hotel.id
@@ -221,7 +220,6 @@ const HotelDetails = () => {
           setFavoriteId(response.data.favorite._id)
           showToast(`Added "${hotel.name}" to favorites ❤️`, 'success')
           
-          // Emit socket event for addition
           if (socket) {
             socket.emit('favorite-added', {
               favoriteId: response.data.favorite._id,
@@ -485,7 +483,6 @@ const HotelDetails = () => {
 
   // Handle booking initialization
   const handleBookingInit = async () => {
-    // Prevent multiple submissions
     if (isProcessing || isSubmitting) {
       return
     }
@@ -540,7 +537,6 @@ const HotelDetails = () => {
     const totalAmount = hotel.price * nights * guests
 
     try {
-      // Check for existing pending booking
       const existingBookingRes = await axios.get(`/bookings/mine`)
       let existingBooking = null
       
@@ -557,7 +553,6 @@ const HotelDetails = () => {
       let bookingResult
 
       if (existingBooking) {
-        // Update existing booking
         const updateRes = await axios.patch(`/bookings/${existingBooking._id}`, {
           guests: guests,
           nights: nights,
@@ -571,7 +566,6 @@ const HotelDetails = () => {
         bookingResult = updateRes.data
         showToast('Booking updated successfully', 'success')
       } else {
-        // Create new booking
         bookingResult = await createBooking({
           hotelId: hotel.id,
           hotelName: hotel.name,
@@ -611,36 +605,56 @@ const HotelDetails = () => {
     }
   }
 
+  // Updated handlePaymentSuccess with professional confirmation
   const handlePaymentSuccess = async (paymentData) => {
-    setBookingSuccess(true)
-    setShowPayment(false)
-    setIsProcessing(false)
-    setIsSubmitting(false)
-    
-    showToast('🎉 Payment successful! Your booking is confirmed.', 'success')
-    
-    if (bookingReference) {
-      await createBooking({
-        ...bookingData,
-        hotelId: hotel.id,
-        hotelName: hotel.name,
+    try {
+      const bookingInfo = paymentData?.booking || {};
+      const reference = paymentData?.reference || bookingReference;
+      
+      setBookingConfirmedData({
+        id: bookingInfo.id || bookingReference,
+        reference: reference,
+        amount: hotel.price * nights * guests,
+        name: hotel.name,
+        type: 'hotel',
         date: selectedDate,
         nights: nights,
         guests: guests,
-        totalAmount: hotel.price * nights * guests,
-        paymentReference: paymentData.reference || bookingReference,
-        status: 'confirmed',
-        type: 'hotel'
-      })
+        customerName: bookingData.name,
+        customerEmail: bookingData.email,
+        paymentReference: reference
+      });
+      
+      setBookingSuccess(true);
+      setShowPayment(false);
+      setIsProcessing(false);
+      setIsSubmitting(false);
+      
+      if (reference) {
+        try {
+          await axios.patch(`/bookings/${bookingInfo.id || bookingReference}`, {
+            status: 'confirmed',
+            paymentStatus: 'paid',
+            paymentReference: reference
+          });
+        } catch (updateError) {
+          console.warn('Booking update warning:', updateError);
+        }
+      }
+      
+      showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+      setPaymentAttempted(false);
+      clearSavedBooking();
+
+      setTimeout(() => {
+        setShowBookingModal(false);
+        navigate('/dashboard');
+      }, 6000);
+    } catch (error) {
+      console.error('Payment success handling error:', error);
+      showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
     }
-
-    clearSavedBooking()
-
-    setTimeout(() => {
-      setShowBookingModal(false)
-      navigate('/dashboard')
-    }, 3000)
-  }
+  };
 
   const handlePaymentError = (error) => {
     setBookingError(error.message || 'Payment failed. Please try again.')
@@ -660,6 +674,8 @@ const HotelDetails = () => {
   const openBookingModal = () => {
     setPaymentAttempted(false)
     setBookingError(null)
+    setBookingSuccess(false)
+    setBookingConfirmedData(null)
     setShowBookingModal(true)
     const savedData = localStorage.getItem(HOTEL_BOOKING_KEY)
     if (savedData) {
@@ -1445,7 +1461,7 @@ const HotelDetails = () => {
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                  {bookingSuccess ? 'Booking Confirmed! 🎉' : 
+                  {bookingSuccess ? '🎉 Booking Confirmed!' : 
                    showPayment ? 'Complete Payment' :
                    'Book Your Stay'}
                 </h3>
@@ -1459,6 +1475,7 @@ const HotelDetails = () => {
                       setBookingError(null)
                       setIsProcessing(false)
                       setIsSubmitting(false)
+                      setBookingConfirmedData(null)
                     }}
                     className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
                   >
@@ -1471,22 +1488,81 @@ const HotelDetails = () => {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-8"
+                  className="text-center py-6"
                 >
-                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle className="w-10 h-10 text-white" />
+                  {/* Success Animation */}
+                  <div className="relative w-28 h-28 mx-auto mb-6">
+                    <motion.div
+                      className="absolute inset-0 rounded-full bg-green-500/20"
+                      animate={{ scale: [1, 1.5, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    <motion.div
+                      className="absolute inset-2 rounded-full bg-green-500/40"
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                    />
+                    <div className="absolute inset-0 rounded-full bg-green-500 flex items-center justify-center shadow-2xl shadow-green-500/30">
+                      <CheckCircle className="w-14 h-14 text-white" />
+                    </div>
                   </div>
-                  <h4 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-                    Booking Confirmed!
-                  </h4>
-                  <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Your stay at {hotel.name} has been booked successfully.
-                    We'll send you a confirmation email with all the details.
+
+                  <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-800'} mb-2`}>
+                    Booking Confirmed! 🎉
+                  </h3>
+                  <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-center max-w-sm mx-auto`}>
+                    Your stay at {hotel.name} has been booked successfully. A confirmation email has been sent to your email address.
                   </p>
-                  <div className="mt-6 flex flex-wrap justify-center gap-4">
+
+                  {/* Booking Details Card */}
+                  <div className={`mt-6 p-5 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} max-w-sm mx-auto text-left`}>
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/20">
+                      <Hotel className="w-5 h-5 text-amber-500" />
+                      <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Booking Details</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Hotel</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{hotel.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Check-in</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                          {selectedDate ? new Date(selectedDate).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          }) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Nights</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{nights}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Guests</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{guests}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-gray-200/20">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Total Paid</span>
+                        <span className="font-bold text-amber-500 text-lg">₵{totalPrice.toLocaleString()}</span>
+                      </div>
+                      {bookingReference && (
+                        <div className="flex justify-between pt-1">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Reference</span>
+                          <span className={`font-mono text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {bookingReference.slice(0, 16)}...
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
                     <Link
                       to="/dashboard"
-                      className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all"
+                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/30"
                     >
                       Go to Dashboard
                     </Link>
@@ -1496,7 +1572,28 @@ const HotelDetails = () => {
                     >
                       Browse More Hotels
                     </Link>
+                    <button
+                      onClick={() => window.print()}
+                      className={`px-6 py-3 rounded-xl border ${isDark ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'} hover:scale-105 transition-all flex items-center gap-2`}
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print
+                    </button>
                   </div>
+                  
+                  <p className={`mt-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    📧 Confirmation email sent to {bookingData.email}
+                  </p>
+                  
+                  <button
+                    onClick={() => {
+                      setShowBookingModal(false)
+                      navigate('/dashboard')
+                    }}
+                    className="mt-4 text-amber-500 hover:text-amber-600 transition-colors text-sm"
+                  >
+                    Close this window →
+                  </button>
                 </motion.div>
               ) : showPayment ? (
                 <PaystackPayment
@@ -1514,11 +1611,16 @@ const HotelDetails = () => {
                     customerName: bookingData.name,
                     customerEmail: bookingData.email,
                     customerPhone: bookingData.phone,
-                    specialRequests: bookingData.specialRequests
+                    specialRequests: bookingData.specialRequests,
+                    location: hotel.location
                   }}
                   onSuccess={handlePaymentSuccess}
                   onError={handlePaymentError}
                   onClose={handlePaymentClose}
+                  onPaymentStart={() => {
+                    setBookingError(null);
+                    setPaymentAttempted(true);
+                  }}
                 />
               ) : (
                 <div className="space-y-4">
