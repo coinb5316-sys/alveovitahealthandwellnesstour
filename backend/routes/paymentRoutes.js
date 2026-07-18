@@ -1,4 +1,4 @@
-// backend/routes/paymentRoutes.js - COMPLETE WITH CURRENCY FIX
+// backend/routes/paymentRoutes.js - ADD THE MISSING /initiate ROUTE
 import express from 'express';
 import paystack from '../config/paystack.js';
 import { protect } from '../middleware/auth.js';
@@ -26,6 +26,171 @@ router.get('/test', async (req, res) => {
       success: false,
       message: 'Paystack connection failed',
       error: error.response?.data?.message || error.message
+    });
+  }
+});
+
+// ============================================
+// INITIATE PAYMENT (REDIRECT METHOD) - ADD THIS
+// ============================================
+router.post('/initiate', protect, async (req, res) => {
+  try {
+    const { email, amount, tourTitle, hotelName, customerName, bookingData } = req.body;
+
+    console.log('📝 Payment initiation request:', {
+      email: email || req.user.email,
+      amount,
+      tourTitle,
+      hotelName,
+      userId: req.user.id
+    });
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid amount. Please provide a valid amount.'
+      });
+    }
+
+    // Check for existing pending booking
+    const existingBooking = await Booking.findOne({
+      user: req.user.id,
+      type: bookingData?.type || 'tour',
+      status: 'pending',
+      ...(bookingData?.tourId && { tourId: bookingData.tourId }),
+      ...(bookingData?.hotelId && { hotelId: bookingData.hotelId }),
+    }).sort({ createdAt: -1 });
+
+    let booking;
+
+    if (existingBooking) {
+      booking = existingBooking;
+      booking.totalAmount = amount;
+      booking.guests = bookingData?.guests || 1;
+      booking.nights = bookingData?.nights || 1;
+      booking.date = bookingData?.date || new Date();
+      booking.customerName = bookingData?.customerName || customerName || req.user.name;
+      booking.customerEmail = bookingData?.customerEmail || email || req.user.email;
+      booking.customerPhone = bookingData?.customerPhone || '';
+      booking.specialRequests = bookingData?.specialRequests || '';
+      await booking.save();
+      console.log('🔄 Updated existing booking:', booking._id);
+    } else {
+      booking = await Booking.create({
+        user: req.user.id,
+        type: bookingData?.type || 'tour',
+        tourId: bookingData?.tourId || null,
+        hotelId: bookingData?.hotelId || null,
+        tourTitle: bookingData?.tourTitle || tourTitle || null,
+        hotelName: bookingData?.hotelName || hotelName || null,
+        destination: bookingData?.destination || bookingData?.location || '',
+        date: bookingData?.date || new Date(),
+        nights: bookingData?.nights || 1,
+        guests: bookingData?.guests || 1,
+        totalAmount: amount,
+        status: 'pending',
+        paymentStatus: 'pending',
+        customerName: bookingData?.customerName || customerName || req.user.name,
+        customerEmail: bookingData?.customerEmail || email || req.user.email,
+        customerPhone: bookingData?.customerPhone || '',
+        specialRequests: bookingData?.specialRequests || '',
+      });
+      console.log('✅ Created new booking:', booking._id);
+    }
+
+    const reference = `ALV-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // Update booking with reference
+    await Booking.findByIdAndUpdate(booking._id, {
+      paymentReference: reference,
+    });
+
+    // Build callback URL with reference and booking ID
+    const frontendUrl = process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com';
+    const callbackUrl = `${frontendUrl}/payment-success?reference=${reference}&bookingId=${booking._id}`;
+    
+    console.log('🔗 Callback URL:', callbackUrl);
+
+    // Initialize payment with Paystack
+    const paystackPayload = {
+      email: email || req.user.email,
+      amount: Math.round(amount * 100), // Paystack expects amount in pesewas
+      currency: 'GHS',
+      reference: reference,
+      callback_url: callbackUrl,
+      metadata: {
+        custom_fields: [
+          {
+            display_name: 'Customer Name',
+            variable_name: 'customer_name',
+            value: customerName || req.user.name,
+          },
+          {
+            display_name: 'Booking ID',
+            variable_name: 'booking_id',
+            value: booking._id.toString(),
+          },
+          {
+            display_name: 'User ID',
+            variable_name: 'user_id',
+            value: req.user.id,
+          },
+          {
+            display_name: 'Type',
+            variable_name: 'type',
+            value: bookingData?.type || 'tour',
+          },
+        ],
+      },
+    };
+
+    console.log('📦 Sending to Paystack:', {
+      ...paystackPayload,
+      amount: paystackPayload.amount / 100
+    });
+
+    const response = await paystack.transaction.initialize(paystackPayload);
+
+    console.log('📤 Paystack response status:', response.status);
+    console.log('📤 Paystack response message:', response.message);
+
+    if (!response.status) {
+      if (!existingBooking) {
+        await Booking.findByIdAndDelete(booking._id);
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: response.message || 'Payment initialization failed',
+        details: response
+      });
+    }
+
+    res.json({
+      success: true,
+      authorization_url: response.data.authorization_url,
+      reference: reference,
+      bookingId: booking._id,
+    });
+  } catch (error) {
+    console.error('❌ Payment initiation error:', error);
+    
+    if (error.response) {
+      console.error('Paystack API error:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+      
+      return res.status(error.response.status || 500).json({
+        success: false,
+        message: error.response.data?.message || 'Payment gateway error',
+        details: error.response.data
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to initialize payment'
     });
   }
 });
@@ -114,8 +279,8 @@ router.post('/initialize-direct', protect, async (req, res) => {
       success: true,
       data: {
         email: email || req.user.email,
-        amount: amountInPesewas, // Paystack expects amount in kobo/pesewas
-        currency: 'GHS', // <-- ADD THIS - CRITICAL FOR GHANA
+        amount: amountInPesewas,
+        currency: 'GHS',
         reference: reference,
         key: process.env.PAYSTACK_PUBLIC_KEY,
         callback_url: `${process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com/'}/payment/verify`,
@@ -244,7 +409,7 @@ router.post('/initialize', protect, async (req, res) => {
     const paystackPayload = {
       email: email || req.user.email,
       amount: Math.round(amount * 100),
-      currency: 'GHS', // <-- ADD THIS - CRITICAL FOR GHANA
+      currency: 'GHS',
       reference: reference,
       callback_url: `${process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com/'}/payment/verify`,
       metadata: {
