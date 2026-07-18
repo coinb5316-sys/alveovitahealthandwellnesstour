@@ -1,4 +1,4 @@
-// src/components/payment/PaystackPayment.jsx
+// src/components/payment/PaystackPayment.jsx - COMPLETE FIXED
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -34,6 +34,7 @@ const PaystackPayment = ({
   const [bookingId, setBookingId] = useState(null);
   const [paymentUrl, setPaymentUrl] = useState(null);
   const [pollingActive, setPollingActive] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
   const isMountedRef = useRef(true);
   const initializedRef = useRef(false);
   const pollIntervalRef = useRef(null);
@@ -60,17 +61,16 @@ const PaystackPayment = ({
     }
 
     windowCheckIntervalRef.current = setInterval(() => {
-      // If the window is closed, start polling for status
       if (!paymentWindow || paymentWindow.closed) {
         console.log('🔍 Payment window closed, starting verification...');
         clearInterval(windowCheckIntervalRef.current);
         windowCheckIntervalRef.current = null;
         
-        // Check payment status immediately when window closes
-        checkPaymentStatus(ref);
+        if (!paymentCompleted) {
+          checkPaymentStatus(ref);
+        }
         
-        // Start polling
-        if (!pollIntervalRef.current) {
+        if (!pollIntervalRef.current && !paymentCompleted) {
           startPolling(ref);
         }
       }
@@ -79,6 +79,8 @@ const PaystackPayment = ({
 
   // Check payment status once
   const checkPaymentStatus = async (ref) => {
+    if (paymentCompleted) return;
+    
     try {
       console.log('🔍 Checking payment status for:', ref);
       const response = await axios.get(`/payments/verify/${ref}`);
@@ -101,6 +103,9 @@ const PaystackPayment = ({
 
   // Handle payment success
   const handlePaymentSuccess = (data, ref) => {
+    if (paymentCompleted) return;
+    paymentCompleted = true;
+    
     // Clear all intervals
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
@@ -118,24 +123,33 @@ const PaystackPayment = ({
     
     if (onSuccess) {
       onSuccess({
-        ...data.data,
+        ...data,
         booking: data.booking,
-        reference: ref
+        reference: ref,
+        success: true
       });
     }
     initializedRef.current = false;
   };
 
   const startPolling = (ref) => {
+    if (paymentCompleted) return;
+    
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
     }
 
     setPollingActive(true);
     let attempts = 0;
-    const maxAttempts = 40; // 40 * 3 seconds = 120 seconds (2 minutes)
+    const maxAttempts = 60;
 
     pollIntervalRef.current = setInterval(async () => {
+      if (paymentCompleted) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+        return;
+      }
+      
       attempts++;
       console.log(`⏳ Polling attempt ${attempts}/${maxAttempts} for: ${ref}`);
       
@@ -155,20 +169,20 @@ const PaystackPayment = ({
         }
         
         if (attempts >= maxAttempts) {
-          // Timeout - check one more time
           console.log('⏰ Polling timeout, final check...');
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
           setPollingActive(false);
           
-          // Final check
-          const finalCheck = await checkPaymentStatus(ref);
-          if (!finalCheck) {
-            setPaymentStatus('failed');
-            setPaymentMessage('Payment verification timed out. Please contact support.');
-            showToast('Payment verification timed out', 'error');
-            if (onError) onError({ message: 'Payment verification timed out' });
-            initializedRef.current = false;
+          if (!paymentCompleted) {
+            const finalCheck = await checkPaymentStatus(ref);
+            if (!finalCheck) {
+              setPaymentStatus('failed');
+              setPaymentMessage('Payment verification timed out. Please contact support.');
+              showToast('Payment verification timed out', 'error');
+              if (onError) onError({ message: 'Payment verification timed out' });
+              initializedRef.current = false;
+            }
           }
         }
       } catch (error) {
@@ -180,11 +194,13 @@ const PaystackPayment = ({
           
           if (!isMountedRef.current) return;
           
-          setPaymentStatus('failed');
-          setPaymentMessage('Payment verification failed. Please contact support.');
-          showToast('Payment verification failed', 'error');
-          if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
-          initializedRef.current = false;
+          if (!paymentCompleted) {
+            setPaymentStatus('failed');
+            setPaymentMessage('Payment verification failed. Please contact support.');
+            showToast('Payment verification failed', 'error');
+            if (onError) onError(error.response?.data || { message: 'Payment verification failed' });
+            initializedRef.current = false;
+          }
         }
       }
     }, 3000);
@@ -236,32 +252,25 @@ const PaystackPayment = ({
         const newWindow = window.open(authorization_url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
         
         if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-          // Popup blocked - redirect in same window
           window.location.href = authorization_url;
           return;
         }
 
-        // Start checking if the window is still open
         checkPaymentWindow(newWindow, ref);
-        
-        // Also start polling as backup
         startPolling(ref);
 
-        // Also check for focus events on the page (user returned to tab)
         const handleFocus = () => {
           console.log('👁️ Page focused, checking payment status...');
-          if (ref && !pollingActive) {
+          if (ref && !pollingActive && !paymentCompleted) {
             checkPaymentStatus(ref);
           }
         };
         window.addEventListener('focus', handleFocus);
         
-        // Cleanup listener when component unmounts or payment completes
         const cleanup = () => {
           window.removeEventListener('focus', handleFocus);
         };
         
-        // Store cleanup function
         if (window._paystackCleanup) {
           window._paystackCleanup();
         }
@@ -389,6 +398,7 @@ const PaystackPayment = ({
               onClick={() => {
                 setPaymentStatus('idle');
                 setPaymentMessage('');
+                setPaymentCompleted(false);
                 initializedRef.current = false;
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current);

@@ -605,12 +605,27 @@ const HotelDetails = () => {
     }
   }
 
-  // Updated handlePaymentSuccess with professional confirmation
-  const handlePaymentSuccess = async (paymentData) => {
-    try {
-      const bookingInfo = paymentData?.booking || {};
-      const reference = paymentData?.reference || bookingReference;
-      
+  // ============================================
+// Updated handlePaymentSuccess function for HotelDetails.jsx
+// ============================================
+const handlePaymentSuccess = async (paymentData) => {
+  try {
+    console.log('💰 Payment success data received:', paymentData);
+    
+    if (!paymentData || !paymentData.success) {
+      console.warn('Payment was not successful:', paymentData);
+      showToast('Payment was not successful. Please try again.', 'error');
+      setIsProcessing(false);
+      setIsSubmitting(false);
+      return;
+    }
+    
+    const bookingInfo = paymentData?.booking || {};
+    const reference = paymentData?.reference || bookingReference;
+    
+    console.log('📋 Booking info from payment:', bookingInfo);
+    
+    if (bookingInfo.status === 'confirmed' || bookingInfo.paymentStatus === 'paid') {
       setBookingConfirmedData({
         id: bookingInfo.id || bookingReference,
         reference: reference,
@@ -622,25 +637,15 @@ const HotelDetails = () => {
         guests: guests,
         customerName: bookingData.name,
         customerEmail: bookingData.email,
-        paymentReference: reference
+        paymentReference: reference,
+        status: 'confirmed',
+        destination: hotel.location
       });
       
       setBookingSuccess(true);
       setShowPayment(false);
       setIsProcessing(false);
       setIsSubmitting(false);
-      
-      if (reference) {
-        try {
-          await axios.patch(`/bookings/${bookingInfo.id || bookingReference}`, {
-            status: 'confirmed',
-            paymentStatus: 'paid',
-            paymentReference: reference
-          });
-        } catch (updateError) {
-          console.warn('Booking update warning:', updateError);
-        }
-      }
       
       showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
       setPaymentAttempted(false);
@@ -650,11 +655,70 @@ const HotelDetails = () => {
         setShowBookingModal(false);
         navigate('/dashboard');
       }, 6000);
-    } catch (error) {
-      console.error('Payment success handling error:', error);
-      showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
+    } else {
+      try {
+        const bookingId = bookingInfo.id || bookingReference;
+        if (bookingId) {
+          const fetchResponse = await axios.get(`/bookings/${bookingId}`);
+          if (fetchResponse.data.success && fetchResponse.data.booking) {
+            const updatedBooking = fetchResponse.data.booking;
+            if (updatedBooking.status === 'confirmed') {
+              setBookingConfirmedData({
+                id: updatedBooking._id,
+                reference: reference,
+                amount: hotel.price * nights * guests,
+                name: hotel.name,
+                type: 'hotel',
+                date: selectedDate,
+                nights: nights,
+                guests: guests,
+                customerName: bookingData.name,
+                customerEmail: bookingData.email,
+                paymentReference: reference,
+                status: 'confirmed',
+                destination: hotel.location
+              });
+              
+              setBookingSuccess(true);
+              setShowPayment(false);
+              setIsProcessing(false);
+              setIsSubmitting(false);
+              
+              showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+              setPaymentAttempted(false);
+              clearSavedBooking();
+
+              setTimeout(() => {
+                setShowBookingModal(false);
+                navigate('/dashboard');
+              }, 6000);
+              return;
+            }
+          }
+        }
+      } catch (fetchError) {
+        console.warn('Could not fetch updated booking:', fetchError);
+      }
+      
+      setBookingSuccess(true);
+      setShowPayment(false);
+      setIsProcessing(false);
+      setIsSubmitting(false);
+      showToast('Payment successful! Your booking is being confirmed.', 'success');
+      clearSavedBooking();
+
+      setTimeout(() => {
+        setShowBookingModal(false);
+        navigate('/dashboard');
+      }, 6000);
     }
-  };
+  } catch (error) {
+    console.error('Payment success handling error:', error);
+    showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
+    setIsProcessing(false);
+    setIsSubmitting(false);
+  }
+};
 
   const handlePaymentError = (error) => {
     setBookingError(error.message || 'Payment failed. Please try again.')

@@ -614,12 +614,31 @@ const TourDetails = () => {
   }
 
   // Updated handlePaymentSuccess with professional confirmation
-  const handlePaymentSuccess = async (paymentData) => {
-    try {
-      const bookingInfo = paymentData?.booking || {};
-      const reference = paymentData?.reference || bookingReference;
-      
-      // Set confirmation data for display
+  // ============================================
+// Updated handlePaymentSuccess function for TourDetails.jsx
+// ============================================
+const handlePaymentSuccess = async (paymentData) => {
+  try {
+    console.log('💰 Payment success data received:', paymentData);
+    
+    // Check if payment was successful
+    if (!paymentData || !paymentData.success) {
+      console.warn('Payment was not successful:', paymentData);
+      showToast('Payment was not successful. Please try again.', 'error');
+      setIsProcessing(false);
+      setIsSubmitting(false);
+      return;
+    }
+    
+    // Get booking info from the payment response
+    const bookingInfo = paymentData?.booking || {};
+    const reference = paymentData?.reference || bookingReference;
+    
+    console.log('📋 Booking info from payment:', bookingInfo);
+    
+    // Check if booking is confirmed
+    if (bookingInfo.status === 'confirmed' || bookingInfo.paymentStatus === 'paid') {
+      // Booking is already confirmed - show success
       setBookingConfirmedData({
         id: bookingInfo.id || bookingReference,
         reference: reference,
@@ -630,7 +649,9 @@ const TourDetails = () => {
         guests: guests,
         customerName: bookingData.name,
         customerEmail: bookingData.email,
-        paymentReference: reference
+        paymentReference: reference,
+        status: 'confirmed',
+        destination: tour.location
       });
       
       setBookingSuccess(true);
@@ -639,34 +660,81 @@ const TourDetails = () => {
       setIsProcessing(false);
       setIsSubmitting(false);
       
-      // Update booking status
-      if (reference) {
-        try {
-          await axios.patch(`/bookings/${bookingInfo.id || bookingReference}`, {
-            status: 'confirmed',
-            paymentStatus: 'paid',
-            paymentReference: reference
-          });
-        } catch (updateError) {
-          console.warn('Booking update warning:', updateError);
-        }
-      }
-      
       showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
       setPaymentAttempted(false);
       clearSavedBooking();
 
-      // Auto-close after showing success
       setTimeout(() => {
         setShowBookingModal(false);
         navigate('/dashboard');
       }, 6000);
-    } catch (error) {
-      console.error('Payment success handling error:', error);
-      showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
-    }
-  };
+    } else {
+      // Try to fetch the latest booking status
+      try {
+        const bookingId = bookingInfo.id || bookingReference;
+        if (bookingId) {
+          const fetchResponse = await axios.get(`/bookings/${bookingId}`);
+          if (fetchResponse.data.success && fetchResponse.data.booking) {
+            const updatedBooking = fetchResponse.data.booking;
+            if (updatedBooking.status === 'confirmed') {
+              setBookingConfirmedData({
+                id: updatedBooking._id,
+                reference: reference,
+                amount: tour.price * guests,
+                name: tour.title,
+                type: 'tour',
+                date: selectedDate,
+                guests: guests,
+                customerName: bookingData.name,
+                customerEmail: bookingData.email,
+                paymentReference: reference,
+                status: 'confirmed',
+                destination: tour.location
+              });
+              
+              setBookingSuccess(true);
+              setBookingStep(3);
+              setShowPayment(false);
+              setIsProcessing(false);
+              setIsSubmitting(false);
+              
+              showToast('🎉 Payment successful! Your booking is confirmed.', 'success');
+              setPaymentAttempted(false);
+              clearSavedBooking();
 
+              setTimeout(() => {
+                setShowBookingModal(false);
+                navigate('/dashboard');
+              }, 6000);
+              return;
+            }
+          }
+        }
+      } catch (fetchError) {
+        console.warn('Could not fetch updated booking:', fetchError);
+      }
+      
+      // Fallback: assume success but show warning
+      setBookingSuccess(true);
+      setBookingStep(3);
+      setShowPayment(false);
+      setIsProcessing(false);
+      setIsSubmitting(false);
+      showToast('Payment successful! Your booking is being confirmed.', 'success');
+      clearSavedBooking();
+
+      setTimeout(() => {
+        setShowBookingModal(false);
+        navigate('/dashboard');
+      }, 6000);
+    }
+  } catch (error) {
+    console.error('Payment success handling error:', error);
+    showToast('Payment confirmed but there was an issue updating your booking.', 'warning');
+    setIsProcessing(false);
+    setIsSubmitting(false);
+  }
+};
   const handlePaymentError = (error) => {
     setBookingError(error.message || 'Payment failed. Please try again.')
     setShowPayment(false)
