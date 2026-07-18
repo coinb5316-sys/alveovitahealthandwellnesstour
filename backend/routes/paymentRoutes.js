@@ -1,4 +1,4 @@
-// backend/routes/paymentRoutes.js - COMPLETE WITH INLINE PAYMENT SUPPORT
+// backend/routes/paymentRoutes.js - COMPLETE WITH CURRENCY FIX
 import express from 'express';
 import paystack from '../config/paystack.js';
 import { protect } from '../middleware/auth.js';
@@ -106,12 +106,16 @@ router.post('/initialize-direct', protect, async (req, res) => {
       paymentReference: reference,
     });
 
+    // IMPORTANT: Add currency parameter for Ghana Cedis
+    const amountInPesewas = Math.round(amount * 100);
+    
     // Return data for inline payment modal
     const response = {
       success: true,
       data: {
         email: email || req.user.email,
-        amount: Math.round(amount * 100), // Paystack expects amount in kobo/pesewas
+        amount: amountInPesewas, // Paystack expects amount in kobo/pesewas
+        currency: 'GHS', // <-- ADD THIS - CRITICAL FOR GHANA
         reference: reference,
         key: process.env.PAYSTACK_PUBLIC_KEY,
         callback_url: `${process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com/'}/payment/verify`,
@@ -141,6 +145,7 @@ router.post('/initialize-direct', protect, async (req, res) => {
     };
 
     console.log('✅ Direct payment initialized for booking:', booking._id);
+    console.log('💰 Amount in GHS:', amount, 'Amount in pesewas:', amountInPesewas);
 
     res.json(response);
   } catch (error) {
@@ -239,6 +244,7 @@ router.post('/initialize', protect, async (req, res) => {
     const paystackPayload = {
       email: email || req.user.email,
       amount: Math.round(amount * 100),
+      currency: 'GHS', // <-- ADD THIS - CRITICAL FOR GHANA
       reference: reference,
       callback_url: `${process.env.FRONTEND_URL || 'https://www.alveovitahealthandwellnesstour.com/'}/payment/verify`,
       metadata: {
@@ -264,7 +270,8 @@ router.post('/initialize', protect, async (req, res) => {
 
     console.log('📦 Sending to Paystack:', {
       ...paystackPayload,
-      amount: paystackPayload.amount / 100
+      amount: paystackPayload.amount / 100,
+      currency: paystackPayload.currency
     });
 
     const response = await paystack.transaction.initialize(paystackPayload);
@@ -332,7 +339,8 @@ router.get('/verify/:reference', async (req, res) => {
     console.log('📤 Verification response:', {
       status: response.status,
       message: response.message,
-      dataStatus: response.data?.status
+      dataStatus: response.data?.status,
+      currency: response.data?.currency
     });
 
     if (!response.status) {

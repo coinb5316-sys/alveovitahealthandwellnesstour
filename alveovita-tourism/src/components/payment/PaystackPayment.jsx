@@ -192,6 +192,7 @@ const PaystackPayment = ({
           key: publicKey,
           email: data.email,
           amount: data.amount,
+          currency: 'GHS',
           ref: data.reference,
           metadata: data.metadata,
           callback: handlePaymentSuccess,
